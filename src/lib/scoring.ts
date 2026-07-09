@@ -1,0 +1,236 @@
+import {
+  FantasyPick,
+  FantasySquad,
+  Game,
+  GameLineup,
+  MatchEvent,
+  Player,
+  PlayerBreakdown,
+  Profile,
+  TeamCode,
+  WeeklyFantasyResult
+} from "./types";
+
+export function otherTeam(team: TeamCode): TeamCode {
+  return team === "A" ? "B" : "A";
+}
+
+export function lineupForPlayer(lineups: GameLineup[], playerId: string) {
+  return lineups.find(l => l.player_id === playerId);
+}
+
+export function eventScoringTeam(event: MatchEvent, lineups: GameLineup[]): TeamCode | null {
+  const playerLineup = lineupForPlayer(lineups, event.player_id);
+  if (!playerLineup) return null;
+  if (event.event_type === "goal") return playerLineup.team;
+  return otherTeam(playerLineup.team);
+}
+
+export function calculateScore(events: MatchEvent[], lineups: GameLineup[]) {
+  const score: Record<TeamCode, number> = { A: 0, B: 0 };
+  for (const event of events) {
+    const team = eventScoringTeam(event, lineups);
+    if (team) score[team] += 1;
+  }
+  return score;
+}
+
+export function gameWinner(events: MatchEvent[], lineups: GameLineup[]): TeamCode | "draw" | null {
+  const score = calculateScore(events, lineups);
+  if (score.A === score.B) return "draw";
+  return score.A > score.B ? "A" : "B";
+}
+
+export function calculatePlayerBreakdown(args: {
+  game: Game;
+  player: Player;
+  pick?: FantasyPick;
+  lineups: GameLineup[];
+  events: MatchEvent[];
+}): PlayerBreakdown {
+  const { game, player, pick, lineups, events } = args;
+  const lineup = lineupForPlayer(lineups, player.id);
+  const score = calculateScore(events, lineups);
+  const goals = events.filter(e => e.event_type === "goal" && e.player_id === player.id).length;
+  const assists = events.filter(e => e.event_type === "goal" && e.assist_player_id === player.id).length;
+  const ownGoals = events.filter(e => e.event_type === "own_goal" && e.player_id === player.id).length;
+  const lines: string[] = [];
+  let points = 0;
+
+  if (goals) {
+    const pts = goals * 4;
+    points += pts;
+    lines.push(`${goals} goal${goals === 1 ? "" : "s"} = ${pts}`);
+  }
+
+  if (assists) {
+    const pts = assists * 2;
+    points += pts;
+    lines.push(`${assists} assist${assists === 1 ? "" : "s"} = ${pts}`);
+  }
+
+  if (ownGoals) {
+    const pts = ownGoals * -2;
+    points += pts;
+    lines.push(`${ownGoals} own goal${ownGoals === 1 ? "" : "s"} = ${pts}`);
+  }
+
+  if (goals >= 3) {
+    points += 3;
+    lines.push("hat-trick bonus = 3");
+  }
+
+  if (lineup?.team) {
+    const winner = gameWinner(events, lineups);
+    if (winner === "draw") {
+      points += 1;
+      lines.push("draw = 1");
+    } else if (winner === lineup.team) {
+      points += 2;
+      lines.push("win = 2");
+    } else if (winner && score[otherTeam(lineup.team)] - score[lineup.team] >= 3) {
+      points -= 1;
+      lines.push("heavy defeat = -1");
+    }
+
+    if (lineup.role === "goalkeeper" && score[otherTeam(lineup.team)] === 0 && game.status === "final") {
+      points += 4;
+      lines.push("clean sheet = 4");
+    }
+  }
+
+  if (game.potm_player_id === player.id) {
+    points += 3;
+    lines.push("Player of the Match = 3");
+  }
+
+  if (!lines.length) lines.push("played = 0");
+
+  const isCaptain = !!pick?.is_captain;
+  const pointsBeforeCaptain = points;
+  if (isCaptain) {
+    points *= 2;
+    lines.push(`captain x2 = ${points}`);
+  }
+
+  return {
+    playerId: player.id,
+    playerName: player.name,
+    team: lineup?.team,
+    role: pick?.role || lineup?.role,
+    isCaptain,
+    pointsBeforeCaptain,
+    points,
+    lines
+  };
+}
+
+export function calculateSquadResult(args: {
+  game: Game;
+  squad: FantasySquad;
+  picks: FantasyPick[];
+  players: Player[];
+  lineups: GameLineup[];
+  events: MatchEvent[];
+}) {
+  const { game, squad, picks, players, lineups, events } = args;
+  const squadPicks = picks.filter(p => p.squad_id === squad.id).sort((a, b) => a.slot_index - b.slot_index);
+  const breakdown = squadPicks
+    .map(pick => {
+      const player = players.find(p => p.id === pick.player_id);
+      if (!player) return null;
+      return calculatePlayerBreakdown({ game, player, pick, lineups, events });
+    })
+    .filter(Boolean) as PlayerBreakdown[];
+
+  return {
+    points: breakdown.reduce((sum, item) => sum + item.points, 0),
+    breakdown
+  };
+}
+
+export function weeklyLeaderboard(args: {
+  game: Game;
+  profiles: Profile[];
+  squads: FantasySquad[];
+  picks: FantasyPick[];
+  players: Player[];
+  lineups: GameLineup[];
+  events: MatchEvent[];
+}): WeeklyFantasyResult[] {
+  const { game, profiles, squads, picks, players, lineups, events } = args;
+  const gameSquads = squads.filter(s => s.game_id === game.id);
+  const results = gameSquads.map(squad => {
+    const profile = profiles.find(p => p.id === squad.user_id);
+    const result = calculateSquadResult({ game, squad, picks, players, lineups, events });
+    return {
+      userId: squad.user_id,
+      username: profile?.username || "unknown",
+      squadId: squad.id,
+      points: result.points,
+      rank: 0,
+      breakdown: result.breakdown
+    };
+  });
+
+  results.sort((a, b) => b.points - a.points || a.username.localeCompare(b.username));
+  return results.map((r, index) => ({ ...r, rank: index + 1 }));
+}
+
+export function allTimeLeaderboard(args: {
+  profiles: Profile[];
+  games: Game[];
+  squads: FantasySquad[];
+  picks: FantasyPick[];
+  players: Player[];
+  lineups: GameLineup[];
+  events: MatchEvent[];
+}) {
+  const totals = new Map<string, number>();
+  for (const profile of args.profiles) totals.set(profile.id, 0);
+
+  for (const game of args.games.filter(g => g.status === "final")) {
+    const board = weeklyLeaderboard({ ...args, game });
+    for (const row of board) totals.set(row.userId, (totals.get(row.userId) || 0) + row.points);
+  }
+
+  return args.profiles
+    .map(profile => ({
+      userId: profile.id,
+      username: profile.username,
+      points: totals.get(profile.id) || 0,
+      rank: 0
+    }))
+    .sort((a, b) => b.points - a.points || a.username.localeCompare(b.username))
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+export function careerStats(args: {
+  player: Player;
+  games: Game[];
+  lineups: GameLineup[];
+  events: MatchEvent[];
+}) {
+  const finalOrLiveGames = args.games.filter(g => g.status === "final" || g.status === "live");
+  const gameIds = new Set(finalOrLiveGames.map(g => g.id));
+  const playerLineups = args.lineups.filter(l => l.player_id === args.player.id && gameIds.has(l.game_id));
+  const playerEvents = args.events.filter(e => gameIds.has(e.game_id));
+
+  let cleanSheets = 0;
+  for (const lineup of playerLineups.filter(l => l.role === "goalkeeper")) {
+    const game = finalOrLiveGames.find(g => g.id === lineup.game_id);
+    if (!game || game.status !== "final") continue;
+    const gameLineups = args.lineups.filter(l => l.game_id === game.id);
+    const gameEvents = args.events.filter(e => e.game_id === game.id);
+    const score = calculateScore(gameEvents, gameLineups);
+    if (score[otherTeam(lineup.team)] === 0) cleanSheets += 1;
+  }
+
+  return {
+    appearances: playerLineups.length,
+    goals: playerEvents.filter(e => e.event_type === "goal" && e.player_id === args.player.id).length,
+    assists: playerEvents.filter(e => e.event_type === "goal" && e.assist_player_id === args.player.id).length,
+    ownGoals: playerEvents.filter(e => e.event_type === "own_goal" && e.player_id === args.player.id).length,
+    cleanSheets
+  };
+}

@@ -1,0 +1,764 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, GripVertical, Trash2, X } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { calculateScore } from "@/lib/scoring";
+import { cn, formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
+import { Game, LeagueData, Player, PlayerPosition, TeamCode } from "@/lib/types";
+import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, SecondaryButton, Select, TextInput, Toast } from "./ui";
+
+type AdminTab = "games" | "roster";
+type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
+type ConfirmState = {
+  title: string;
+  text?: string;
+  confirmLabel?: string;
+  onConfirm: () => void | Promise<void>;
+} | null;
+
+export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => void }) {
+  const [activeTab, setActiveTab] = useState<AdminTab>("games");
+  const [playerNameInput, setPlayerNameInput] = useState("");
+  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>("outfield");
+  const [gameDate, setGameDate] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const games = useMemo(
+    () => [...data.games].sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()),
+    [data.games]
+  );
+
+  function notify(message: string) {
+    setToast(message);
+  }
+
+  function requestConfirm(state: NonNullable<ConfirmState>) {
+    setConfirmState(state);
+  }
+
+  async function addPlayer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!playerNameInput.trim()) return;
+    const { error } = await supabase.from("players").insert({ name: playerNameInput.trim(), default_position: playerPosition });
+    if (error) return notify(error.message);
+    setPlayerNameInput("");
+    notify("Player added.");
+    reload();
+  }
+
+  async function deletePlayer(id: string) {
+    requestConfirm({
+      title: "Remove player?",
+      text: "This removes the player from the roster and can affect old game records.",
+      confirmLabel: "Remove player",
+      onConfirm: async () => {
+        const { error } = await supabase.from("players").delete().eq("id", id);
+        if (error) return notify(error.message);
+        notify("Player deleted.");
+        reload();
+      }
+    });
+  }
+
+  async function createGame(e: React.FormEvent) {
+    e.preventDefault();
+    if (!gameDate) return;
+    const { error } = await supabase.from("games").insert({ game_date: new Date(gameDate).toISOString(), status: "upcoming" });
+    if (error) return notify(error.message);
+    setGameDate("");
+    notify("Game created.");
+    reload();
+  }
+
+  return (
+    <div className="space-y-6">
+      <Toast message={toast} onDone={() => setToast(null)} />
+      <ConfirmDialog
+        open={!!confirmState}
+        title={confirmState?.title || ""}
+        text={confirmState?.text}
+        confirmLabel={confirmState?.confirmLabel}
+        onCancel={() => setConfirmState(null)}
+        onConfirm={async () => {
+          const action = confirmState?.onConfirm;
+          setConfirmState(null);
+          await action?.();
+        }}
+      />
+      <div>
+        <h1 className="font-display text-5xl uppercase">Admin Control Room</h1>
+        <p className="mt-2 text-chalk/60">Manage roster, games, lineups, live events, final results, and Player of the Match.</p>
+      </div>
+
+      <div className="inline-flex rounded-2xl border border-white/10 bg-black/25 p-1">
+        <TabButton active={activeTab === "games"} onClick={() => setActiveTab("games")}>Games</TabButton>
+        <TabButton active={activeTab === "roster"} onClick={() => setActiveTab("roster")}>Roster</TabButton>
+      </div>
+
+      {activeTab === "games" ? (
+        <div className="space-y-6">
+          <QuickStartChecklist data={data} />
+          <Card>
+            <h2 className="font-display text-3xl uppercase">Create Game</h2>
+            <form onSubmit={createGame} className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <TextInput type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
+              <PrimaryButton>Create</PrimaryButton>
+            </form>
+          </Card>
+
+          <div className="space-y-4">
+            {games.map((game, index) => (
+              <GameSection key={game.id} game={game} data={data} reload={reload} defaultOpen={index === 0} notify={notify} requestConfirm={requestConfirm} />
+            ))}
+          </div>
+          {!games.length ? <EmptyState title="No games yet" text="Create the first Thursday game to start setting lineups." /> : null}
+        </div>
+      ) : (
+        <Card>
+          <h2 className="font-display text-3xl uppercase">Roster</h2>
+          <form onSubmit={addPlayer} className="mt-4 grid gap-3 md:grid-cols-[1fr_220px_auto]">
+            <TextInput value={playerNameInput} onChange={e => setPlayerNameInput(e.target.value)} placeholder="Player name" />
+            <Select value={playerPosition} onChange={e => setPlayerPosition(e.target.value as PlayerPosition)}>
+              <option value="outfield">Outfield</option>
+              <option value="goalkeeper">Goalkeeper</option>
+            </Select>
+            <PrimaryButton>Add player</PrimaryButton>
+          </form>
+
+          <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {data.players.map(player => (
+              <PlayerAdminRow key={player.id} player={player} onDelete={deletePlayer} reload={reload} notify={notify} />
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function TabButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
+  const { active, className, ...rest } = props;
+  return (
+    <button
+      type="button"
+      {...rest}
+      className={cn(
+        "min-w-28 rounded-xl px-4 py-2 text-sm font-bold uppercase tracking-wider text-chalk/65 transition",
+        active && "bg-floodlight text-ink-900 shadow-amber",
+        className
+      )}
+    />
+  );
+}
+
+function QuickStartChecklist({ data }: { data: LeagueData }) {
+  const hasRoster = data.players.length >= 10;
+  const hasGame = data.games.length > 0;
+  const hasSavedLineup = data.games.some(game => {
+    const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
+    return lineups.filter(lineup => lineup.team === "A").length === 5 && lineups.filter(lineup => lineup.team === "B").length === 5;
+  });
+  const hasFantasyOpen = data.games.some(game => game.status === "draft" || game.status === "live" || game.status === "final");
+  const hasGoneLive = data.games.some(game => game.status === "live" || game.status === "final");
+  const steps = [
+    { label: "Add roster", done: hasRoster, detail: `${data.players.length}/10 players` },
+    { label: "Create game", done: hasGame },
+    { label: "Set lineups", done: hasSavedLineup },
+    { label: "Open fantasy", done: hasFantasyOpen },
+    { label: "Mark live", done: hasGoneLive }
+  ];
+
+  if (steps.every(step => step.done)) return null;
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-3xl uppercase">Quick Start</h2>
+          <p className="text-sm text-chalk/55">A short checklist for getting the league moving.</p>
+        </div>
+        <Pill>{steps.filter(step => step.done).length}/{steps.length}</Pill>
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-5">
+        {steps.map(step => (
+          <div key={step.label} className={cn("rounded-2xl border p-3", step.done ? "border-perimeter-400/30 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03]")}>
+            <div className="text-sm font-bold">{step.done ? "Done" : "Next"}</div>
+            <div className="mt-1 text-sm text-chalk/75">{step.label}</div>
+            {step.detail ? <div className="mt-1 text-xs text-chalk/45">{step.detail}</div> : null}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function PlayerAdminRow({ player, onDelete, reload, notify }: { player: Player; onDelete: (id: string) => void | Promise<void>; reload: () => void; notify: (message: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(player.name);
+  const [position, setPosition] = useState<PlayerPosition>(player.default_position);
+  const [active, setActive] = useState(player.active);
+
+  async function save() {
+    const { error } = await supabase.from("players").update({ name: name.trim(), default_position: position, active }).eq("id", player.id);
+    if (error) return notify(error.message);
+    setEditing(false);
+    notify("Player saved.");
+    reload();
+  }
+
+  if (editing) {
+    return (
+      <div className="rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-3">
+        <div className="grid gap-2">
+          <TextInput value={name} onChange={e => setName(e.target.value)} />
+          <Select value={position} onChange={e => setPosition(e.target.value as PlayerPosition)}>
+            <option value="outfield">Outfield</option>
+            <option value="goalkeeper">Goalkeeper</option>
+          </Select>
+          <label className="flex items-center gap-2 text-sm text-chalk/70"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="accent-floodlight" /> Active</label>
+          <div className="flex gap-2">
+            <PrimaryButton type="button" onClick={save} className="flex-1">Save</PrimaryButton>
+            <SecondaryButton type="button" onClick={() => setEditing(false)}>Cancel</SecondaryButton>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+      <button type="button" onClick={() => setEditing(true)} className="min-w-0 text-left">
+        <div className="truncate font-semibold">{player.name}</div>
+        <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position}{player.active ? "" : " - inactive"}</div>
+      </button>
+      <button type="button" onClick={() => onDelete(player.id)} className="rounded-xl p-2 text-chalk/45 hover:text-red-300"><Trash2 size={16} /></button>
+    </div>
+  );
+}
+
+function toLocalDatetimeInput(iso: string) {
+  const d = new Date(iso);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+function GameSection({
+  game,
+  data,
+  reload,
+  defaultOpen,
+  notify,
+  requestConfirm
+}: {
+  game: Game;
+  data: LeagueData;
+  reload: () => void;
+  defaultOpen: boolean;
+  notify: (message: string) => void;
+  requestConfirm: (state: NonNullable<ConfirmState>) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
+  const events = data.events.filter(event => event.game_id === game.id);
+  const score = calculateScore(events, lineups);
+  const savedTeamA = lineups.filter(lineup => lineup.team === "A");
+  const savedTeamB = lineups.filter(lineup => lineup.team === "B");
+  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-white/10 bg-black/20">
+      <button
+        type="button"
+        onClick={() => setOpen(value => !value)}
+        className="flex w-full flex-wrap items-center justify-between gap-3 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.06]"
+      >
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill>{statusLabel(game.status)}</Pill>
+            <Pill className={lineupReady ? "border-perimeter-400/40 bg-perimeter-400/10 text-perimeter-400" : "border-floodlight/30 bg-floodlight/10 text-floodlight"}>
+              {lineupReady ? "Lineup ready" : "Lineup pending"}
+            </Pill>
+          </div>
+          <h2 className="mt-2 font-display text-3xl uppercase">{formatDateTime(game.game_date)}</h2>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="font-mono text-3xl text-chalk">A {score.A} - {score.B} B</div>
+          <ChevronDown className={cn("text-chalk/60 transition", open && "rotate-180")} size={22} />
+        </div>
+      </button>
+      {open ? (
+        <div className="space-y-6 p-4 md:p-5">
+          <GameManager game={game} data={data} reload={reload} notify={notify} requestConfirm={requestConfirm} />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function GameManager({ game, data, reload, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; notify: (message: string) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
+  const currentLineup = data.lineups.filter(l => l.game_id === game.id);
+  const gameEvents = data.events.filter(e => e.game_id === game.id);
+  const score = calculateScore(gameEvents, currentLineup);
+  const [lineupDraft, setLineupDraft] = useState<LineupDraft>({});
+  const [lineupOpen, setLineupOpen] = useState(currentLineup.length === 0);
+  const [dragPlayerId, setDragPlayerId] = useState<string | null>(null);
+  const [eventType, setEventType] = useState<"goal" | "own_goal">("goal");
+  const [eventPlayerId, setEventPlayerId] = useState(currentLineup[0]?.player_id || "");
+  const [assistPlayerId, setAssistPlayerId] = useState("");
+  const [minute, setMinute] = useState("");
+  const [potm, setPotm] = useState(game.potm_player_id || "");
+  const [dateEdit, setDateEdit] = useState(toLocalDatetimeInput(game.game_date));
+
+  useEffect(() => {
+    const draft: LineupDraft = {};
+    for (const player of data.players) {
+      const existing = currentLineup.find(l => l.player_id === player.id);
+      draft[player.id] = {
+        team: existing?.team || null,
+        role: existing?.role || player.default_position
+      };
+    }
+    setLineupDraft(draft);
+    setEventPlayerId(currentLineup[0]?.player_id || "");
+    setAssistPlayerId("");
+    setPotm(game.potm_player_id || "");
+    setDateEdit(toLocalDatetimeInput(game.game_date));
+  }, [game.id, game.game_date, game.potm_player_id, data.players, data.lineups]);
+
+  const rosterPlayers = useMemo(
+    () => data.players.filter(player => player.active || lineupDraft[player.id]?.team),
+    [data.players, lineupDraft]
+  );
+  const selectedPlayers = useMemo(() => rosterPlayers.filter(p => lineupDraft[p.id]?.team), [rosterPlayers, lineupDraft]);
+  const availablePlayers = useMemo(() => rosterPlayers.filter(p => !lineupDraft[p.id]?.team), [rosterPlayers, lineupDraft]);
+  const teamAPlayers = useMemo(() => selectedPlayers.filter(p => lineupDraft[p.id]?.team === "A"), [selectedPlayers, lineupDraft]);
+  const teamBPlayers = useMemo(() => selectedPlayers.filter(p => lineupDraft[p.id]?.team === "B"), [selectedPlayers, lineupDraft]);
+  const eventPlayers = useMemo(() => data.players.filter(player => currentLineup.some(lineup => lineup.player_id === player.id)), [data.players, currentLineup]);
+  const teamAGoalkeepers = teamAPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
+  const teamBGoalkeepers = teamBPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
+  const lineupIssues = [
+    teamAPlayers.length !== 5 ? `Team A needs exactly 5 players (${teamAPlayers.length}/5).` : null,
+    teamBPlayers.length !== 5 ? `Team B needs exactly 5 players (${teamBPlayers.length}/5).` : null,
+    teamAPlayers.length !== teamBPlayers.length ? "Team counts are uneven." : null,
+    teamAGoalkeepers > 1 ? "Team A has more than one goalkeeper." : null,
+    teamBGoalkeepers > 1 ? "Team B has more than one goalkeeper." : null
+  ].filter(Boolean) as string[];
+  const lineupCanSave = lineupIssues.length === 0;
+  const draftReady = lineupCanSave;
+  const savedTeamA = currentLineup.filter(lineup => lineup.team === "A");
+  const savedTeamB = currentLineup.filter(lineup => lineup.team === "B");
+  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
+  const canFinalize = lineupReady;
+  const matchControlText = lineupReady
+    ? "Lineups are ready. You can start the game, log events, and set POTM."
+    : draftReady
+      ? "Save this lineup before starting the game or entering events."
+      : "Save exactly 5 players on each team before starting the game or entering events.";
+
+  function draftValue(player: Player) {
+    return lineupDraft[player.id] || { team: null, role: player.default_position };
+  }
+
+  function movePlayer(playerId: string, team: TeamCode | null) {
+    const player = data.players.find(p => p.id === playerId);
+    if (!player) return;
+    setLineupDraft(draft => ({
+      ...draft,
+      [playerId]: {
+        team,
+        role: draft[playerId]?.role || player.default_position
+      }
+    }));
+  }
+
+  function setRole(player: Player, role: PlayerPosition) {
+    const value = draftValue(player);
+    setLineupDraft(draft => ({ ...draft, [player.id]: { ...value, role } }));
+  }
+
+  function handleDrop(e: React.DragEvent, team: TeamCode | null) {
+    e.preventDefault();
+    const playerId = e.dataTransfer.getData("text/plain") || dragPlayerId;
+    if (playerId) movePlayer(playerId, team);
+    setDragPlayerId(null);
+  }
+
+  async function saveLineup() {
+    if (!lineupCanSave) {
+      notify("Fix lineup issues before saving.");
+      return;
+    }
+    await supabase.from("game_lineups").delete().eq("game_id", game.id);
+    const rows = (Object.entries(lineupDraft) as [string, { team: TeamCode | null; role: PlayerPosition }][])
+      .filter(([, value]) => value.team)
+      .map(([player_id, value]) => ({ game_id: game.id, player_id, team: value.team as TeamCode, role: value.role }));
+    if (rows.length) {
+      const { error } = await supabase.from("game_lineups").insert(rows);
+      if (error) return notify(error.message);
+    }
+    if (game.status === "upcoming" && rows.length) await supabase.from("games").update({ status: "draft" }).eq("id", game.id);
+    setLineupOpen(false);
+    notify("Lineup saved.");
+    reload();
+  }
+
+  async function updateStatus(status: Game["status"]) {
+    if ((status === "live" || status === "final") && !lineupReady) {
+      notify("Set and save a valid 5v5 lineup before changing the game status.");
+      return;
+    }
+    if (status === "final" && !canFinalize) {
+      notify("Cannot mark final before lineups are saved.");
+      return;
+    }
+    const { error } = await supabase.from("games").update({ status }).eq("id", game.id);
+    if (error) return notify(error.message);
+    notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
+    reload();
+  }
+
+  async function saveGameDetails() {
+    if (!dateEdit) return;
+    const { error } = await supabase.from("games").update({ game_date: new Date(dateEdit).toISOString() }).eq("id", game.id);
+    if (error) return notify(error.message);
+    notify("Game date saved.");
+    reload();
+  }
+
+  async function addEvent(e: React.FormEvent) {
+    e.preventDefault();
+    if (!lineupReady || !eventPlayerId) return;
+    const { error } = await supabase.from("events").insert({
+      game_id: game.id,
+      event_type: eventType,
+      player_id: eventPlayerId,
+      assist_player_id: eventType === "goal" && assistPlayerId ? assistPlayerId : null,
+      minute: minute ? Number(minute) : null
+    });
+    if (error) return notify(error.message);
+    setMinute("");
+    setAssistPlayerId("");
+    notify("Event added.");
+    reload();
+  }
+
+  async function deleteEvent(id: string) {
+    requestConfirm({
+      title: "Delete event?",
+      text: "This removes the goal or own goal from this game.",
+      confirmLabel: "Delete event",
+      onConfirm: async () => {
+        const { error } = await supabase.from("events").delete().eq("id", id);
+        if (error) return notify(error.message);
+        notify("Event deleted.");
+        reload();
+      }
+    });
+  }
+
+  async function savePotm() {
+    if (!lineupReady) return;
+    const { error } = await supabase.from("games").update({ potm_player_id: potm || null }).eq("id", game.id);
+    if (error) return notify(error.message);
+    notify("POTM saved.");
+    reload();
+  }
+
+  async function deleteGame() {
+    requestConfirm({
+      title: "Delete game?",
+      text: "This deletes the game and its lineups, events, fantasy squads, and picks.",
+      confirmLabel: "Delete game",
+      onConfirm: async () => {
+        const { error } = await supabase.from("games").delete().eq("id", game.id);
+        if (error) return notify(error.message);
+        notify("Game deleted.");
+        reload();
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Pill>{statusLabel(game.status)}</Pill>
+            <h2 className="mt-2 font-display text-4xl uppercase">{formatDateTime(game.game_date)}</h2>
+            <div className="mt-2 font-mono text-3xl">Team A {score.A} - {score.B} Team B</div>
+            <div className="mt-4 flex max-w-md gap-2">
+              <TextInput type="datetime-local" value={dateEdit} onChange={e => setDateEdit(e.target.value)} />
+              <SecondaryButton type="button" onClick={saveGameDetails}>Save date</SecondaryButton>
+            </div>
+          </div>
+          <button type="button" onClick={deleteGame} className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 font-semibold text-red-200">Delete game</button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-3xl uppercase">Lineups</h3>
+            <p className="text-sm text-chalk/55">{lineupOpen ? "Drag players into Team A or Team B. Drag them back to Available to remove them." : "Saved lineup is collapsed. Reopen it to make changes."}</p>
+          </div>
+          {lineupOpen ? (
+            <PrimaryButton type="button" onClick={saveLineup} disabled={!lineupCanSave}>Save lineup</PrimaryButton>
+          ) : (
+            <PrimaryButton type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
+          )}
+        </div>
+
+        {lineupOpen ? (
+          <>
+            <LineupValidation issues={lineupIssues} />
+            <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_.9fr_1fr]">
+              <TeamDropZone title="Team A" team="A" players={teamAPlayers} lineupDraft={lineupDraft} onDrop={handleDrop}>
+                {teamAPlayers.map(player => <LineupPlayerCard key={player.id} player={player} value={draftValue(player)} onDragStart={setDragPlayerId} onMove={movePlayer} onRole={setRole} />)}
+              </TeamDropZone>
+
+              <TeamDropZone title="Available" team={null} players={availablePlayers} lineupDraft={lineupDraft} onDrop={handleDrop} compact>
+                {availablePlayers.map(player => <LineupPlayerCard key={player.id} player={player} value={draftValue(player)} onDragStart={setDragPlayerId} onMove={movePlayer} onRole={setRole} compact />)}
+              </TeamDropZone>
+
+              <TeamDropZone title="Team B" team="B" players={teamBPlayers} lineupDraft={lineupDraft} onDrop={handleDrop}>
+                {teamBPlayers.map(player => <LineupPlayerCard key={player.id} player={player} value={draftValue(player)} onDragStart={setDragPlayerId} onMove={movePlayer} onRole={setRole} />)}
+              </TeamDropZone>
+            </div>
+          </>
+        ) : (
+          <SavedLineupSummary players={data.players} lineups={currentLineup} />
+        )}
+      </Card>
+
+      <Card className={!lineupReady ? "border-floodlight/30" : undefined}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="font-display text-3xl uppercase">Match Control</h3>
+            <p className="text-sm text-chalk/55">{matchControlText}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <SecondaryButton type="button" onClick={() => updateStatus("upcoming")}>Upcoming</SecondaryButton>
+            <SecondaryButton type="button" onClick={() => updateStatus("draft")}>Draft</SecondaryButton>
+            <PrimaryButton type="button" disabled={!lineupReady} onClick={() => updateStatus("live")}>Mark live</PrimaryButton>
+            <SecondaryButton type="button" disabled={!canFinalize} onClick={() => updateStatus("final")}>Final</SecondaryButton>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
+            <h4 className="font-display text-2xl uppercase">Events</h4>
+            <form onSubmit={addEvent} className="mt-4 grid gap-3">
+              <Select disabled={!lineupReady} value={eventType} onChange={e => setEventType(e.target.value as "goal" | "own_goal")}>
+                <option value="goal">Goal</option>
+                <option value="own_goal">Own goal</option>
+              </Select>
+              <Select disabled={!lineupReady} value={eventPlayerId} onChange={e => setEventPlayerId(e.target.value)}>
+                <option value="">Select player</option>
+                {eventPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
+              </Select>
+              {eventType === "goal" ? (
+                <Select disabled={!lineupReady} value={assistPlayerId} onChange={e => setAssistPlayerId(e.target.value)}>
+                  <option value="">No assist</option>
+                  {eventPlayers.filter(p => p.id !== eventPlayerId).map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
+                </Select>
+              ) : null}
+              <TextInput disabled={!lineupReady} type="number" min="0" max="200" value={minute} onChange={e => setMinute(e.target.value)} placeholder="Minute optional" />
+              <PrimaryButton disabled={!lineupReady}>Add event</PrimaryButton>
+            </form>
+
+            <div className="mt-4 space-y-2">
+              {gameEvents.map(event => (
+                <div key={event.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm">
+                  <span>{event.minute != null ? `${event.minute}' - ` : ""}{event.event_type === "own_goal" ? "Own goal" : "Goal"}: {playerName(data.players, event.player_id)} {event.assist_player_id ? `- assist ${playerName(data.players, event.assist_player_id)}` : ""}</span>
+                  <button type="button" onClick={() => deleteEvent(event.id)} className="text-chalk/45 hover:text-red-300"><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
+            <h4 className="font-display text-2xl uppercase">Player of the Match</h4>
+            <div className="mt-4 flex gap-3">
+              <Select disabled={!lineupReady} value={potm} onChange={e => setPotm(e.target.value)}>
+                <option value="">No POTM</option>
+                {eventPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
+              </Select>
+              <SecondaryButton type="button" disabled={!lineupReady} onClick={savePotm}>Save</SecondaryButton>
+            </div>
+          </section>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function TeamDropZone({
+  title,
+  team,
+  players,
+  onDrop,
+  children,
+  compact
+}: {
+  title: string;
+  team: TeamCode | null;
+  players: Player[];
+  lineupDraft: LineupDraft;
+  onDrop: (e: React.DragEvent, team: TeamCode | null) => void;
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => onDrop(e, team)}
+      className={cn("min-h-80 rounded-3xl border border-dashed border-white/15 bg-black/20 p-3", compact && "xl:order-none")}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="font-display text-2xl uppercase">{title}</h4>
+        <Pill>{players.length}</Pill>
+      </div>
+      <div className="space-y-2">
+        {players.length ? children : <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center text-sm text-chalk/45">Drop players here</div>}
+      </div>
+    </div>
+  );
+}
+
+function LineupValidation({ issues }: { issues: string[] }) {
+  if (!issues.length) {
+    return (
+      <div className="mt-4 rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-3 text-sm font-semibold text-perimeter-400">
+        Lineup is valid: 5 players per team.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl border border-floodlight/30 bg-floodlight/10 p-3 text-sm text-floodlight">
+      <div className="font-bold">Fix before saving:</div>
+      <ul className="mt-2 list-disc space-y-1 pl-5">
+        {issues.map(issue => <li key={issue}>{issue}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+function SavedLineupSummary({ players, lineups }: { players: Player[]; lineups: { player_id: string; team: TeamCode; role: PlayerPosition }[] }) {
+  const teamA = lineups.filter(lineup => lineup.team === "A");
+  const teamB = lineups.filter(lineup => lineup.team === "B");
+
+  return (
+    <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <SavedTeam title="Team A" players={players} lineups={teamA} />
+      <SavedTeam title="Team B" players={players} lineups={teamB} />
+    </div>
+  );
+}
+
+function SavedTeam({ title, players, lineups }: { title: string; players: Player[]; lineups: { player_id: string; role: PlayerPosition }[] }) {
+  const sorted = sortLineupsByRole(players, lineups.map((lineup, index) => ({
+    id: `${lineup.player_id}-${index}`,
+    game_id: "",
+    team: "A",
+    player_id: lineup.player_id,
+    role: lineup.role
+  })));
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="font-display text-2xl uppercase">{title}</h4>
+        <Pill>{lineups.length}</Pill>
+      </div>
+      <div className="space-y-2">
+        {sorted.length ? sorted.map(lineup => (
+          <div key={lineup.player_id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+            <span className="font-semibold">{playerName(players, lineup.player_id)}</span>
+            <span className="rounded-xl bg-perimeter-400/15 px-2 py-1 text-xs font-black uppercase text-perimeter-400">{lineup.role === "goalkeeper" ? "GK" : "O"}</span>
+          </div>
+        )) : <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-chalk/45">No players saved.</div>}
+      </div>
+    </div>
+  );
+}
+
+function LineupPlayerCard({
+  player,
+  value,
+  onDragStart,
+  onMove,
+  onRole,
+  compact
+}: {
+  player: Player;
+  value: { team: TeamCode | null; role: PlayerPosition };
+  onDragStart: (id: string) => void;
+  onMove: (playerId: string, team: TeamCode | null) => void;
+  onRole: (player: Player, role: PlayerPosition) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={e => {
+        e.dataTransfer.setData("text/plain", player.id);
+        onDragStart(player.id);
+      }}
+      className="rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+    >
+      <div className="flex items-center gap-2">
+        <GripVertical size={16} className="shrink-0 text-chalk/35" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold">{player.name}</div>
+          <div className="text-xs uppercase tracking-wider text-chalk/40">Default {player.default_position}</div>
+        </div>
+        {value.team ? (
+          <button type="button" onClick={() => onMove(player.id, null)} className="rounded-xl p-2 text-chalk/45 hover:text-red-300" aria-label={`Remove ${player.name} from lineup`}>
+            <X size={16} />
+          </button>
+        ) : null}
+      </div>
+      <div className={cn("mt-3 grid gap-2", compact ? "grid-cols-2" : "grid-cols-2")}>
+        <RoleButton active={value.role === "outfield"} onClick={() => onRole(player, "outfield")}>O</RoleButton>
+        <RoleButton active={value.role === "goalkeeper"} onClick={() => onRole(player, "goalkeeper")}>GK</RoleButton>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        <MoveButton active={value.team === "A"} onClick={() => onMove(player.id, "A")}>Team A</MoveButton>
+        <MoveButton active={value.team === "B"} onClick={() => onMove(player.id, "B")}>Team B</MoveButton>
+        <MoveButton active={!value.team} onClick={() => onMove(player.id, null)}>Out</MoveButton>
+      </div>
+    </div>
+  );
+}
+
+function MoveButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
+  const { active, className, ...rest } = props;
+  return (
+    <button
+      type="button"
+      {...rest}
+      className={cn(
+        "rounded-xl border border-white/10 px-2 py-2 text-xs font-bold transition hover:border-floodlight/50",
+        active ? "bg-floodlight text-ink-900" : "bg-black/20 text-chalk/60",
+        className
+      )}
+    />
+  );
+}
+
+function RoleButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
+  const { active, className, ...rest } = props;
+  return (
+    <button
+      type="button"
+      {...rest}
+      className={cn(
+        "rounded-xl border border-white/10 px-3 py-2 text-sm font-black transition hover:border-perimeter-400/60",
+        active ? "bg-perimeter-400 text-ink-900" : "bg-black/20 text-chalk/65",
+        className
+      )}
+    />
+  );
+}

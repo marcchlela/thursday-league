@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #11110f;
+  color: #f5f2e8;
+}
+
+.panel {
+  background:
+    linear-gradient(rgba(17, 17, 15, .90), rgba(17, 17, 15, .94)),
+    url('/turf-muted.png');
+  background-size: 420px 420px;
+}
+
+.pitch {
+  background-image:
+    linear-gradient(rgba(20, 138, 50, .18), rgba(6, 57, 22, .10)),
+    url('/turf-texture.png');
+  background-size: 520px 520px;
+}
+
+.chalk-dash {
+  border-top: 1px dashed rgba(245, 242, 232, .32);
+}
+
+::selection {
+  background: rgba(247, 183, 51, .35);
+}
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
