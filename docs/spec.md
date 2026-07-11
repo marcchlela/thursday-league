@@ -197,6 +197,7 @@ Content:
 - Team A lineup
 - Team B lineup
 - Events list
+- Recorded player stats, when available
 
 Lineup ordering:
 
@@ -233,6 +234,7 @@ Content per player:
   - Goals
   - Assists
   - Clean sheets
+  - Saves
   - Own goals
 
 Stats are calculated from saved games, lineups, and events.
@@ -402,9 +404,9 @@ Before saving, the lineup must be valid.
 
 Rules:
 
-- Team A must have exactly 5 players.
-- Team B must have exactly 5 players.
-- Team counts cannot be uneven.
+- Team A must have at least 5 players.
+- Team B must have at least 5 players.
+- Teams may list additional substitutes and do not need equal roster counts.
 - Team A cannot have more than one goalkeeper.
 - Team B cannot have more than one goalkeeper.
 
@@ -450,8 +452,8 @@ upcoming -> draft -> live -> final
 Behavior:
 
 - Saving a valid lineup changes an upcoming game to draft.
-- Mark live is disabled until a valid saved 5v5 lineup exists.
-- Final is disabled until a valid saved 5v5 lineup exists.
+- Mark live is disabled until a valid saved lineup with at least 5 players per team exists.
+- Final is disabled until a valid saved lineup with at least 5 players per team exists.
 - Events and POTM are disabled until a valid saved lineup exists.
 
 Feedback:
@@ -495,6 +497,28 @@ Feedback:
 Delete behavior:
 
 - Uses in-app confirmation modal.
+
+### 12.1 Admin: Manual Player Stats
+
+The admin can record stats for any active roster player on a specific game, including someone who joined after the official lineup was saved.
+
+Current stat fields:
+
+- Goals
+- Assists
+- Saves
+
+Rules:
+
+- One editable stats record exists per player per game.
+- A row with zero saves can still record an appearance for a late participant.
+- The app automatically uses a lineup player's Team A/B assignment. For a player absent from the official lineup, the admin assigns Team A/B and their outfield/GK role; they then become available as a `Late addition` in the fantasy picker until picks lock.
+- Manual goals count for the selected team in the match score. Manual goals, assists, and saves count toward player career totals and fantasy points.
+- They are visible on the game detail page and included in player career stats.
+
+Feedback:
+
+- Player stats saved toast
 
 ## 13. Admin: Player of the Match
 
@@ -640,6 +664,7 @@ Squad breakdown includes:
 | Draw | +1 |
 | Player of the Match | +3 |
 | Clean sheet, goalkeeper only | +4 |
+| Every 2 saves, goalkeeper only | +1 |
 | Hat-trick bonus, 3+ goals | +3 |
 | Own goal | -2 |
 | Heavy defeat, losing by 3+ | -1 |
@@ -650,6 +675,7 @@ Notes:
 - Score and fantasy points recalculate from saved events and lineups.
 - Editing/deleting events affects fantasy results automatically after reload/realtime refresh.
 - Clean sheet only applies to goalkeepers on final games where their team conceded 0.
+- Saves are entered manually by an admin. Eight saves earn four fantasy points; captain doubles the resulting total as usual.
 
 ## 19. Data Model
 
@@ -720,6 +746,24 @@ Fields:
 - `player_id`
 - `assist_player_id`
 - `minute`
+
+### game_player_stats
+
+Manual per-player statistics for one game.
+
+Fields:
+
+- `id`
+- `game_id`
+- `player_id`
+- `team`
+- `role`
+- `goals`
+- `assists`
+- `saves`
+- `created_at`
+
+The unique `game_id` and `player_id` pair ensures an admin edits the existing stats row instead of creating duplicates.
 - `created_at`
 
 Rules:

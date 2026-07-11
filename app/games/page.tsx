@@ -27,7 +27,8 @@ export default function GamesPage() {
         {games.map(game => {
           const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
           const events = data.events.filter(event => event.game_id === game.id);
-          const score = calculateScore(events, lineups);
+          const playerStats = data.playerStats.filter(stat => stat.game_id === game.id);
+          const score = calculateScore(events, lineups, playerStats);
           const teamA = sortLineupsByRole(data.players, lineups.filter(lineup => lineup.team === "A"));
           const teamB = sortLineupsByRole(data.players, lineups.filter(lineup => lineup.team === "B"));
 

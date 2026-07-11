@@ -37,7 +37,7 @@ export default function HomePage() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
-        {featured ? <GameSummary game={featured} players={data.players} lineups={data.lineups} events={data.events} title={liveGame ? "Live now" : "Most recent result"} /> : <EmptyState title="No results yet" text="Once a game goes live or final, it lands here." />}
+        {featured ? <GameSummary game={featured} players={data.players} lineups={data.lineups} events={data.events} playerStats={data.playerStats} title={liveGame ? "Live now" : "Most recent result"} /> : <EmptyState title="No results yet" text="Once a game goes live or final, it lands here." />}
 
         <Card>
           <h2 className="font-display text-3xl uppercase">Next upcoming game</h2>
@@ -49,8 +49,8 @@ export default function HomePage() {
               </Link>
               {data.lineups.some(l => l.game_id === nextGame.id) ? (
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"><div className="text-xs text-chalk/45">Team A</div><div className="font-mono text-3xl">{calculateScore(data.events.filter(e => e.game_id === nextGame.id), data.lineups.filter(l => l.game_id === nextGame.id)).A}</div></div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"><div className="text-xs text-chalk/45">Team B</div><div className="font-mono text-3xl">{calculateScore(data.events.filter(e => e.game_id === nextGame.id), data.lineups.filter(l => l.game_id === nextGame.id)).B}</div></div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"><div className="text-xs text-chalk/45">Team A</div><div className="font-mono text-3xl">{calculateScore(data.events.filter(e => e.game_id === nextGame.id), data.lineups.filter(l => l.game_id === nextGame.id), data.playerStats.filter(stat => stat.game_id === nextGame.id)).A}</div></div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"><div className="text-xs text-chalk/45">Team B</div><div className="font-mono text-3xl">{calculateScore(data.events.filter(e => e.game_id === nextGame.id), data.lineups.filter(l => l.game_id === nextGame.id), data.playerStats.filter(stat => stat.game_id === nextGame.id)).B}</div></div>
                 </div>
               ) : null}
             </div>

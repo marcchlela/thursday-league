@@ -73,6 +73,19 @@ create table if not exists public.events (
   )
 );
 
+create table if not exists public.game_player_stats (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid not null references public.games(id) on delete cascade,
+  player_id uuid not null references public.players(id) on delete cascade,
+  team team_code not null default 'A',
+  role player_position not null default 'outfield',
+  goals integer not null default 0 check (goals >= 0),
+  assists integer not null default 0 check (assists >= 0),
+  saves integer not null default 0 check (saves >= 0),
+  created_at timestamptz not null default now(),
+  unique (game_id, player_id)
+);
+
 create table if not exists public.fantasy_squads (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -176,6 +189,7 @@ alter table public.players enable row level security;
 alter table public.games enable row level security;
 alter table public.game_lineups enable row level security;
 alter table public.events enable row level security;
+alter table public.game_player_stats enable row level security;
 alter table public.fantasy_squads enable row level security;
 alter table public.fantasy_picks enable row level security;
 
@@ -185,6 +199,7 @@ drop policy if exists "players readable" on public.players;
 drop policy if exists "games readable" on public.games;
 drop policy if exists "lineups readable" on public.game_lineups;
 drop policy if exists "events readable" on public.events;
+drop policy if exists "game player stats readable" on public.game_player_stats;
 drop policy if exists "fantasy squads readable" on public.fantasy_squads;
 drop policy if exists "fantasy picks readable" on public.fantasy_picks;
 drop policy if exists "profiles admin update" on public.profiles;
@@ -200,6 +215,9 @@ drop policy if exists "admins delete lineups" on public.game_lineups;
 drop policy if exists "admins insert events" on public.events;
 drop policy if exists "admins update events" on public.events;
 drop policy if exists "admins delete events" on public.events;
+drop policy if exists "admins insert game player stats" on public.game_player_stats;
+drop policy if exists "admins update game player stats" on public.game_player_stats;
+drop policy if exists "admins delete game player stats" on public.game_player_stats;
 drop policy if exists "users insert own fantasy squad" on public.fantasy_squads;
 drop policy if exists "users update own fantasy squad" on public.fantasy_squads;
 drop policy if exists "users delete own fantasy squad" on public.fantasy_squads;
@@ -213,6 +231,7 @@ create policy "players readable" on public.players for select to authenticated u
 create policy "games readable" on public.games for select to authenticated using (true);
 create policy "lineups readable" on public.game_lineups for select to authenticated using (true);
 create policy "events readable" on public.events for select to authenticated using (true);
+create policy "game player stats readable" on public.game_player_stats for select to authenticated using (true);
 create policy "fantasy squads readable" on public.fantasy_squads for select to authenticated using (true);
 create policy "fantasy picks readable" on public.fantasy_picks for select to authenticated using (true);
 
@@ -235,6 +254,10 @@ create policy "admins delete lineups" on public.game_lineups for delete to authe
 create policy "admins insert events" on public.events for insert to authenticated with check (public.is_admin());
 create policy "admins update events" on public.events for update to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy "admins delete events" on public.events for delete to authenticated using (public.is_admin());
+
+create policy "admins insert game player stats" on public.game_player_stats for insert to authenticated with check (public.is_admin());
+create policy "admins update game player stats" on public.game_player_stats for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "admins delete game player stats" on public.game_player_stats for delete to authenticated using (public.is_admin());
 
 -- Fantasy writes: each account can manage only its own unlocked squad.
 create policy "users insert own fantasy squad" on public.fantasy_squads for insert to authenticated
@@ -273,5 +296,6 @@ using (public.squad_is_own_and_unlocked(squad_id));
 create index if not exists games_date_idx on public.games(game_date desc);
 create index if not exists lineups_game_idx on public.game_lineups(game_id);
 create index if not exists events_game_idx on public.events(game_id);
+create index if not exists game_player_stats_game_idx on public.game_player_stats(game_id);
 create index if not exists fantasy_squads_game_idx on public.fantasy_squads(game_id);
 create index if not exists fantasy_picks_squad_idx on public.fantasy_picks(squad_id);

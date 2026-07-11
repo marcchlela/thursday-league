@@ -28,20 +28,27 @@ type DraftPick = {
   is_captain: boolean;
 };
 
+type ExtraFantasyPlayer = {
+  player_id: string;
+  role: PlayerPosition;
+};
+
 export function PitchPicker({
   players,
   lineups,
+  extraPlayers = [],
   initialPicks,
   locked,
   onSave
 }: {
   players: Player[];
   lineups: GameLineup[];
+  extraPlayers?: ExtraFantasyPlayer[];
   initialPicks: FantasyPick[];
   locked: boolean;
   onSave: (picks: DraftPick[]) => Promise<void>;
 }) {
-  const hasGk = lineups.some(l => l.role === "goalkeeper");
+  const hasGk = [...lineups, ...extraPlayers].some(player => player.role === "goalkeeper");
   const slots = hasGk ? [...outfieldSlots, gkSlot] : noGkSlots;
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [editing, setEditing] = useState(initialPicks.length !== 5 && !locked);
@@ -59,11 +66,15 @@ export function PitchPicker({
   }, [initialPicks, locked]);
 
   const pool = useMemo(() => {
-    return lineups
-      .map(l => ({ lineup: l, player: players.find(p => p.id === l.player_id) }))
+    return [
+      ...lineups.map(lineup => ({ player_id: lineup.player_id, role: lineup.role, team: lineup.team, player: players.find(p => p.id === lineup.player_id) })),
+      ...extraPlayers
+        .filter(extra => !lineups.some(lineup => lineup.player_id === extra.player_id))
+        .map(extra => ({ player_id: extra.player_id, role: extra.role, team: null, player: players.find(p => p.id === extra.player_id) }))
+    ]
       .filter(item => item.player)
       .sort((a, b) => a.player!.name.localeCompare(b.player!.name));
-  }, [lineups, players]);
+  }, [extraPlayers, lineups, players]);
 
   const captainExists = draft.some(p => p.is_captain);
 
@@ -185,13 +196,13 @@ export function PitchPicker({
                 <p className="mb-2 text-sm font-bold text-perimeter-400">Choose for slot {selectedSlot + 1}</p>
                 <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                   {pool
-                    .filter(item => item.lineup.role === slotRole(selectedSlot))
+                    .filter(item => item.role === slotRole(selectedSlot))
                     .map(item => {
                       const alreadyPicked = draft.some(p => p.player_id === item.player!.id);
                       return (
                         <button key={item.player!.id} type="button" onClick={() => choosePlayer(item.player!.id)} className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-left hover:bg-white/10">
                           <span>{item.player!.name}</span>
-                          <span className="text-xs text-chalk/45">Team {item.lineup.team}{alreadyPicked ? " - swap" : ""}</span>
+                          <span className="text-xs text-chalk/45">{item.team ? `Team ${item.team}` : "Late addition"}{alreadyPicked ? " - swap" : ""}</span>
                         </button>
                       );
                     })}

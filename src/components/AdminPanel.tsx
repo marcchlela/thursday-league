@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, GripVertical, Trash2, X } from "lucide-react";
+import { ChevronDown, GripVertical, Pencil, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { calculateScore } from "@/lib/scoring";
 import { cn, formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, SecondaryButton, 
 
 type AdminTab = "games" | "roster";
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
+type ManualStatType = "goals" | "assists" | "saves";
 type ConfirmState = {
   title: string;
   text?: string;
@@ -157,7 +158,7 @@ function QuickStartChecklist({ data }: { data: LeagueData }) {
   const hasGame = data.games.length > 0;
   const hasSavedLineup = data.games.some(game => {
     const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
-    return lineups.filter(lineup => lineup.team === "A").length === 5 && lineups.filter(lineup => lineup.team === "B").length === 5;
+    return lineups.filter(lineup => lineup.team === "A").length >= 5 && lineups.filter(lineup => lineup.team === "B").length >= 5;
   });
   const hasFantasyOpen = data.games.some(game => game.status === "draft" || game.status === "live" || game.status === "final");
   const hasGoneLive = data.games.some(game => game.status === "live" || game.status === "final");
@@ -261,10 +262,11 @@ function GameSection({
   const [open, setOpen] = useState(defaultOpen);
   const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
   const events = data.events.filter(event => event.game_id === game.id);
-  const score = calculateScore(events, lineups);
+  const playerStats = data.playerStats.filter(stat => stat.game_id === game.id);
+  const score = calculateScore(events, lineups, playerStats);
   const savedTeamA = lineups.filter(lineup => lineup.team === "A");
   const savedTeamB = lineups.filter(lineup => lineup.team === "B");
-  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
+  const lineupReady = savedTeamA.length >= 5 && savedTeamB.length >= 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-white/10 bg-black/20">
@@ -299,7 +301,8 @@ function GameSection({
 function GameManager({ game, data, reload, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; notify: (message: string) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
   const currentLineup = data.lineups.filter(l => l.game_id === game.id);
   const gameEvents = data.events.filter(e => e.game_id === game.id);
-  const score = calculateScore(gameEvents, currentLineup);
+  const gamePlayerStats = data.playerStats.filter(stat => stat.game_id === game.id);
+  const score = calculateScore(gameEvents, currentLineup, gamePlayerStats);
   const [lineupDraft, setLineupDraft] = useState<LineupDraft>({});
   const [lineupOpen, setLineupOpen] = useState(currentLineup.length === 0);
   const [dragPlayerId, setDragPlayerId] = useState<string | null>(null);
@@ -309,6 +312,11 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   const [minute, setMinute] = useState("");
   const [potm, setPotm] = useState(game.potm_player_id || "");
   const [dateEdit, setDateEdit] = useState(toLocalDatetimeInput(game.game_date));
+  const [manualStatPlayerId, setManualStatPlayerId] = useState("");
+  const [manualStatTeam, setManualStatTeam] = useState<TeamCode>("A");
+  const [manualStatRole, setManualStatRole] = useState<PlayerPosition>("outfield");
+  const [manualStatType, setManualStatType] = useState<ManualStatType>("goals");
+  const [manualStatValue, setManualStatValue] = useState("0");
 
   useEffect(() => {
     const draft: LineupDraft = {};
@@ -335,12 +343,13 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   const teamAPlayers = useMemo(() => selectedPlayers.filter(p => lineupDraft[p.id]?.team === "A"), [selectedPlayers, lineupDraft]);
   const teamBPlayers = useMemo(() => selectedPlayers.filter(p => lineupDraft[p.id]?.team === "B"), [selectedPlayers, lineupDraft]);
   const eventPlayers = useMemo(() => data.players.filter(player => currentLineup.some(lineup => lineup.player_id === player.id)), [data.players, currentLineup]);
+  const selectedManualStatLineup = currentLineup.find(lineup => lineup.player_id === manualStatPlayerId);
+  const statsPlayers = data.players;
   const teamAGoalkeepers = teamAPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
   const teamBGoalkeepers = teamBPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
   const lineupIssues = [
-    teamAPlayers.length !== 5 ? `Team A needs exactly 5 players (${teamAPlayers.length}/5).` : null,
-    teamBPlayers.length !== 5 ? `Team B needs exactly 5 players (${teamBPlayers.length}/5).` : null,
-    teamAPlayers.length !== teamBPlayers.length ? "Team counts are uneven." : null,
+    teamAPlayers.length < 5 ? `Team A needs at least 5 players (${teamAPlayers.length}/5).` : null,
+    teamBPlayers.length < 5 ? `Team B needs at least 5 players (${teamBPlayers.length}/5).` : null,
     teamAGoalkeepers > 1 ? "Team A has more than one goalkeeper." : null,
     teamBGoalkeepers > 1 ? "Team B has more than one goalkeeper." : null
   ].filter(Boolean) as string[];
@@ -348,13 +357,13 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   const draftReady = lineupCanSave;
   const savedTeamA = currentLineup.filter(lineup => lineup.team === "A");
   const savedTeamB = currentLineup.filter(lineup => lineup.team === "B");
-  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
+  const lineupReady = savedTeamA.length >= 5 && savedTeamB.length >= 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
   const canFinalize = lineupReady;
   const matchControlText = lineupReady
     ? "Lineups are ready. You can start the game, log events, and set POTM."
     : draftReady
       ? "Save this lineup before starting the game or entering events."
-      : "Save exactly 5 players on each team before starting the game or entering events.";
+      : "Save at least 5 players on each team before starting the game or entering events.";
 
   function draftValue(player: Player) {
     return lineupDraft[player.id] || { team: null, role: player.default_position };
@@ -405,7 +414,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
 
   async function updateStatus(status: Game["status"]) {
     if ((status === "live" || status === "final") && !lineupReady) {
-      notify("Set and save a valid 5v5 lineup before changing the game status.");
+      notify("Set and save a valid lineup with at least 5 players per team before changing the game status.");
       return;
     }
     if (status === "final" && !canFinalize) {
@@ -462,6 +471,45 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
     const { error } = await supabase.from("games").update({ potm_player_id: potm || null }).eq("id", game.id);
     if (error) return notify(error.message);
     notify("POTM saved.");
+    reload();
+  }
+
+  function selectStatsPlayer(playerId: string) {
+    const player = data.players.find(item => item.id === playerId);
+    const existing = gamePlayerStats.find(stat => stat.player_id === playerId);
+    const lineup = currentLineup.find(item => item.player_id === playerId);
+    setManualStatPlayerId(playerId);
+    setManualStatTeam(lineup?.team || existing?.team || "A");
+    setManualStatRole(existing?.role || player?.default_position || "outfield");
+    setManualStatValue(String(existing?.[manualStatType] || 0));
+  }
+
+  function selectStatType(statType: ManualStatType) {
+    setManualStatType(statType);
+    const existing = gamePlayerStats.find(stat => stat.player_id === manualStatPlayerId);
+    setManualStatValue(String(existing?.[statType] || 0));
+  }
+
+  async function saveManualStats(e: React.FormEvent) {
+    e.preventDefault();
+    if (!manualStatPlayerId) return notify("Choose a player first.");
+    const value = Number(manualStatValue);
+    if (!Number.isInteger(value) || value < 0) return notify("Stat value must be a whole number of 0 or more.");
+    const existing = gamePlayerStats.find(stat => stat.player_id === manualStatPlayerId);
+    const team = selectedManualStatLineup?.team || manualStatTeam;
+
+    const { error } = await supabase.from("game_player_stats").upsert({
+      game_id: game.id,
+      player_id: manualStatPlayerId,
+      team,
+      role: manualStatRole,
+      goals: existing?.goals || 0,
+      assists: existing?.assists || 0,
+      saves: existing?.saves || 0,
+      [manualStatType]: value
+    }, { onConflict: "game_id,player_id" });
+    if (error) return notify(error.message);
+    notify("Player stats saved.");
     reload();
   }
 
@@ -545,7 +593,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
           </div>
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <div className="mt-6 grid gap-6 xl:grid-cols-3">
           <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
             <h4 className="font-display text-2xl uppercase">Events</h4>
             <form onSubmit={addEvent} className="mt-4 grid gap-3">
@@ -585,6 +633,47 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
                 {eventPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
               </Select>
               <SecondaryButton type="button" disabled={!lineupReady} onClick={savePotm}>Save</SecondaryButton>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+            <h4 className="font-display text-2xl uppercase">Manual Player Stats</h4>
+            <form onSubmit={saveManualStats} className="mt-4 grid gap-3">
+              <Select value={manualStatPlayerId} onChange={e => selectStatsPlayer(e.target.value)}>
+                <option value="">Select player</option>
+                {statsPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
+              </Select>
+              {manualStatPlayerId ? selectedManualStatLineup ? (
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-chalk/70">Team {selectedManualStatLineup.team}</div>
+              ) : (
+                <Select value={manualStatTeam} onChange={e => setManualStatTeam(e.target.value as TeamCode)}>
+                  <option value="A">Team A</option>
+                  <option value="B">Team B</option>
+                </Select>
+              ) : null}
+              <Select value={manualStatType} onChange={e => selectStatType(e.target.value as ManualStatType)}>
+                <option value="goals">Goals</option>
+                <option value="assists">Assists</option>
+                <option value="saves">Saves</option>
+              </Select>
+              <Select value={manualStatRole} onChange={e => setManualStatRole(e.target.value as PlayerPosition)}>
+                <option value="outfield">Outfield</option>
+                <option value="goalkeeper">Goalkeeper</option>
+              </Select>
+              <TextInput type="number" min="0" step="1" value={manualStatValue} onChange={e => setManualStatValue(e.target.value)} placeholder="Stat value" />
+              <PrimaryButton>Save stats</PrimaryButton>
+            </form>
+
+            <div className="mt-4 space-y-2">
+              {gamePlayerStats.map(stat => (
+                <div key={stat.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                  <span><span className="font-semibold">{playerName(data.players, stat.player_id)}</span> - Team {stat.team}, {stat.role === "goalkeeper" ? "GK" : "O"}, {stat.goals} G, {stat.assists} A, {stat.saves} S</span>
+                  <button type="button" onClick={() => selectStatsPlayer(stat.player_id)} className="rounded-lg p-1.5 text-chalk/50 hover:text-perimeter-400" aria-label={`Edit stats for ${playerName(data.players, stat.player_id)}`}>
+                    <Pencil size={15} />
+                  </button>
+                </div>
+              ))}
+              {!gamePlayerStats.length ? <p className="text-sm text-chalk/55">No manual stats recorded.</p> : null}
             </div>
           </section>
         </div>
@@ -630,7 +719,7 @@ function LineupValidation({ issues }: { issues: string[] }) {
   if (!issues.length) {
     return (
       <div className="mt-4 rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-3 text-sm font-semibold text-perimeter-400">
-        Lineup is valid: 5 players per team.
+        Lineup is valid: at least 5 players per team.
       </div>
     );
   }

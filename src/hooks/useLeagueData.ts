@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { FantasyPick, FantasySquad, Game, GameLineup, LeagueData, MatchEvent, Player, Profile } from "@/lib/types";
+import { FantasyPick, FantasySquad, Game, GameLineup, GamePlayerStat, LeagueData, MatchEvent, Player, Profile } from "@/lib/types";
 
 const emptyData: LeagueData = {
   profiles: [],
@@ -10,6 +10,7 @@ const emptyData: LeagueData = {
   games: [],
   lineups: [],
   events: [],
+  playerStats: [],
   squads: [],
   picks: []
 };
@@ -29,17 +30,18 @@ export function useLeagueData() {
 
   const load = useCallback(async () => {
     setError(null);
-    const [profiles, players, games, lineups, events, squads, picks] = await Promise.all([
+    const [profiles, players, games, lineups, events, playerStats, squads, picks] = await Promise.all([
       supabase.from("profiles").select("*").order("username"),
       supabase.from("players").select("*").order("name"),
       supabase.from("games").select("*").order("game_date", { ascending: false }),
       supabase.from("game_lineups").select("*"),
       supabase.from("events").select("*").order("created_at", { ascending: true }),
+      supabase.from("game_player_stats").select("*").order("created_at", { ascending: true }),
       supabase.from("fantasy_squads").select("*"),
       supabase.from("fantasy_picks").select("*").order("slot_index", { ascending: true })
     ]);
 
-    const firstError = [profiles, players, games, lineups, events, squads, picks].find(r => r.error)?.error;
+    const firstError = [profiles, players, games, lineups, events, playerStats, squads, picks].find(r => r.error)?.error;
     if (firstError) {
       setError(friendlyDataError(firstError.message));
       setLoading(false);
@@ -52,6 +54,7 @@ export function useLeagueData() {
       games: (games.data || []) as Game[],
       lineups: (lineups.data || []) as GameLineup[],
       events: (events.data || []) as MatchEvent[],
+      playerStats: (playerStats.data || []) as GamePlayerStat[],
       squads: (squads.data || []) as FantasySquad[],
       picks: (picks.data || []) as FantasyPick[]
     });
@@ -67,6 +70,7 @@ export function useLeagueData() {
       .on("postgres_changes", { event: "*", schema: "public", table: "games" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "game_lineups" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_player_stats" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_squads" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_picks" }, load)
       .subscribe();

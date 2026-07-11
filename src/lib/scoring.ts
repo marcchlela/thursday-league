@@ -3,6 +3,7 @@ import {
   FantasySquad,
   Game,
   GameLineup,
+  GamePlayerStat,
   MatchEvent,
   Player,
   PlayerBreakdown,
@@ -10,6 +11,8 @@ import {
   TeamCode,
   WeeklyFantasyResult
 } from "./types";
+
+export const SAVES_PER_FANTASY_POINT = 1;
 
 export function otherTeam(team: TeamCode): TeamCode {
   return team === "A" ? "B" : "A";
@@ -26,17 +29,18 @@ export function eventScoringTeam(event: MatchEvent, lineups: GameLineup[]): Team
   return otherTeam(playerLineup.team);
 }
 
-export function calculateScore(events: MatchEvent[], lineups: GameLineup[]) {
+export function calculateScore(events: MatchEvent[], lineups: GameLineup[], playerStats: GamePlayerStat[] = []) {
   const score: Record<TeamCode, number> = { A: 0, B: 0 };
   for (const event of events) {
     const team = eventScoringTeam(event, lineups);
     if (team) score[team] += 1;
   }
+  for (const stat of playerStats) score[stat.team] += stat.goals;
   return score;
 }
 
-export function gameWinner(events: MatchEvent[], lineups: GameLineup[]): TeamCode | "draw" | null {
-  const score = calculateScore(events, lineups);
+export function gameWinner(events: MatchEvent[], lineups: GameLineup[], playerStats: GamePlayerStat[] = []): TeamCode | "draw" | null {
+  const score = calculateScore(events, lineups, playerStats);
   if (score.A === score.B) return "draw";
   return score.A > score.B ? "A" : "B";
 }
@@ -47,13 +51,19 @@ export function calculatePlayerBreakdown(args: {
   pick?: FantasyPick;
   lineups: GameLineup[];
   events: MatchEvent[];
+  playerStats?: GamePlayerStat[];
 }): PlayerBreakdown {
-  const { game, player, pick, lineups, events } = args;
-  const lineup = lineupForPlayer(lineups, player.id);
-  const score = calculateScore(events, lineups);
-  const goals = events.filter(e => e.event_type === "goal" && e.player_id === player.id).length;
-  const assists = events.filter(e => e.event_type === "goal" && e.assist_player_id === player.id).length;
-  const ownGoals = events.filter(e => e.event_type === "own_goal" && e.player_id === player.id).length;
+  const { game, player, pick, lineups, events, playerStats = [] } = args;
+  const gameLineups = lineups.filter(lineup => lineup.game_id === game.id);
+  const gameEvents = events.filter(event => event.game_id === game.id);
+  const gamePlayerStats = playerStats.filter(stat => stat.game_id === game.id);
+  const lineup = lineupForPlayer(gameLineups, player.id);
+  const manualStat = gamePlayerStats.find(stat => stat.player_id === player.id);
+  const saves = manualStat?.saves || 0;
+  const score = calculateScore(gameEvents, gameLineups, gamePlayerStats);
+  const goals = gameEvents.filter(e => e.event_type === "goal" && e.player_id === player.id).length + (manualStat?.goals || 0);
+  const assists = gameEvents.filter(e => e.event_type === "goal" && e.assist_player_id === player.id).length + (manualStat?.assists || 0);
+  const ownGoals = gameEvents.filter(e => e.event_type === "own_goal" && e.player_id === player.id).length;
   const lines: string[] = [];
   let points = 0;
 
@@ -80,8 +90,15 @@ export function calculatePlayerBreakdown(args: {
     lines.push("hat-trick bonus = 3");
   }
 
+  const playerRole = pick?.role || lineup?.role || manualStat?.role;
+  const savePoints = playerRole === "goalkeeper" ? Math.floor(saves / SAVES_PER_FANTASY_POINT) : 0;
+  if (savePoints) {
+    points += savePoints;
+    lines.push(`${saves} saves = ${savePoints}`);
+  }
+
   if (lineup?.team) {
-    const winner = gameWinner(events, lineups);
+    const winner = gameWinner(gameEvents, gameLineups, gamePlayerStats);
     if (winner === "draw") {
       points += 1;
       lines.push("draw = 1");
@@ -132,14 +149,15 @@ export function calculateSquadResult(args: {
   players: Player[];
   lineups: GameLineup[];
   events: MatchEvent[];
+  playerStats: GamePlayerStat[];
 }) {
-  const { game, squad, picks, players, lineups, events } = args;
+  const { game, squad, picks, players, lineups, events, playerStats } = args;
   const squadPicks = picks.filter(p => p.squad_id === squad.id).sort((a, b) => a.slot_index - b.slot_index);
   const breakdown = squadPicks
     .map(pick => {
       const player = players.find(p => p.id === pick.player_id);
       if (!player) return null;
-      return calculatePlayerBreakdown({ game, player, pick, lineups, events });
+      return calculatePlayerBreakdown({ game, player, pick, lineups, events, playerStats });
     })
     .filter(Boolean) as PlayerBreakdown[];
 
@@ -157,12 +175,13 @@ export function weeklyLeaderboard(args: {
   players: Player[];
   lineups: GameLineup[];
   events: MatchEvent[];
+  playerStats: GamePlayerStat[];
 }): WeeklyFantasyResult[] {
-  const { game, profiles, squads, picks, players, lineups, events } = args;
+  const { game, profiles, squads, picks, players, lineups, events, playerStats } = args;
   const gameSquads = squads.filter(s => s.game_id === game.id);
   const results = gameSquads.map(squad => {
     const profile = profiles.find(p => p.id === squad.user_id);
-    const result = calculateSquadResult({ game, squad, picks, players, lineups, events });
+    const result = calculateSquadResult({ game, squad, picks, players, lineups, events, playerStats });
     return {
       userId: squad.user_id,
       username: profile?.username || "unknown",
@@ -185,6 +204,7 @@ export function allTimeLeaderboard(args: {
   players: Player[];
   lineups: GameLineup[];
   events: MatchEvent[];
+  playerStats: GamePlayerStat[];
 }) {
   const totals = new Map<string, number>();
   for (const profile of args.profiles) totals.set(profile.id, 0);
@@ -210,10 +230,12 @@ export function careerStats(args: {
   games: Game[];
   lineups: GameLineup[];
   events: MatchEvent[];
+  playerStats: GamePlayerStat[];
 }) {
   const finalOrLiveGames = args.games.filter(g => g.status === "final" || g.status === "live");
   const gameIds = new Set(finalOrLiveGames.map(g => g.id));
   const playerLineups = args.lineups.filter(l => l.player_id === args.player.id && gameIds.has(l.game_id));
+  const playerStatRows = args.playerStats.filter(stat => stat.player_id === args.player.id && gameIds.has(stat.game_id));
   const playerEvents = args.events.filter(e => gameIds.has(e.game_id));
 
   let cleanSheets = 0;
@@ -222,15 +244,16 @@ export function careerStats(args: {
     if (!game || game.status !== "final") continue;
     const gameLineups = args.lineups.filter(l => l.game_id === game.id);
     const gameEvents = args.events.filter(e => e.game_id === game.id);
-    const score = calculateScore(gameEvents, gameLineups);
+    const score = calculateScore(gameEvents, gameLineups, args.playerStats.filter(stat => stat.game_id === game.id));
     if (score[otherTeam(lineup.team)] === 0) cleanSheets += 1;
   }
 
   return {
-    appearances: playerLineups.length,
-    goals: playerEvents.filter(e => e.event_type === "goal" && e.player_id === args.player.id).length,
-    assists: playerEvents.filter(e => e.event_type === "goal" && e.assist_player_id === args.player.id).length,
+    appearances: new Set([...playerLineups.map(lineup => lineup.game_id), ...playerStatRows.map(stat => stat.game_id)]).size,
+    goals: playerEvents.filter(e => e.event_type === "goal" && e.player_id === args.player.id).length + playerStatRows.reduce((total, stat) => total + stat.goals, 0),
+    assists: playerEvents.filter(e => e.event_type === "goal" && e.assist_player_id === args.player.id).length + playerStatRows.reduce((total, stat) => total + stat.assists, 0),
     ownGoals: playerEvents.filter(e => e.event_type === "own_goal" && e.player_id === args.player.id).length,
-    cleanSheets
+    cleanSheets,
+    saves: playerStatRows.reduce((total, stat) => total + stat.saves, 0)
   };
 }

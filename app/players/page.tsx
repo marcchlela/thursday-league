@@ -20,7 +20,7 @@ export default function PlayersPage() {
       {!players.length ? <EmptyState title="No roster yet" text="Admin can add players from the Admin page." /> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {players.map(player => {
-          const stats = careerStats({ player, games: data.games, lineups: data.lineups, events: data.events });
+          const stats = careerStats({ player, games: data.games, lineups: data.lineups, events: data.events, playerStats: data.playerStats });
           return (
             <Card key={player.id}>
               <div className="flex items-start justify-between gap-3">
@@ -35,6 +35,7 @@ export default function PlayersPage() {
                 <Stat label="goals" value={stats.goals} />
                 <Stat label="assists" value={stats.assists} />
                 <Stat label="clean sheets" value={stats.cleanSheets} />
+                <Stat label="saves" value={stats.saves} />
                 <Stat label="own goals" value={stats.ownGoals} />
               </div>
             </Card>

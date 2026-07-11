@@ -43,6 +43,7 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void }) {
   const { user } = useAuthProfile();
   const game = activeFantasyGame(data);
   const lineups = useMemo(() => game ? data.lineups.filter(l => l.game_id === game.id) : [], [data.lineups, game]);
+  const extraPlayers = useMemo(() => game ? data.playerStats.filter(stat => stat.game_id === game.id).map(stat => ({ player_id: stat.player_id, role: stat.role })) : [], [data.playerStats, game]);
   const squad = useMemo(() => game && user ? data.squads.find(s => s.game_id === game.id && s.user_id === user.id) : undefined, [data.squads, game, user]);
   const initialPicks = useMemo(() => squad ? data.picks.filter(p => p.squad_id === squad.id) : [], [data.picks, squad]);
   if (!game || !user) return <EmptyState title="No fantasy game open" text="Once the admin sets a lineup, your pitch picker appears here." />;
@@ -88,7 +89,7 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void }) {
           <div className="font-mono text-2xl text-chalk/70">{initialPicks.length ? "Your picks are in" : "No picks yet"}</div>
         </div>
       </Card>
-      {lineups.length ? <PitchPicker players={data.players} lineups={lineups} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the admin has not picked who's playing yet." />}
+      {lineups.length ? <PitchPicker players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the admin has not picked who's playing yet." />}
     </div>
   );
 }

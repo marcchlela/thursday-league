@@ -21,7 +21,8 @@ export default function GameDetailPage() {
 
   const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
   const events = data.events.filter(event => event.game_id === game.id);
-  const score = calculateScore(events, lineups);
+  const playerStats = data.playerStats.filter(stat => stat.game_id === game.id);
+  const score = calculateScore(events, lineups, playerStats);
   const squads = data.squads.filter(squad => squad.game_id === game.id);
 
   return (
@@ -45,6 +46,7 @@ export default function GameDetailPage() {
           <div className="mt-8 grid max-w-3xl grid-cols-2 gap-3 md:grid-cols-4">
             <Stat label="lineup" value={lineups.length} />
             <Stat label="events" value={events.length} />
+            <Stat label="player stats" value={playerStats.length} />
             <Stat label="fantasy squads" value={squads.length} />
             <Stat label="potm" value={playerName(data.players, game.potm_player_id)} />
           </div>
@@ -55,6 +57,20 @@ export default function GameDetailPage() {
         <TeamCard team="A" players={data.players} lineups={lineups} />
         <TeamCard team="B" players={data.players} lineups={lineups} />
       </div>
+
+      {playerStats.length ? (
+        <Card>
+          <h2 className="font-display text-3xl uppercase">Player Stats</h2>
+          <div className="mt-4 space-y-2">
+            {playerStats.map(stat => (
+              <div key={stat.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                <span className="font-semibold">{playerName(data.players, stat.player_id)}</span>
+                <span className="font-mono text-perimeter-400">{stat.goals} G, {stat.assists} A, {stat.saves} S</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <h2 className="font-display text-3xl uppercase">Events</h2>

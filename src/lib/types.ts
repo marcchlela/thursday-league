@@ -46,6 +46,19 @@ export type MatchEvent = {
   created_at?: string;
 };
 
+export type GamePlayerStat = {
+  id: string;
+  game_id: string;
+  player_id: string;
+  team: TeamCode;
+  role: PlayerPosition;
+  goals: number;
+  assists: number;
+  saves: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type FantasySquad = {
   id: string;
   user_id: string;
@@ -70,6 +83,7 @@ export type LeagueData = {
   games: Game[];
   lineups: GameLineup[];
   events: MatchEvent[];
+  playerStats: GamePlayerStat[];
   squads: FantasySquad[];
   picks: FantasyPick[];
 };

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Game, MatchEvent, GameLineup, Player } from "./types";
+import { Game, MatchEvent, GameLineup, GamePlayerStat, Player } from "./types";
 import { calculateScore } from "./scoring";
 
 export const cn = clsx;
@@ -23,8 +23,8 @@ export function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-export function scoreText(game: Game, events: MatchEvent[], lineups: GameLineup[]) {
-  const score = calculateScore(events.filter(e => e.game_id === game.id), lineups.filter(l => l.game_id === game.id));
+export function scoreText(game: Game, events: MatchEvent[], lineups: GameLineup[], playerStats: GamePlayerStat[] = []) {
+  const score = calculateScore(events.filter(e => e.game_id === game.id), lineups.filter(l => l.game_id === game.id), playerStats.filter(stat => stat.game_id === game.id));
   return `${score.A} - ${score.B}`;
 }
 

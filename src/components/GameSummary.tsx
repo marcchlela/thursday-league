@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { Game, GameLineup, MatchEvent, Player } from "@/lib/types";
+import { Game, GameLineup, GamePlayerStat, MatchEvent, Player } from "@/lib/types";
 import { calculateScore, eventScoringTeam } from "@/lib/scoring";
 import { formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
 import { Card, EmptyState, Pill } from "./ui";
 
-export function GameSummary({ game, players, lineups, events, title }: { game?: Game; players: Player[]; lineups: GameLineup[]; events: MatchEvent[]; title: string }) {
+export function GameSummary({ game, players, lineups, events, playerStats, title }: { game?: Game; players: Player[]; lineups: GameLineup[]; events: MatchEvent[]; playerStats: GamePlayerStat[]; title: string }) {
   if (!game) return <EmptyState title={title} text="No game here yet." />;
 
   const gameLineups = lineups.filter(l => l.game_id === game.id);
   const gameEvents = events.filter(e => e.game_id === game.id);
-  const score = calculateScore(gameEvents, gameLineups);
+  const gamePlayerStats = playerStats.filter(stat => stat.game_id === game.id);
+  const score = calculateScore(gameEvents, gameLineups, gamePlayerStats);
 
   return (
     <Link href={`/games/${game.id}`} className="block rounded-3xl transition hover:-translate-y-0.5 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-perimeter-400">
