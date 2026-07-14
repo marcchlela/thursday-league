@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { CalendarDays, List, Shield, Trophy, Users, UserRound, LogOut } from "lucide-react";
+import { Home, List, Shield, Trophy, Users, UserRound, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { cn } from "@/lib/utils";
 
 const baseLinks = [
-  { href: "/", label: "Game", icon: CalendarDays },
+  { href: "/", label: "Home", icon: Home },
   { href: "/games", label: "Games", icon: List },
   { href: "/players", label: "Players", icon: Users },
   { href: "/fantasy", label: "Fantasy", icon: Trophy },

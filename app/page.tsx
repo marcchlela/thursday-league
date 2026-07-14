@@ -26,7 +26,7 @@ export default function HomePage() {
     <div className="space-y-6">
       <section className="overflow-hidden rounded-[2rem] border border-perimeter-400/35 bg-turf shadow-glow">
         <div className="bg-gradient-to-r from-black/75 via-black/55 to-black/25 p-6 md:p-10">
-          <p className="text-sm font-bold uppercase tracking-[.3em] text-perimeter-400">Game</p>
+          <p className="text-sm font-bold uppercase tracking-[.3em] text-perimeter-400">Home</p>
           <h1 className="mt-2 font-display text-6xl uppercase leading-none md:text-8xl">Thursday League</h1>
           <p className="mt-4 max-w-xl text-chalk/70">Live score, latest result, next game, and fantasy bragging rights - all in one place.</p>
           <div className="mt-8 grid max-w-md grid-cols-2 gap-3">
