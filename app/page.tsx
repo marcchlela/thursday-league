@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { GameSummary } from "@/components/GameSummary";
-import { Card, EmptyState, Stat } from "@/components/ui";
+import { Card, EmptyState, ErrorState, LoadingState, Stat } from "@/components/ui";
 import { calculateScore } from "@/lib/scoring";
 import { formatDateTime } from "@/lib/utils";
 
 export default function HomePage() {
-  const { data, loading, error } = useLeagueData();
-  if (loading) return <div>Loading games...</div>;
-  if (error) return <div className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-red-100">{error}</div>;
+  const { data, loading, error, reload } = useLeagueData();
+  if (loading) return <LoadingState label="Loading Home" cards={2} />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const liveGame = data.games.find(g => g.status === "live");
   const recentFinal = data.games.find(g => g.status === "final");
@@ -37,7 +37,7 @@ export default function HomePage() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
-        {featured ? <GameSummary game={featured} players={data.players} lineups={data.lineups} events={data.events} playerStats={data.playerStats} title={liveGame ? "Live now" : "Most recent result"} /> : <EmptyState title="No results yet" text="Once a game goes live or final, it lands here." />}
+        {featured ? <GameSummary game={featured} lineups={data.lineups} events={data.events} playerStats={data.playerStats} title={liveGame ? "Live now" : "Most recent result"} /> : <EmptyState title="No results yet" text="Once a game goes live or final, it lands here." />}
 
         <Card>
           <h2 className="font-display text-3xl uppercase">Next upcoming game</h2>

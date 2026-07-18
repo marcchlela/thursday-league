@@ -6,9 +6,10 @@ import { supabase } from "@/lib/supabase";
 import { calculateScore } from "@/lib/scoring";
 import { cn, formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
 import { Game, LeagueData, Player, PlayerPosition, TeamCode } from "@/lib/types";
-import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, SecondaryButton, Select, TextInput, Toast } from "./ui";
+import { AdminAuditHistory } from "./AdminAuditHistory";
+import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TabList, TextInput, Toast } from "./ui";
 
-type AdminTab = "games" | "roster";
+type AdminTab = "games" | "roster" | "audit";
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
 type ManualStatType = "goals" | "assists" | "saves";
 type ConfirmState = {
@@ -48,15 +49,15 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
     reload();
   }
 
-  async function deletePlayer(id: string) {
+  async function archivePlayer(id: string) {
     requestConfirm({
-      title: "Remove player?",
-      text: "This removes the player from the roster and can affect old game records.",
-      confirmLabel: "Remove player",
+      title: "Archive player?",
+      text: "The player will leave the active roster, but every old lineup, stat, event, and fantasy pick will remain intact.",
+      confirmLabel: "Archive player",
       onConfirm: async () => {
-        const { error } = await supabase.from("players").delete().eq("id", id);
+        const { error } = await supabase.rpc("archive_player", { target_player_id: id });
         if (error) return notify(error.message);
-        notify("Player deleted.");
+        notify("Player archived.");
         reload();
       }
     });
@@ -92,13 +93,16 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
         <p className="mt-2 text-chalk/60">Manage roster, games, lineups, live events, final results, and Player of the Match.</p>
       </div>
 
-      <div className="inline-flex rounded-2xl border border-white/10 bg-black/25 p-1">
-        <TabButton active={activeTab === "games"} onClick={() => setActiveTab("games")}>Games</TabButton>
-        <TabButton active={activeTab === "roster"} onClick={() => setActiveTab("roster")}>Roster</TabButton>
-      </div>
+      <TabList
+        idPrefix="admin"
+        label="Admin sections"
+        tabs={[{ id: "games", label: "Games" }, { id: "roster", label: "Roster" }, { id: "audit", label: "Audit history" }]}
+        active={activeTab}
+        onChange={id => setActiveTab(id as AdminTab)}
+      />
 
       {activeTab === "games" ? (
-        <div className="space-y-6">
+        <div id="admin-games-panel" role="tabpanel" aria-labelledby="admin-games-tab" className="space-y-6">
           <QuickStartChecklist data={data} />
           <Card>
             <h2 className="font-display text-3xl uppercase">Create Game</h2>
@@ -115,8 +119,8 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
           </div>
           {!games.length ? <EmptyState title="No games yet" text="Create the first Thursday game to start setting lineups." /> : null}
         </div>
-      ) : (
-        <Card>
+      ) : activeTab === "roster" ? (
+        <Card id="admin-roster-panel" role="tabpanel" aria-labelledby="admin-roster-tab">
           <h2 className="font-display text-3xl uppercase">Roster</h2>
           <form onSubmit={addPlayer} className="mt-4 grid gap-3 md:grid-cols-[1fr_220px_auto]">
             <TextInput value={playerNameInput} onChange={e => setPlayerNameInput(e.target.value)} placeholder="Player name" />
@@ -129,27 +133,16 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 
           <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {data.players.map(player => (
-              <PlayerAdminRow key={player.id} player={player} onDelete={deletePlayer} reload={reload} notify={notify} />
+              <PlayerAdminRow key={player.id} player={player} onArchive={archivePlayer} reload={reload} notify={notify} />
             ))}
           </div>
         </Card>
+      ) : (
+        <div id="admin-audit-panel" role="tabpanel" aria-labelledby="admin-audit-tab">
+          <AdminAuditHistory profiles={data.profiles} games={data.games} />
+        </div>
       )}
     </div>
-  );
-}
-
-function TabButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
-  const { active, className, ...rest } = props;
-  return (
-    <button
-      type="button"
-      {...rest}
-      className={cn(
-        "min-w-28 rounded-xl px-4 py-2 text-sm font-bold uppercase tracking-wider text-chalk/65 transition",
-        active && "bg-floodlight text-ink-900 shadow-amber",
-        className
-      )}
-    />
   );
 }
 
@@ -158,7 +151,7 @@ function QuickStartChecklist({ data }: { data: LeagueData }) {
   const hasGame = data.games.length > 0;
   const hasSavedLineup = data.games.some(game => {
     const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
-    return lineups.filter(lineup => lineup.team === "A").length >= 5 && lineups.filter(lineup => lineup.team === "B").length >= 5;
+    return lineups.filter(lineup => lineup.team === "A").length === 5 && lineups.filter(lineup => lineup.team === "B").length === 5;
   });
   const hasFantasyOpen = data.games.some(game => game.status === "draft" || game.status === "live" || game.status === "final");
   const hasGoneLive = data.games.some(game => game.status === "live" || game.status === "final");
@@ -194,7 +187,7 @@ function QuickStartChecklist({ data }: { data: LeagueData }) {
   );
 }
 
-function PlayerAdminRow({ player, onDelete, reload, notify }: { player: Player; onDelete: (id: string) => void | Promise<void>; reload: () => void; notify: (message: string) => void }) {
+function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player; onArchive: (id: string) => void | Promise<void>; reload: () => void; notify: (message: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.name);
   const [position, setPosition] = useState<PlayerPosition>(player.default_position);
@@ -205,6 +198,13 @@ function PlayerAdminRow({ player, onDelete, reload, notify }: { player: Player; 
     if (error) return notify(error.message);
     setEditing(false);
     notify("Player saved.");
+    reload();
+  }
+
+  async function restore() {
+    const { error } = await supabase.rpc("restore_player", { target_player_id: player.id });
+    if (error) return notify(error.message);
+    notify("Player restored to the active roster.");
     reload();
   }
 
@@ -231,9 +231,9 @@ function PlayerAdminRow({ player, onDelete, reload, notify }: { player: Player; 
     <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
       <button type="button" onClick={() => setEditing(true)} className="min-w-0 text-left">
         <div className="truncate font-semibold">{player.name}</div>
-        <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position}{player.active ? "" : " - inactive"}</div>
+        <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position}{player.archived_at ? " - archived" : player.active ? "" : " - inactive"}</div>
       </button>
-      <button type="button" onClick={() => onDelete(player.id)} className="rounded-xl p-2 text-chalk/45 hover:text-red-300"><Trash2 size={16} /></button>
+      {player.archived_at ? <button type="button" onClick={restore} className="rounded-xl border border-perimeter-400/30 px-3 py-1.5 text-xs font-bold text-perimeter-400">Restore</button> : <button type="button" onClick={() => onArchive(player.id)} className="rounded-xl p-2 text-chalk/45 hover:text-floodlight" aria-label={`Archive ${player.name}`}><Trash2 size={16} /></button>}
     </div>
   );
 }
@@ -266,7 +266,7 @@ function GameSection({
   const score = calculateScore(events, lineups, playerStats);
   const savedTeamA = lineups.filter(lineup => lineup.team === "A");
   const savedTeamB = lineups.filter(lineup => lineup.team === "B");
-  const lineupReady = savedTeamA.length >= 5 && savedTeamB.length >= 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
+  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.every(lineup => lineup.slot_index != null) && savedTeamB.every(lineup => lineup.slot_index != null) && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length === 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length === 1;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-white/10 bg-black/20">
@@ -299,7 +299,7 @@ function GameSection({
 }
 
 function GameManager({ game, data, reload, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; notify: (message: string) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
-  const currentLineup = data.lineups.filter(l => l.game_id === game.id);
+  const currentLineup = useMemo(() => data.lineups.filter(l => l.game_id === game.id), [data.lineups, game.id]);
   const gameEvents = data.events.filter(e => e.game_id === game.id);
   const gamePlayerStats = data.playerStats.filter(stat => stat.game_id === game.id);
   const score = calculateScore(gameEvents, currentLineup, gamePlayerStats);
@@ -317,6 +317,8 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   const [manualStatRole, setManualStatRole] = useState<PlayerPosition>("outfield");
   const [manualStatType, setManualStatType] = useState<ManualStatType>("goals");
   const [manualStatValue, setManualStatValue] = useState("0");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
 
   useEffect(() => {
     const draft: LineupDraft = {};
@@ -332,10 +334,10 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
     setAssistPlayerId("");
     setPotm(game.potm_player_id || "");
     setDateEdit(toLocalDatetimeInput(game.game_date));
-  }, [game.id, game.game_date, game.potm_player_id, data.players, data.lineups]);
+  }, [game.id, game.game_date, game.potm_player_id, data.players, currentLineup]);
 
   const rosterPlayers = useMemo(
-    () => data.players.filter(player => player.active || lineupDraft[player.id]?.team),
+    () => data.players.filter(player => (player.active && !player.archived_at) || lineupDraft[player.id]?.team),
     [data.players, lineupDraft]
   );
   const selectedPlayers = useMemo(() => rosterPlayers.filter(p => lineupDraft[p.id]?.team), [rosterPlayers, lineupDraft]);
@@ -348,22 +350,22 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   const teamAGoalkeepers = teamAPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
   const teamBGoalkeepers = teamBPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
   const lineupIssues = [
-    teamAPlayers.length < 5 ? `Team A needs at least 5 players (${teamAPlayers.length}/5).` : null,
-    teamBPlayers.length < 5 ? `Team B needs at least 5 players (${teamBPlayers.length}/5).` : null,
-    teamAGoalkeepers > 1 ? "Team A has more than one goalkeeper." : null,
-    teamBGoalkeepers > 1 ? "Team B has more than one goalkeeper." : null
+    teamAPlayers.length !== 5 ? `Team A needs exactly 5 players (${teamAPlayers.length}/5).` : null,
+    teamBPlayers.length !== 5 ? `Team B needs exactly 5 players (${teamBPlayers.length}/5).` : null,
+    teamAGoalkeepers !== 1 ? `Team A needs exactly one goalkeeper (${teamAGoalkeepers}/1).` : null,
+    teamBGoalkeepers !== 1 ? `Team B needs exactly one goalkeeper (${teamBGoalkeepers}/1).` : null
   ].filter(Boolean) as string[];
   const lineupCanSave = lineupIssues.length === 0;
   const draftReady = lineupCanSave;
   const savedTeamA = currentLineup.filter(lineup => lineup.team === "A");
   const savedTeamB = currentLineup.filter(lineup => lineup.team === "B");
-  const lineupReady = savedTeamA.length >= 5 && savedTeamB.length >= 5 && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length <= 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length <= 1;
+  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.every(lineup => lineup.slot_index != null) && savedTeamB.every(lineup => lineup.slot_index != null) && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length === 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length === 1;
   const canFinalize = lineupReady;
   const matchControlText = lineupReady
     ? "Lineups are ready. You can start the game, log events, and set POTM."
     : draftReady
       ? "Save this lineup before starting the game or entering events."
-      : "Save at least 5 players on each team before starting the game or entering events.";
+      : "Save exactly 5 players on each team, including one goalkeeper, before starting the game or entering events.";
 
   function draftValue(player: Player) {
     return lineupDraft[player.id] || { team: null, role: player.default_position };
@@ -398,15 +400,15 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
       notify("Fix lineup issues before saving.");
       return;
     }
-    await supabase.from("game_lineups").delete().eq("game_id", game.id);
-    const rows = (Object.entries(lineupDraft) as [string, { team: TeamCode | null; role: PlayerPosition }][])
-      .filter(([, value]) => value.team)
-      .map(([player_id, value]) => ({ game_id: game.id, player_id, team: value.team as TeamCode, role: value.role }));
-    if (rows.length) {
-      const { error } = await supabase.from("game_lineups").insert(rows);
-      if (error) return notify(error.message);
-    }
-    if (game.status === "upcoming" && rows.length) await supabase.from("games").update({ status: "draft" }).eq("id", game.id);
+    const rows = (["A", "B"] as TeamCode[]).flatMap(team => {
+      const teamPlayers = (team === "A" ? teamAPlayers : teamBPlayers).slice().sort((a, b) => {
+        const roleDifference = draftValue(a).role === draftValue(b).role ? 0 : draftValue(a).role === "goalkeeper" ? -1 : 1;
+        return roleDifference || a.name.localeCompare(b.name);
+      });
+      return teamPlayers.map((player, slot_index) => ({ player_id: player.id, team, role: draftValue(player).role, slot_index }));
+    });
+    const { error } = await supabase.rpc("save_game_lineup", { target_game_id: game.id, submitted_lineup: rows });
+    if (error) return notify(error.message);
     setLineupOpen(false);
     notify("Lineup saved.");
     reload();
@@ -414,16 +416,39 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
 
   async function updateStatus(status: Game["status"]) {
     if ((status === "live" || status === "final") && !lineupReady) {
-      notify("Set and save a valid lineup with at least 5 players per team before changing the game status.");
+      notify("Set and save exactly 5 players per team, including one goalkeeper, before changing the game status.");
       return;
     }
     if (status === "final" && !canFinalize) {
       notify("Cannot mark final before lineups are saved.");
       return;
     }
-    const { error } = await supabase.from("games").update({ status }).eq("id", game.id);
+    const { error } = await supabase.rpc("set_game_status", { target_game_id: game.id, new_status: status });
     if (error) return notify(error.message);
     notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
+    reload();
+  }
+
+  function requestFinalization() {
+    const warnings = [
+      !game.potm_player_id ? "POTM is not set." : null,
+      gameEvents.length === 0 && gamePlayerStats.every(stat => stat.goals === 0) ? "No goals or own goals are recorded." : null,
+      potm !== (game.potm_player_id || "") ? "The current POTM selection has not been saved." : null
+    ].filter(Boolean);
+    requestConfirm({
+      title: "Finalize this game?",
+      text: `Final score: Team A ${score.A} - ${score.B} Team B. POTM: ${playerName(data.players, game.potm_player_id)}.${warnings.length ? ` Check before finalizing: ${warnings.join(" ")}` : " All key result data is present."} Final games are locked until reopened with a correction reason.`,
+      confirmLabel: "Finalize game",
+      onConfirm: () => updateStatus("final")
+    });
+  }
+
+  async function reopenForCorrection() {
+    const { error } = await supabase.rpc("reopen_final_game", { target_game_id: game.id, correction_reason: correctionReason.trim() });
+    if (error) return notify(error.message);
+    setReopenDialogOpen(false);
+    setCorrectionReason("");
+    notify("Game reopened for a controlled correction.");
     reload();
   }
 
@@ -529,6 +554,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
 
   return (
     <div className="space-y-6">
+      <PromptDialog open={reopenDialogOpen} title="Reopen final game" text="Explain why this historical result needs a correction. The reason is stored in the admin audit log." value={correctionReason} placeholder="Correction reason" confirmLabel="Reopen game" onChange={setCorrectionReason} onCancel={() => { setReopenDialogOpen(false); setCorrectionReason(""); }} onConfirm={reopenForCorrection} />
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -536,11 +562,11 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
             <h2 className="mt-2 font-display text-4xl uppercase">{formatDateTime(game.game_date)}</h2>
             <div className="mt-2 font-mono text-3xl">Team A {score.A} - {score.B} Team B</div>
             <div className="mt-4 flex max-w-md gap-2">
-              <TextInput type="datetime-local" value={dateEdit} onChange={e => setDateEdit(e.target.value)} />
-              <SecondaryButton type="button" onClick={saveGameDetails}>Save date</SecondaryButton>
+              <TextInput disabled={game.status === "final"} type="datetime-local" value={dateEdit} onChange={e => setDateEdit(e.target.value)} />
+              <SecondaryButton disabled={game.status === "final"} type="button" onClick={saveGameDetails}>Save date</SecondaryButton>
             </div>
           </div>
-          <button type="button" onClick={deleteGame} className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 font-semibold text-red-200">Delete game</button>
+          <button type="button" disabled={game.status === "final"} onClick={deleteGame} className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 font-semibold text-red-200 disabled:cursor-not-allowed disabled:opacity-40">Delete game</button>
         </div>
       </Card>
 
@@ -553,7 +579,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
           {lineupOpen ? (
             <PrimaryButton type="button" onClick={saveLineup} disabled={!lineupCanSave}>Save lineup</PrimaryButton>
           ) : (
-            <PrimaryButton type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
+            <PrimaryButton disabled={game.status === "final"} type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
           )}
         </div>
 
@@ -586,40 +612,39 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
             <p className="text-sm text-chalk/55">{matchControlText}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <SecondaryButton type="button" onClick={() => updateStatus("upcoming")}>Upcoming</SecondaryButton>
-            <SecondaryButton type="button" onClick={() => updateStatus("draft")}>Draft</SecondaryButton>
-            <PrimaryButton type="button" disabled={!lineupReady} onClick={() => updateStatus("live")}>Mark live</PrimaryButton>
-            <SecondaryButton type="button" disabled={!canFinalize} onClick={() => updateStatus("final")}>Final</SecondaryButton>
+            {game.status === "final" ? <SecondaryButton type="button" onClick={() => setReopenDialogOpen(true)}>Reopen for correction</SecondaryButton> : <><SecondaryButton type="button" onClick={() => updateStatus("upcoming")}>Upcoming</SecondaryButton><SecondaryButton type="button" onClick={() => updateStatus("draft")}>Draft</SecondaryButton><PrimaryButton type="button" disabled={!lineupReady} onClick={() => updateStatus("live")}>Mark live</PrimaryButton><SecondaryButton type="button" disabled={!canFinalize} onClick={requestFinalization}>Final</SecondaryButton></>}
           </div>
         </div>
+
+        {game.correction_open ? <div className="mt-4 rounded-2xl border border-floodlight/40 bg-floodlight/10 p-3 text-sm font-semibold text-floodlight">Correction mode is open. Review the result and finalize the game again when the corrections are complete.</div> : null}
 
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
           <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
             <h4 className="font-display text-2xl uppercase">Events</h4>
             <form onSubmit={addEvent} className="mt-4 grid gap-3">
-              <Select disabled={!lineupReady} value={eventType} onChange={e => setEventType(e.target.value as "goal" | "own_goal")}>
+              <Select disabled={!lineupReady || game.status === "final"} value={eventType} onChange={e => setEventType(e.target.value as "goal" | "own_goal")}>
                 <option value="goal">Goal</option>
                 <option value="own_goal">Own goal</option>
               </Select>
-              <Select disabled={!lineupReady} value={eventPlayerId} onChange={e => setEventPlayerId(e.target.value)}>
+              <Select disabled={!lineupReady || game.status === "final"} value={eventPlayerId} onChange={e => setEventPlayerId(e.target.value)}>
                 <option value="">Select player</option>
                 {eventPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
               </Select>
               {eventType === "goal" ? (
-                <Select disabled={!lineupReady} value={assistPlayerId} onChange={e => setAssistPlayerId(e.target.value)}>
+                <Select disabled={!lineupReady || game.status === "final"} value={assistPlayerId} onChange={e => setAssistPlayerId(e.target.value)}>
                   <option value="">No assist</option>
-                  {eventPlayers.filter(p => p.id !== eventPlayerId).map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
+                  {eventPlayers.filter(player => player.id !== eventPlayerId && currentLineup.find(lineup => lineup.player_id === player.id)?.team === currentLineup.find(lineup => lineup.player_id === eventPlayerId)?.team).map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
                 </Select>
               ) : null}
-              <TextInput disabled={!lineupReady} type="number" min="0" max="200" value={minute} onChange={e => setMinute(e.target.value)} placeholder="Minute optional" />
-              <PrimaryButton disabled={!lineupReady}>Add event</PrimaryButton>
+              <TextInput disabled={!lineupReady || game.status === "final"} type="number" min="0" max="200" value={minute} onChange={e => setMinute(e.target.value)} placeholder="Minute optional" />
+              <PrimaryButton disabled={!lineupReady || game.status === "final"}>Add event</PrimaryButton>
             </form>
 
             <div className="mt-4 space-y-2">
               {gameEvents.map(event => (
                 <div key={event.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm">
                   <span>{event.minute != null ? `${event.minute}' - ` : ""}{event.event_type === "own_goal" ? "Own goal" : "Goal"}: {playerName(data.players, event.player_id)} {event.assist_player_id ? `- assist ${playerName(data.players, event.assist_player_id)}` : ""}</span>
-                  <button type="button" onClick={() => deleteEvent(event.id)} className="text-chalk/45 hover:text-red-300"><Trash2 size={16} /></button>
+                  {game.status !== "final" ? <button type="button" onClick={() => deleteEvent(event.id)} className="text-chalk/45 hover:text-red-300" aria-label="Delete event"><Trash2 size={16} /></button> : null}
                 </div>
               ))}
             </div>
@@ -628,11 +653,11 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
           <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
             <h4 className="font-display text-2xl uppercase">Player of the Match</h4>
             <div className="mt-4 flex gap-3">
-              <Select disabled={!lineupReady} value={potm} onChange={e => setPotm(e.target.value)}>
+              <Select disabled={!lineupReady || game.status === "final"} value={potm} onChange={e => setPotm(e.target.value)}>
                 <option value="">No POTM</option>
                 {eventPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
               </Select>
-              <SecondaryButton type="button" disabled={!lineupReady} onClick={savePotm}>Save</SecondaryButton>
+              <SecondaryButton type="button" disabled={!lineupReady || game.status === "final"} onClick={savePotm}>Save</SecondaryButton>
             </div>
           </section>
 
@@ -661,7 +686,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
                 <option value="goalkeeper">Goalkeeper</option>
               </Select>
               <TextInput type="number" min="0" step="1" value={manualStatValue} onChange={e => setManualStatValue(e.target.value)} placeholder="Stat value" />
-              <PrimaryButton>Save stats</PrimaryButton>
+              <PrimaryButton disabled={game.status === "final"}>Save stats</PrimaryButton>
             </form>
 
             <div className="mt-4 space-y-2">
@@ -719,7 +744,7 @@ function LineupValidation({ issues }: { issues: string[] }) {
   if (!issues.length) {
     return (
       <div className="mt-4 rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-3 text-sm font-semibold text-perimeter-400">
-        Lineup is valid: at least 5 players per team.
+        Lineup is valid: exactly 5 players per team, with 1 goalkeeper and 4 outfield players.
       </div>
     );
   }

@@ -15,6 +15,7 @@ export type Player = {
   name: string;
   default_position: PlayerPosition;
   active: boolean;
+  archived_at?: string | null;
   created_at?: string;
 };
 
@@ -24,6 +25,8 @@ export type Game = {
   status: GameStatus;
   potm_player_id: string | null;
   notes?: string | null;
+  finalized_at?: string | null;
+  correction_open?: boolean;
   created_at?: string;
 };
 
@@ -33,6 +36,7 @@ export type GameLineup = {
   player_id: string;
   team: TeamCode;
   role: PlayerPosition;
+  slot_index?: number | null;
   created_at?: string;
 };
 
@@ -57,6 +61,17 @@ export type GamePlayerStat = {
   saves: number;
   created_at?: string;
   updated_at?: string;
+};
+
+export type AdminAuditLog = {
+  id: string;
+  admin_user_id: string | null;
+  game_id: string | null;
+  action: string;
+  reason: string | null;
+  before_data: Record<string, unknown> | unknown[] | null;
+  after_data: Record<string, unknown> | unknown[] | null;
+  created_at: string;
 };
 
 export type FantasySquad = {

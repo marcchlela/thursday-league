@@ -8,13 +8,13 @@ import { useLeagueData } from "@/hooks/useLeagueData";
 import { calculatePlayerBreakdown, calculateScore } from "@/lib/scoring";
 import { formatDateTime, playerName, statusLabel } from "@/lib/utils";
 import { GameLineup, LeagueData, TeamCode } from "@/lib/types";
-import { Card, EmptyState, Pill } from "@/components/ui";
+import { Card, EmptyState, ErrorState, LoadingState, Pill, TabList } from "@/components/ui";
 
 type DetailTab = "stats" | "lineups" | "fantasy";
 
 export default function GameDetailPage() {
   const params = useParams<{ id: string }>();
-  const { data, loading, error } = useLeagueData();
+  const { data, loading, error, reload } = useLeagueData();
   const [tab, setTab] = useState<DetailTab>("stats");
 
   const game = data.games.find(g => g.id === params.id);
@@ -22,8 +22,8 @@ export default function GameDetailPage() {
   const events = useMemo(() => data.events.filter(event => event.game_id === params.id), [data.events, params.id]);
   const playerStats = useMemo(() => data.playerStats.filter(stat => stat.game_id === params.id), [data.playerStats, params.id]);
 
-  if (loading) return <div>Loading game...</div>;
-  if (error) return <div className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-red-100">{error}</div>;
+  if (loading) return <LoadingState label="Loading game details" cards={2} />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!game) return <EmptyState title="Game not found" text="This game may have been deleted." />;
 
   const score = calculateScore(events, lineups, playerStats);
@@ -60,15 +60,13 @@ export default function GameDetailPage() {
         </div>
       </section>
 
-      <div className="flex rounded-3xl border border-white/10 bg-white/[0.03] p-1">
-        {(["stats", "lineups", "fantasy"] as DetailTab[]).map(item => (
-          <button key={item} onClick={() => setTab(item)} className={`flex-1 rounded-2xl px-4 py-3 font-bold capitalize transition ${tab === item ? "bg-perimeter-400/20 text-chalk ring-1 ring-perimeter-400/30" : "text-chalk/55 hover:text-chalk"}`}>{item}</button>
-        ))}
-      </div>
+      <TabList idPrefix="game-detail" label="Game details" tabs={[{ id: "stats", label: "Stats" }, { id: "lineups", label: "Lineups" }, { id: "fantasy", label: "Fantasy" }]} active={tab} onChange={value => setTab(value as DetailTab)} />
 
-      {tab === "stats" ? <GameStats data={data} gameId={game.id} /> : null}
-      {tab === "lineups" ? <FullPitch data={data} lineups={lineups} /> : null}
-      {tab === "fantasy" ? <FantasyPlayerTable data={data} gameId={game.id} /> : null}
+      <div id={`game-detail-${tab}-panel`} role="tabpanel" aria-labelledby={`game-detail-${tab}-tab`}>
+        {tab === "stats" ? <GameStats data={data} gameId={game.id} /> : null}
+        {tab === "lineups" ? <FullPitch data={data} lineups={lineups} /> : null}
+        {tab === "fantasy" ? <FantasyPlayerTable data={data} gameId={game.id} /> : null}
+      </div>
     </div>
   );
 }
@@ -125,13 +123,14 @@ function FullPitch({ data, lineups }: { data: LeagueData; lineups: GameLineup[] 
 }
 
 function FormationHalf({ team, data, lineups }: { team: TeamCode; data: LeagueData; lineups: GameLineup[] }) {
-  const keeper = lineups.find(l => l.role === "goalkeeper");
-  const outfield = lineups.filter(l => l.role !== "goalkeeper");
+  const ordered = [...lineups].sort((a, b) => (a.slot_index ?? 99) - (b.slot_index ?? 99));
+  const keeper = ordered.find(l => l.role === "goalkeeper");
+  const outfield = ordered.filter(l => l.role !== "goalkeeper");
   const slots = [keeper, ...outfield.slice(0, 2), ...outfield.slice(2, 4)];
   const positions = team === "A"
     ? ["top-[5%] left-1/2", "top-[20%] left-[28%]", "top-[20%] left-[72%]", "top-[38%] left-[28%]", "top-[38%] left-[72%]"]
     : ["bottom-[5%] left-1/2", "bottom-[20%] left-[28%]", "bottom-[20%] left-[72%]", "bottom-[38%] left-[28%]", "bottom-[38%] left-[72%]"];
-  return <>{slots.map((lineup, index) => lineup ? <div key={lineup.id} className={`absolute ${positions[index]} z-10 -translate-x-1/2`}><PlayerMarker name={playerName(data.players, lineup.player_id)} role={index === 0 ? "GK" : index < 3 ? "DEF" : "FWD"} team={team} /></div> : null)}</>;
+  return <>{slots.map((lineup, index) => lineup ? <div key={lineup.id} className={`absolute ${positions[index]} z-10 -translate-x-1/2`}><PlayerMarker name={playerName(data.players, lineup.player_id)} role={index === 0 && lineup.role === "goalkeeper" ? "GK" : "OUT"} team={team} /></div> : null)}</>;
 }
 
 function PlayerMarker({ name, role, team }: { name: string; role: string; team: TeamCode }) {

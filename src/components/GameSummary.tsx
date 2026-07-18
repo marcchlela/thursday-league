@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Game, GameLineup, GamePlayerStat, MatchEvent, Player } from "@/lib/types";
+import { Game, GameLineup, GamePlayerStat, MatchEvent } from "@/lib/types";
 import { calculateScore } from "@/lib/scoring";
 import { formatDateTime, statusLabel } from "@/lib/utils";
 import { Card, EmptyState, Pill } from "./ui";
 
-export function GameSummary({ game, players, lineups, events, playerStats, title }: { game?: Game; players: Player[]; lineups: GameLineup[]; events: MatchEvent[]; playerStats: GamePlayerStat[]; title: string }) {
+export function GameSummary({ game, lineups, events, playerStats, title }: { game?: Game; lineups: GameLineup[]; events: MatchEvent[]; playerStats: GamePlayerStat[]; title: string }) {
   if (!game) return <EmptyState title={title} text="No game here yet." />;
 
   const gameLineups = lineups.filter(l => l.game_id === game.id);

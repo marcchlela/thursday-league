@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { ErrorState, LoadingState } from "@/components/ui";
 import { AdminPanel } from "@/components/AdminPanel";
 
 export default function AdminPage() {
@@ -15,7 +16,7 @@ export default function AdminPage() {
     if (!loading && !isAdmin) router.replace("/");
   }, [isAdmin, loading, router]);
 
-  if (loading) return <div>Loading admin...</div>;
+  if (loading) return <LoadingState label="Checking admin access" cards={1} />;
   if (!isAdmin) return null;
 
   return <AdminData />;
@@ -24,8 +25,8 @@ export default function AdminPage() {
 function AdminData() {
   const { data, loading, error, reload } = useLeagueData();
 
-  if (loading) return <div>Loading admin...</div>;
-  if (error) return <div className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-red-100">{error}</div>;
+  if (loading) return <LoadingState label="Loading admin" cards={3} />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
 
   return <AdminPanel data={data} reload={reload} />;
 }

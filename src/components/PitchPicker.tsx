@@ -123,8 +123,8 @@ export function PitchPicker({
       setEditing(false);
       setSelectedSlot(null);
       setToast("Picks saved.");
-    } catch (error: any) {
-      setMessage(error.message || "Could not save picks.");
+    } catch (error: unknown) {
+      setMessage(error instanceof Error ? error.message : "Could not save picks.");
     } finally {
       setSaving(false);
     }

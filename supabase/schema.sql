@@ -38,6 +38,7 @@ create table if not exists public.players (
   name text not null unique check (char_length(name) between 2 and 80),
   default_position player_position not null default 'outfield',
   active boolean not null default true,
+  archived_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -47,15 +48,18 @@ create table if not exists public.games (
   status game_status not null default 'upcoming',
   potm_player_id uuid references public.players(id) on delete set null,
   notes text,
+  finalized_at timestamptz,
+  correction_open boolean not null default false,
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.game_lineups (
   id uuid primary key default gen_random_uuid(),
   game_id uuid not null references public.games(id) on delete cascade,
-  player_id uuid not null references public.players(id) on delete cascade,
+  player_id uuid not null references public.players(id) on delete restrict,
   team team_code not null,
   role player_position not null default 'outfield',
+  slot_index integer check (slot_index is null or slot_index between 0 and 4),
   created_at timestamptz not null default now(),
   unique (game_id, player_id)
 );
@@ -64,7 +68,7 @@ create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   game_id uuid not null references public.games(id) on delete cascade,
   event_type event_kind not null,
-  player_id uuid not null references public.players(id) on delete cascade,
+  player_id uuid not null references public.players(id) on delete restrict,
   assist_player_id uuid references public.players(id) on delete set null,
   minute integer check (minute is null or minute between 0 and 200),
   created_at timestamptz not null default now(),
@@ -76,7 +80,7 @@ create table if not exists public.events (
 create table if not exists public.game_player_stats (
   id uuid primary key default gen_random_uuid(),
   game_id uuid not null references public.games(id) on delete cascade,
-  player_id uuid not null references public.players(id) on delete cascade,
+  player_id uuid not null references public.players(id) on delete restrict,
   team team_code not null default 'A',
   role player_position not null default 'outfield',
   goals integer not null default 0 check (goals >= 0),
@@ -98,7 +102,7 @@ create table if not exists public.fantasy_squads (
 create table if not exists public.fantasy_picks (
   id uuid primary key default gen_random_uuid(),
   squad_id uuid not null references public.fantasy_squads(id) on delete cascade,
-  player_id uuid not null references public.players(id) on delete cascade,
+  player_id uuid not null references public.players(id) on delete restrict,
   role player_position not null default 'outfield',
   is_captain boolean not null default false,
   slot_index integer not null check (slot_index between 0 and 4),

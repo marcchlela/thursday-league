@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-ink-900 text-chalk">Loading Thursday League...</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-ink-900 text-chalk" role="status" aria-label="Loading Thursday League"><div className="space-y-3 text-center"><div className="mx-auto h-14 w-14 animate-pulse rounded-2xl border-2 border-perimeter-400 bg-turf-700 shadow-glow" /><div className="h-4 w-40 animate-pulse rounded-full bg-white/10" /></div></div>;
   }
 
   if (isLogin) return <>{children}</>;
@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="hidden items-center gap-2 md:flex">
             {links.map(link => {
               const Icon = link.icon;
-              const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/"));
+              const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/")) || (link.href === "/fantasy" && pathname.startsWith("/fantasy/")) || (link.href === "/profile" && pathname === "/settings");
               return (
                 <Link key={link.href} href={link.href} className={cn("flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold text-chalk/70 transition hover:bg-white/5 hover:text-chalk", active && "bg-perimeter-400/15 text-chalk ring-1 ring-perimeter-400/30")}>
                   <Icon size={16} /> {link.label}
@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}>
           {links.map(link => {
             const Icon = link.icon;
-            const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/"));
+            const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/")) || (link.href === "/fantasy" && pathname.startsWith("/fantasy/")) || (link.href === "/profile" && pathname === "/settings");
             return (
               <Link key={link.href} href={link.href} className={cn("flex flex-col items-center gap-1 rounded-2xl py-2 text-[11px] text-chalk/60", active && "bg-perimeter-400/15 text-chalk")}>
                 <Icon size={18} /> {link.label}

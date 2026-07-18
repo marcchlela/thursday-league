@@ -9,11 +9,13 @@ A Next.js + Supabase web app for a weekly 5-a-side friend-group league: match tr
 - Admin player roster management.
 - Admin game creation, lineup setup, live/final statuses, events, own goals, assists, and Player of the Match.
 - Automatic score calculation from events.
-- Players page with career appearances, goals, assists, clean sheets, and own goals.
+- Players page with search, roster cards, and career leaderboards for appearances, goals, assists, saves, clean sheets, and own goals.
 - Fantasy page with Set Team, Standings, and History tabs.
 - Pitch-style fantasy picker with 4 outfield + 1 GK, or 5 outfield if no GK is in that week's lineup.
 - Captain chip and doubled fantasy points.
-- Profile page with total points, rank, weekly history, and password change.
+- Profile page with expandable weekly history plus account username and password settings.
+- Transactional lineup and fantasy saves with database-side squad validation.
+- Final-game locking, controlled corrections, player archiving, and an admin audit-log foundation.
 - Supabase Realtime subscriptions for live updates.
 - Turf/blue/chalk/floodlight visual system with generated turf texture assets.
 
@@ -57,7 +59,13 @@ Open Supabase → SQL Editor → New query, paste the full contents of:
 supabase/schema.sql
 ```
 
-Run it once.
+Run it once, then run the migration files in `supabase/migrations` in filename order. Existing projects only need migrations they have not already applied. The latest integrity upgrade is:
+
+```txt
+supabase/migrations/20260719_integrity_and_history.sql
+```
+
+This migration is required before using the updated lineup, fantasy, archive, or finalization controls.
 
 ### 4) Auth setting
 
@@ -111,4 +119,6 @@ Users only see usernames in the UI.
 - Fantasy points are calculated live from stored games, lineups, events, and picks. Editing events or lineups automatically changes points the next time the app loads/realtime refreshes.
 - Supabase RLS prevents normal users from changing games, players, lineups, or events.
 - Normal users can only save/edit their own fantasy squad before the game is live/final.
+- Fantasy saving also locks automatically at the scheduled kickoff time.
+- Players with historical records are archived instead of deleted so old results and fantasy points stay intact.
 - The app keeps the spec wording distinction: roster members are called `players`; fantasy users are not called players in participation reminders.

@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { calculateScore } from "@/lib/scoring";
 import { formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
-import { Card, EmptyState, Pill } from "@/components/ui";
+import { Card, EmptyState, ErrorState, LoadingState, Pill } from "@/components/ui";
 
 export default function GamesPage() {
-  const { data, loading, error } = useLeagueData();
+  const { data, loading, error, reload } = useLeagueData();
 
-  if (loading) return <div>Loading games...</div>;
-  if (error) return <div className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-red-100">{error}</div>;
+  if (loading) return <LoadingState label="Loading games" cards={4} />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const games = [...data.games].sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
 
