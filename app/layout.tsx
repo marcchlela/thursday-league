@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
+import { ServiceWorkerRegistration} from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
   title: "Thursday League",
@@ -11,6 +12,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <ServiceWorkerRegistration />
         <AppShell>{children}</AppShell>
       </body>
     </html>
