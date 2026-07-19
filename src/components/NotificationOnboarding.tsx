@@ -205,7 +205,7 @@ export function NotificationOnboarding() {
             <h2 className="mt-5 font-display text-4xl uppercase">Never miss league news</h2>
             <p className="mt-3 text-chalk/65">Enable push notifications for Thursday League.</p>
             <div className="mt-6 grid gap-2">
-              {["New game is scheduled", "Lineups are ready and fantasy opens", "Final score and fantasy results are ready"].map(item => (
+              {["New game is scheduled", "Lineups are ready and fantasy opens", "Fantasy deadline reminder before kickoff", "Final score and fantasy results are ready"].map(item => (
                 <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-chalk/75"><CheckCircle2 size={18} className="shrink-0 text-perimeter-400" />{item}</div>
               ))}
             </div>

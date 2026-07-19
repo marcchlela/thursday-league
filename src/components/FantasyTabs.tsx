@@ -5,10 +5,10 @@ import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { allTimeLeaderboard, weeklyLeaderboard } from "@/lib/scoring";
-import { formatDateTime, playerName } from "@/lib/utils";
+import { currentSeason, formatDateTime, playerName } from "@/lib/utils";
 import { FantasyPick, LeagueData } from "@/lib/types";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
-import { Card, EmptyState, Pill, TabList } from "./ui";
+import { Card, EmptyState, Pill, Select, TabList } from "./ui";
 import { PitchPicker } from "./PitchPicker";
 
 type FantasyTab = "set" | "standings" | "history";
@@ -88,17 +88,39 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void }) {
 }
 
 function Standings({ data }: { data: LeagueData }) {
-  const board = allTimeLeaderboard(data);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selectedCurrentSeason = currentSeason(data);
+  const requestedSeason = searchParams.get("season");
+  const seasonScope = requestedSeason === "all" || data.seasons.some(season => season.id === requestedSeason)
+    ? requestedSeason
+    : selectedCurrentSeason?.id || "all";
+  const selectedSeason = data.seasons.find(season => season.id === seasonScope);
+  const standingsGames = seasonScope === "all" ? data.games : data.games.filter(game => game.season_id === seasonScope);
+  const board = allTimeLeaderboard({ ...data, games: standingsGames });
   const currentGame = activeFantasyGame(data);
   const pickedCount = currentGame ? data.squads.filter(squad => squad.game_id === currentGame.id).length : 0;
   const notPicked = currentGame ? Math.max(data.profiles.length - pickedCount, 0) : 0;
 
+  function chooseSeason(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "standings");
+    params.set("season", value);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   return (
     <Card className="mx-auto max-w-3xl">
-      <div className="flex items-center justify-between gap-3">
-        <div><h2 className="font-display text-3xl uppercase">Points standings</h2><p className="text-sm text-chalk/55">All-time fantasy points. No season reset.</p></div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h2 className="font-display text-3xl uppercase">Points standings</h2><p className="text-sm text-chalk/55">{selectedSeason ? `${selectedSeason.name} season points.` : "All-time fantasy points across every season."}</p></div>
         {currentGame?.status === "draft" ? <Pill className="border-floodlight/40 bg-floodlight/10 text-floodlight">{notPicked} have not picked yet</Pill> : null}
       </div>
+      <Select value={seasonScope || "all"} onChange={event => chooseSeason(event.target.value)} className="mt-4" aria-label="Standings season">
+        {selectedCurrentSeason ? <option value={selectedCurrentSeason.id}>{selectedCurrentSeason.name} · current season</option> : null}
+        <option value="all">All-time</option>
+        {data.seasons.filter(season => season.id !== selectedCurrentSeason?.id).map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
+      </Select>
       <div className="mt-5 space-y-2">
         {board.map(row => <div key={row.userId} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-perimeter-400/15 font-mono text-perimeter-400">#{row.rank}</span><span className="font-semibold">{row.username}</span><span className="font-mono text-xl">{row.points}</span></div>)}
       </div>

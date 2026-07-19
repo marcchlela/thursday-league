@@ -27,7 +27,25 @@ export type Game = {
   notes?: string | null;
   finalized_at?: string | null;
   correction_open?: boolean;
+  correction_reason?: string | null;
+  season_id?: string | null;
   created_at?: string;
+};
+
+export type Season = {
+  id: string;
+  name: string;
+  format: "yearly" | "custom";
+  start_date: string;
+  end_date: string;
+  created_at?: string;
+};
+
+export type LeagueSettings = {
+  id: number;
+  season_mode: "yearly" | "custom";
+  current_season_id: string | null;
+  updated_at?: string;
 };
 
 export type GameLineup = {
@@ -101,6 +119,8 @@ export type LeagueData = {
   playerStats: GamePlayerStat[];
   squads: FantasySquad[];
   picks: FantasyPick[];
+  seasons: Season[];
+  leagueSettings: LeagueSettings | null;
 };
 
 export type PlayerBreakdown = {

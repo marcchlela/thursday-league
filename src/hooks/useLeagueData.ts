@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { FantasyPick, FantasySquad, Game, GameLineup, GamePlayerStat, LeagueData, MatchEvent, Player, Profile } from "@/lib/types";
+import { FantasyPick, FantasySquad, Game, GameLineup, GamePlayerStat, LeagueData, LeagueSettings, MatchEvent, Player, Profile, Season } from "@/lib/types";
 
 const emptyData: LeagueData = {
   profiles: [],
@@ -12,7 +12,9 @@ const emptyData: LeagueData = {
   events: [],
   playerStats: [],
   squads: [],
-  picks: []
+  picks: [],
+  seasons: [],
+  leagueSettings: null
 };
 
 function friendlyDataError(message: string) {
@@ -30,7 +32,7 @@ export function useLeagueData() {
 
   const load = useCallback(async () => {
     setError(null);
-    const [profiles, players, games, lineups, events, playerStats, squads, picks] = await Promise.all([
+    const [profiles, players, games, lineups, events, playerStats, squads, picks, seasons, leagueSettings] = await Promise.all([
       supabase.from("profiles").select("*").order("username"),
       supabase.from("players").select("*").order("name"),
       supabase.from("games").select("*").order("game_date", { ascending: false }),
@@ -38,10 +40,12 @@ export function useLeagueData() {
       supabase.from("events").select("*").order("created_at", { ascending: true }),
       supabase.from("game_player_stats").select("*").order("created_at", { ascending: true }),
       supabase.from("fantasy_squads").select("*"),
-      supabase.from("fantasy_picks").select("*").order("slot_index", { ascending: true })
+      supabase.from("fantasy_picks").select("*").order("slot_index", { ascending: true }),
+      supabase.from("seasons").select("*").order("start_date", { ascending: false }),
+      supabase.from("league_settings").select("*").eq("id", 1).maybeSingle()
     ]);
 
-    const firstError = [profiles, players, games, lineups, events, playerStats, squads, picks].find(r => r.error)?.error;
+    const firstError = [profiles, players, games, lineups, events, playerStats, squads, picks, seasons, leagueSettings].find(r => r.error)?.error;
     if (firstError) {
       setError(friendlyDataError(firstError.message));
       setLoading(false);
@@ -56,7 +60,9 @@ export function useLeagueData() {
       events: (events.data || []) as MatchEvent[],
       playerStats: (playerStats.data || []) as GamePlayerStat[],
       squads: (squads.data || []) as FantasySquad[],
-      picks: (picks.data || []) as FantasyPick[]
+      picks: (picks.data || []) as FantasyPick[],
+      seasons: (seasons.data || []) as Season[],
+      leagueSettings: (leagueSettings.data || null) as LeagueSettings | null
     });
     setLoading(false);
   }, []);
@@ -73,6 +79,8 @@ export function useLeagueData() {
       .on("postgres_changes", { event: "*", schema: "public", table: "game_player_stats" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_squads" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_picks" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "seasons" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "league_settings" }, load)
       .subscribe();
 
     return () => {

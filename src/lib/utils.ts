@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Game, MatchEvent, GameLineup, GamePlayerStat, Player } from "./types";
+import { Game, MatchEvent, GameLineup, GamePlayerStat, LeagueData, Player } from "./types";
 import { calculateScore } from "./scoring";
 
 export const cn = clsx;
@@ -48,4 +48,13 @@ export function statusLabel(status: string) {
     final: "Final"
   };
   return map[status] || status;
+}
+
+export function currentSeason(data: Pick<LeagueData, "seasons" | "leagueSettings">) {
+  if (data.leagueSettings?.season_mode === "custom") {
+    return data.seasons.find(season => season.id === data.leagueSettings?.current_season_id);
+  }
+  const beirutYear = new Intl.DateTimeFormat("en", { year: "numeric", timeZone: "Asia/Beirut" }).format(new Date());
+  return data.seasons.find(season => season.format === "yearly" && season.name === beirutYear)
+    || data.seasons.find(season => season.id === data.leagueSettings?.current_season_id);
 }

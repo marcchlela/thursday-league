@@ -3,8 +3,9 @@ import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { calculateScore } from "@/lib/scoring";
 import { GameLineup, GamePlayerStat, MatchEvent } from "@/lib/types";
 import {
+  NotificationType,
   PushPayload,
-  sendPushToAll
+  sendTrackedPush
 } from "@/lib/pushNotifications";
 
 export const runtime = "nodejs";
@@ -75,6 +76,12 @@ function notificationFor(
   }
 
   return null;
+}
+
+function notificationType(event: AdminEvent): NotificationType {
+  if (event === "game_scheduled") return "new_game";
+  if (event === "lineups_ready") return "lineups_ready";
+  return "final_results";
 }
 
 export async function POST(request: Request) {
@@ -148,7 +155,7 @@ export async function POST(request: Request) {
 
   const { data: game, error: gameError } = await supabaseAdmin
     .from("games")
-    .select("id, game_date, status")
+    .select("id, game_date, status, finalized_at")
     .eq("id", gameId)
     .single();
 
@@ -192,7 +199,14 @@ export async function POST(request: Request) {
 
   let result;
   try {
-    result = await sendPushToAll(payload);
+    const finalVersion = event === "result_finalized" ? game.finalized_at || "final" : "first";
+    result = await sendTrackedPush({
+      type: notificationType(event),
+      payload,
+      gameId: game.id,
+      createdBy: user.id,
+      dedupeKey: `${event}:${game.id}:${finalVersion}`
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not send notifications." },
