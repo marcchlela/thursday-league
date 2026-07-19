@@ -10,6 +10,8 @@ import { AdminAuditHistory } from "./AdminAuditHistory";
 import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TabList, TextInput, Toast } from "./ui";
 
 type AdminTab = "games" | "roster" | "audit";
+type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
+type PushSendResult = { total: number; sent: number; failed: number; removed: number };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
 type ManualStatType = "goals" | "assists" | "saves";
 type ConfirmState = {
@@ -18,6 +20,28 @@ type ConfirmState = {
   confirmLabel?: string;
   onConfirm: () => void | Promise<void>;
 } | null;
+
+async function sendAdminGameNotification(gameId: string, event: AdminPushEvent) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Your login session could not be found.");
+
+  const response = await fetch("/api/push/admin-event", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ gameId, event })
+  });
+  const body = await response.json().catch(() => null) as { error?: string; result?: PushSendResult } | null;
+  if (!response.ok) throw new Error(body?.error || "The notification could not be sent.");
+  return body?.result;
+}
+
+function deliveryMessage(action: string, result?: PushSendResult) {
+  const delivered = result?.sent || 0;
+  return `${action} Notification sent to ${delivered} device${delivered === 1 ? "" : "s"}.`;
+}
 
 export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => void }) {
   const [activeTab, setActiveTab] = useState<AdminTab>("games");
@@ -66,10 +90,19 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   async function createGame(e: React.FormEvent) {
     e.preventDefault();
     if (!gameDate) return;
-    const { error } = await supabase.from("games").insert({ game_date: new Date(gameDate).toISOString(), status: "upcoming" });
+    const { data: createdGame, error } = await supabase
+      .from("games")
+      .insert({ game_date: new Date(gameDate).toISOString(), status: "upcoming" })
+      .select("id")
+      .single();
     if (error) return notify(error.message);
     setGameDate("");
-    notify("Game created.");
+    try {
+      const result = await sendAdminGameNotification(createdGame.id, "game_scheduled");
+      notify(deliveryMessage("Game created.", result));
+    } catch (notificationError) {
+      notify(`Game created, but its notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
+    }
     reload();
   }
 
@@ -407,10 +440,20 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
       });
       return teamPlayers.map((player, slot_index) => ({ player_id: player.id, team, role: draftValue(player).role, slot_index }));
     });
+    const firstPublication = !lineupReady;
     const { error } = await supabase.rpc("save_game_lineup", { target_game_id: game.id, submitted_lineup: rows });
     if (error) return notify(error.message);
     setLineupOpen(false);
-    notify("Lineup saved.");
+    if (firstPublication) {
+      try {
+        const result = await sendAdminGameNotification(game.id, "lineups_ready");
+        notify(deliveryMessage("Lineup saved.", result));
+      } catch (notificationError) {
+        notify(`Lineup saved, but its notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
+      }
+    } else {
+      notify("Lineup saved. No new notification was sent for this edit.");
+    }
     reload();
   }
 
@@ -425,7 +468,16 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
     }
     const { error } = await supabase.rpc("set_game_status", { target_game_id: game.id, new_status: status });
     if (error) return notify(error.message);
-    notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
+    if (status === "final") {
+      try {
+        const result = await sendAdminGameNotification(game.id, "result_finalized");
+        notify(deliveryMessage("Game marked final.", result));
+      } catch (notificationError) {
+        notify(`Game marked final, but its notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
+      }
+    } else {
+      notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
+    }
     reload();
   }
 
