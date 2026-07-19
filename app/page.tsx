@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { GameSummary } from "@/components/GameSummary";
+import { NotificationOnboarding } from "@/components/NotificationOnboarding";
 import { Card, EmptyState, ErrorState, LoadingState, Stat } from "@/components/ui";
 import { calculateScore } from "@/lib/scoring";
 import { formatDateTime } from "@/lib/utils";
@@ -24,6 +25,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
+      <NotificationOnboarding />
       <section className="overflow-hidden rounded-[2rem] border border-perimeter-400/35 bg-turf shadow-glow">
         <div className="bg-gradient-to-r from-black/75 via-black/55 to-black/25 p-6 md:p-10">
           <p className="text-sm font-bold uppercase tracking-[.3em] text-perimeter-400">Home</p>

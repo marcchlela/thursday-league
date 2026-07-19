@@ -5,7 +5,13 @@ import { ServiceWorkerRegistration} from "@/components/ServiceWorkerRegistration
 
 export const metadata: Metadata = {
   title: "Thursday League",
-  description: "Weekly 5-a-side match tracker and fantasy league"
+  applicationName: "Thursday League",
+  description: "Weekly 5-a-side match tracker and fantasy league",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Thursday League"
+  }
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

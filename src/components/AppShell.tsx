@@ -7,6 +7,7 @@ import { Home, List, Shield, Trophy, Users, UserRound, LogOut } from "lucide-rea
 import { supabase } from "@/lib/supabase";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { cn } from "@/lib/utils";
+import { NotificationNudge } from "./NotificationOnboarding";
 
 const baseLinks = [
   { href: "/", label: "Home", icon: Home },
@@ -43,6 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-ink-900 bg-turfMuted text-chalk">
+      <NotificationNudge userId={user.id} />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-ink-900/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link href="/" className="group flex items-center gap-3">
