@@ -222,7 +222,7 @@ export function NotificationOnboarding() {
               <div className="mt-5 space-y-3 text-sm text-chalk/70">
                 <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><Share className="shrink-0 text-perimeter-400" size={20} /><span>In your browser, press the <strong>Share</strong> button.</span></div>
                 <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><Download className="shrink-0 text-perimeter-400" size={20} /><span>Choose <strong>Add to Home Screen</strong>, then press Add.</span></div>
-                <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><AppWindow className="shrink-0 text-perimeter-400" size={20} /><span>Open the <strong>new Thursday League app</strong>. Sign in once and setup will continue at the notification step.</span></div>
+                <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><AppWindow className="shrink-0 text-perimeter-400" size={20} /><span>Open the <strong>new Thursday League app</strong>, sign in and finish setup.</span></div>
 
                 <p>iPhone only allows Web Push from the installed Home Screen app.</p>
               </div>
