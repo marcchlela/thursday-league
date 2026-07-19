@@ -3,7 +3,9 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Thursday League",
-    short_name: "Thursday",
+    short_name: "Thursday League",
+    id: "/",
+    scope: "/",
     description: "Weekly 5-a-side match tracker and fantasy league",
     start_url: "/",
     display: "standalone",

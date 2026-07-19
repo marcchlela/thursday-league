@@ -30,8 +30,10 @@ export function useAuthProfile() {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (mounted) loadProfile(data.user);
+    // Restore the persisted browser session first. This is especially important
+    // for an installed iOS Home Screen app, where each app origin has its own storage.
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) loadProfile(data.session?.user || null);
     });
 
     const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {

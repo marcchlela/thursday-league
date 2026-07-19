@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, LockKeyhole, UserPlus } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Smartphone, UserPlus } from "lucide-react";
+import { isInstalledApp } from "@/lib/pushClient";
 import { cleanUsername, supabase, supabaseConfigError, usernameToEmail } from "@/lib/supabase";
 import { PrimaryButton, SecondaryButton, TextInput } from "./ui";
 
@@ -26,6 +27,11 @@ export function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [installedApp, setInstalledApp] = useState(false);
+
+  useEffect(() => {
+    setInstalledApp(isInstalledApp());
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,6 +87,13 @@ export function AuthForm() {
               </div>
               {mode === "login" ? <LockKeyhole className="text-perimeter-400" /> : <UserPlus className="text-floodlight" />}
             </div>
+
+            {installedApp ? (
+              <div className="mb-6 flex gap-3 rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-4 text-sm text-chalk/75">
+                <Smartphone className="shrink-0 text-perimeter-400" size={20} />
+                <div><strong className="text-chalk">One quick sign-in</strong><p className="mt-1">The installed app keeps its own secure session. Sign in once and notification setup will resume automatically.</p></div>
+              </div>
+            ) : null}
 
             <div className="space-y-4">
               <label className="block text-sm font-semibold text-chalk/70">Username</label>
