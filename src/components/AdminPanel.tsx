@@ -7,6 +7,7 @@ import { calculateScore } from "@/lib/scoring";
 import { cn, formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
 import { Game, LeagueData, Player, PlayerPosition, TeamCode } from "@/lib/types";
 import { AdminAuditHistory } from "./AdminAuditHistory";
+import { AdminStatsPanel } from "./AdminStatsPanel";
 import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TabList, TextInput, Toast } from "./ui";
 
 type AdminTab = "games" | "roster" | "audit";
@@ -125,6 +126,8 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
         <h1 className="font-display text-5xl uppercase">Admin Control Room</h1>
         <p className="mt-2 text-chalk/60">Manage roster, games, lineups, live events, final results, and Player of the Match.</p>
       </div>
+
+      <AdminStatsPanel data={data} />
 
       <TabList
         idPrefix="admin"
