@@ -8,6 +8,13 @@ export type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  ttl?: number;
+};
+
+type PushSubscriptionRow = {
+  endpoint: string;
+  p256dh_key: string;
+  auth_key: string;
 };
 
 type PushError = Error & {
@@ -26,29 +33,20 @@ function configureWebPush() {
   webPush.setVapidDetails(subject, publicKey, privateKey);
 }
 
-export async function sendPushToUser(
-  userId: string,
+async function deliverNotifications(
+  subscriptions: PushSubscriptionRow[],
   payload: PushPayload
 ) {
   configureWebPush();
 
   const supabaseAdmin = createSupabaseAdmin();
-
-  const { data: subscriptions, error } = await supabaseAdmin
-    .from("push_subscriptions")
-    .select("endpoint, p256dh_key, auth_key")
-    .eq("user_id", userId);
-
-  if (error) {
-    throw new Error("Could not load push subscriptions.");
-  }
-
+  const { ttl = 3600, ...visiblePayload } = payload;
   let sent = 0;
   let failed = 0;
   let removed = 0;
 
   await Promise.all(
-    (subscriptions || []).map(async subscription => {
+    subscriptions.map(async subscription => {
       try {
         await webPush.sendNotification(
           {
@@ -58,9 +56,9 @@ export async function sendPushToUser(
               auth: subscription.auth_key
             }
           },
-          JSON.stringify(payload),
+          JSON.stringify(visiblePayload),
           {
-            TTL: 60
+            TTL: ttl
           }
         );
 
@@ -70,7 +68,6 @@ export async function sendPushToUser(
 
         const pushError = error as PushError;
 
-        // These responses mean the browser subscription no longer exists.
         if (
           pushError.statusCode === 404 ||
           pushError.statusCode === 410
@@ -87,9 +84,47 @@ export async function sendPushToUser(
   );
 
   return {
-    total: subscriptions?.length || 0,
+    total: subscriptions.length,
     sent,
     failed,
     removed
   };
+}
+
+export async function sendPushToUser(
+  userId: string,
+  payload: PushPayload
+) {
+  const supabaseAdmin = createSupabaseAdmin();
+
+  const { data, error } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select("endpoint, p256dh_key, auth_key")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error("Could not load the user’s push subscriptions.");
+  }
+
+  return deliverNotifications(
+    (data || []) as PushSubscriptionRow[],
+    payload
+  );
+}
+
+export async function sendPushToAll(payload: PushPayload) {
+  const supabaseAdmin = createSupabaseAdmin();
+
+  const { data, error } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select("endpoint, p256dh_key, auth_key");
+
+  if (error) {
+    throw new Error("Could not load push subscriptions.");
+  }
+
+  return deliverNotifications(
+    (data || []) as PushSubscriptionRow[],
+    payload
+  );
 }

@@ -30,10 +30,11 @@ export async function POST(request: Request) {
   }
 
   const result = await sendPushToUser(user.id, {
-    title: "",
-    body: "Push notifications are working on this device!",
+    title: "Test",
+    body: "Notifications are working correctly on this device!",
     url: "/settings",
-    tag: "push-test"
+    tag: "push-test",
+    ttl: 60
   });
 
   if (result.total === 0) {
