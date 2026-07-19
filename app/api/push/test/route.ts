@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   const result = await sendPushToUser(user.id, {
-    title: "Thursday League",
+    title: "",
     body: "Push notifications are working on this device!",
     url: "/settings",
     tag: "push-test"
