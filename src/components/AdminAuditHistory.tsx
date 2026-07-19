@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Search } from "lucide-react";
+import { Pencil, RefreshCw, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { AdminAuditLog, Game, Profile } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
@@ -23,7 +23,10 @@ const ACTION_LABELS: Record<string, string> = {
   events_delete: "Event deleted",
   game_player_stats_insert: "Player stat added",
   game_player_stats_update: "Player stat updated",
-  game_player_stats_delete: "Player stat removed"
+  game_player_stats_delete: "Player stat removed",
+  season_created: "Season created",
+  season_mode_changed: "Season mode changed",
+  season_updated: "Season updated"
 };
 
 function actionLabel(action: string) {
@@ -42,7 +45,7 @@ function JsonSnapshot({ label, value }: { label: string; value: AdminAuditLog["b
   );
 }
 
-export function AdminAuditHistory({ profiles, games }: { profiles: Profile[]; games: Game[] }) {
+export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles: Profile[]; games: Game[]; onCorrectGame: (gameId: string) => void }) {
   const [rows, setRows] = useState<AdminAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +102,7 @@ export function AdminAuditHistory({ profiles, games }: { profiles: Profile[]; ga
             <RefreshCw size={16} /> Refresh
           </SecondaryButton>
         </div>
+        <div className="mt-4 rounded-2xl border border-perimeter-400/20 bg-perimeter-400/[0.07] p-4 text-sm text-chalk/65">Final results stay locked. Use <strong className="text-chalk">Correct game</strong> below, reopen the result with a reason, make the edits in Games, then finalize it again. Every edit keeps that reason in this history.</div>
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_260px]">
           <label className="relative">
             <span className="sr-only">Search audit history</span>
@@ -137,6 +141,7 @@ export function AdminAuditHistory({ profiles, games }: { profiles: Profile[]; ga
                 <JsonSnapshot label="Before" value={row.before_data} />
                 <JsonSnapshot label="After" value={row.after_data} />
               </div>
+              {game ? <SecondaryButton type="button" onClick={() => onCorrectGame(game.id)} className="mt-4 inline-flex items-center gap-2"><Pencil size={15} /> Correct game</SecondaryButton> : null}
             </details>
           </Card>
         );

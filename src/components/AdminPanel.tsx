@@ -7,10 +7,12 @@ import { calculateScore } from "@/lib/scoring";
 import { cn, formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
 import { Game, LeagueData, Player, PlayerPosition, TeamCode } from "@/lib/types";
 import { AdminAuditHistory } from "./AdminAuditHistory";
+import { AdminNotificationHistory } from "./AdminNotificationHistory";
+import { AdminSeasonManager } from "./AdminSeasonManager";
 import { AdminStatsPanel } from "./AdminStatsPanel";
 import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TabList, TextInput, Toast } from "./ui";
 
-type AdminTab = "games" | "roster" | "audit";
+type AdminTab = "games" | "roster" | "seasons" | "notifications" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
 type PushSendResult = { total: number; sent: number; failed: number; removed: number };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
@@ -46,6 +48,7 @@ function deliveryMessage(action: string, result?: PushSendResult) {
 
 export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => void }) {
   const [activeTab, setActiveTab] = useState<AdminTab>("games");
+  const [focusGameId, setFocusGameId] = useState<string | null>(null);
   const [playerNameInput, setPlayerNameInput] = useState("");
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>("outfield");
   const [gameDate, setGameDate] = useState("");
@@ -62,6 +65,11 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 
   function requestConfirm(state: NonNullable<ConfirmState>) {
     setConfirmState(state);
+  }
+
+  function openGameControls(gameId: string) {
+    setFocusGameId(gameId);
+    setActiveTab("games");
   }
 
   async function addPlayer(e: React.FormEvent) {
@@ -132,7 +140,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       <TabList
         idPrefix="admin"
         label="Admin sections"
-        tabs={[{ id: "games", label: "Games" }, { id: "roster", label: "Roster" }, { id: "audit", label: "Audit history" }]}
+        tabs={[{ id: "games", label: "Games" }, { id: "roster", label: "Roster" }, { id: "seasons", label: "Seasons" }, { id: "notifications", label: "Notifications" }, { id: "audit", label: "Audit" }]}
         active={activeTab}
         onChange={id => setActiveTab(id as AdminTab)}
       />
@@ -150,7 +158,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 
           <div className="space-y-4">
             {games.map((game, index) => (
-              <GameSection key={game.id} game={game} data={data} reload={reload} defaultOpen={index === 0} notify={notify} requestConfirm={requestConfirm} />
+              <GameSection key={game.id} game={game} data={data} reload={reload} defaultOpen={index === 0} forceOpen={focusGameId === game.id} notify={notify} requestConfirm={requestConfirm} />
             ))}
           </div>
           {!games.length ? <EmptyState title="No games yet" text="Create the first Thursday game to start setting lineups." /> : null}
@@ -173,9 +181,17 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
             ))}
           </div>
         </Card>
+      ) : activeTab === "seasons" ? (
+        <div id="admin-seasons-panel" role="tabpanel" aria-labelledby="admin-seasons-tab">
+          <AdminSeasonManager data={data} reload={reload} />
+        </div>
+      ) : activeTab === "notifications" ? (
+        <div id="admin-notifications-panel" role="tabpanel" aria-labelledby="admin-notifications-tab">
+          <AdminNotificationHistory profiles={data.profiles} games={data.games} />
+        </div>
       ) : (
         <div id="admin-audit-panel" role="tabpanel" aria-labelledby="admin-audit-tab">
-          <AdminAuditHistory profiles={data.profiles} games={data.games} />
+          <AdminAuditHistory profiles={data.profiles} games={data.games} onCorrectGame={openGameControls} />
         </div>
       )}
     </div>
@@ -285,6 +301,7 @@ function GameSection({
   data,
   reload,
   defaultOpen,
+  forceOpen,
   notify,
   requestConfirm
 }: {
@@ -292,6 +309,7 @@ function GameSection({
   data: LeagueData;
   reload: () => void;
   defaultOpen: boolean;
+  forceOpen: boolean;
   notify: (message: string) => void;
   requestConfirm: (state: NonNullable<ConfirmState>) => void;
 }) {
@@ -304,8 +322,14 @@ function GameSection({
   const savedTeamB = lineups.filter(lineup => lineup.team === "B");
   const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.every(lineup => lineup.slot_index != null) && savedTeamB.every(lineup => lineup.slot_index != null) && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length === 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length === 1;
 
+  useEffect(() => {
+    if (!forceOpen) return;
+    setOpen(true);
+    window.setTimeout(() => document.getElementById(`admin-game-${game.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }, [forceOpen, game.id]);
+
   return (
-    <section className="overflow-hidden rounded-3xl border border-white/10 bg-black/20">
+    <section id={`admin-game-${game.id}`} className="scroll-mt-24 overflow-hidden rounded-3xl border border-white/10 bg-black/20">
       <button
         type="button"
         onClick={() => setOpen(value => !value)}
@@ -671,7 +695,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
           </div>
         </div>
 
-        {game.correction_open ? <div className="mt-4 rounded-2xl border border-floodlight/40 bg-floodlight/10 p-3 text-sm font-semibold text-floodlight">Correction mode is open. Review the result and finalize the game again when the corrections are complete.</div> : null}
+        {game.correction_open ? <div className="mt-4 rounded-2xl border border-floodlight/40 bg-floodlight/10 p-3 text-sm font-semibold text-floodlight">Correction mode is open{game.correction_reason ? `: ${game.correction_reason}` : "."} Review the result and finalize the game again when the corrections are complete.</div> : null}
 
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
           <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
