@@ -6,11 +6,13 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Crown } from "lucide-react";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { calculatePlayerBreakdown, calculateScore } from "@/lib/scoring";
+import { isCompetitionEligible } from "@/lib/playerEligibility";
 import { formatDateTime, playerName, statusLabel } from "@/lib/utils";
 import { GameLineup, LeagueData, TeamCode } from "@/lib/types";
 import { Card, EmptyState, ErrorState, LoadingState, Pill, TabList } from "@/components/ui";
+import { GameBettingPanel } from "@/components/GameBettingPanel";
 
-type DetailTab = "stats" | "lineups" | "fantasy";
+type DetailTab = "stats" | "lineups" | "fantasy" | "bets";
 
 export default function GameDetailPage() {
   const params = useParams<{ id: string }>();
@@ -60,12 +62,13 @@ export default function GameDetailPage() {
         </div>
       </section>
 
-      <TabList idPrefix="game-detail" label="Game details" tabs={[{ id: "stats", label: "Stats" }, { id: "lineups", label: "Lineups" }, { id: "fantasy", label: "Fantasy" }]} active={tab} onChange={value => setTab(value as DetailTab)} />
+      <TabList idPrefix="game-detail" label="Game details" tabs={[{ id: "stats", label: "Stats" }, { id: "lineups", label: "Lineups" }, { id: "fantasy", label: "Fantasy" }, { id: "bets", label: "Bets" }]} active={tab} onChange={value => setTab(value as DetailTab)} />
 
       <div id={`game-detail-${tab}-panel`} role="tabpanel" aria-labelledby={`game-detail-${tab}-tab`}>
         {tab === "stats" ? <GameStats data={data} gameId={game.id} /> : null}
         {tab === "lineups" ? <FullPitch data={data} lineups={lineups} /> : null}
         {tab === "fantasy" ? <FantasyPlayerTable data={data} gameId={game.id} /> : null}
+        {tab === "bets" ? <GameBettingPanel game={game} data={data} /> : null}
       </div>
     </div>
   );
@@ -83,6 +86,7 @@ function GameStats({ data, gameId }: { data: LeagueData; gameId: string }) {
     return {
       id,
       name: playerName(data.players, id),
+      competitionEligible: isCompetitionEligible(data.players.find(player => player.id === id)),
       role,
       goals: events.filter(e => e.event_type === "goal" && e.player_id === id).length + (stat?.goals || 0),
       assists: events.filter(e => e.event_type === "goal" && e.assist_player_id === id).length + (stat?.assists || 0),
@@ -97,7 +101,7 @@ function GameStats({ data, gameId }: { data: LeagueData; gameId: string }) {
       <div className="space-y-2">
         {rows.map(row => (
           <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-            <div className="flex items-center gap-3"><Pill>{row.role === "goalkeeper" ? "GK" : "OUT"}</Pill><span className="font-semibold">{row.name}</span></div>
+            <div className="flex items-center gap-3"><Pill>{row.role === "goalkeeper" ? "GK" : "OUT"}</Pill><span className="font-semibold">{row.name}</span>{!row.competitionEligible ? <Pill>Guest</Pill> : null}</div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-sm text-perimeter-400">
               <span>{row.goals} G</span><span>{row.assists} A</span><span>{row.ownGoals} OG</span>{row.role === "goalkeeper" ? <span>{row.saves} saves</span> : null}
             </div>
@@ -139,7 +143,8 @@ function PlayerMarker({ name, role, team }: { name: string; role: string; team: 
 
 function FantasyPlayerTable({ data, gameId }: { data: LeagueData; gameId: string }) {
   const game = data.games.find(g => g.id === gameId)!;
-  const ids = [...new Set([...data.lineups.filter(l => l.game_id === gameId).map(l => l.player_id), ...data.playerStats.filter(s => s.game_id === gameId).map(s => s.player_id)])];
+  const eligibleIds = new Set(data.players.filter(isCompetitionEligible).map(player => player.id));
+  const ids = [...new Set([...data.lineups.filter(l => l.game_id === gameId).map(l => l.player_id), ...data.playerStats.filter(s => s.game_id === gameId).map(s => s.player_id)])].filter(id => eligibleIds.has(id));
   const rows = ids.map(id => {
     const player = data.players.find(p => p.id === id)!;
     return calculatePlayerBreakdown({ game, player, lineups: data.lineups, events: data.events, playerStats: data.playerStats });

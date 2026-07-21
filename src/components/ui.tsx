@@ -53,8 +53,8 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 export function TabList({ idPrefix, label, tabs, active, onChange }: { idPrefix: string; label: string; tabs: { id: string; label: string }[]; active: string; onChange: (id: string) => void }) {
   return (
-    <div className="flex rounded-3xl border border-white/10 bg-white/[0.03] p-1" role="tablist" aria-label={label}>
-      {tabs.map(tab => <button key={tab.id} id={`${idPrefix}-${tab.id}-tab`} type="button" role="tab" aria-selected={active === tab.id} aria-controls={`${idPrefix}-${tab.id}-panel`} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} className={cn("flex-1 rounded-2xl px-4 py-3 font-bold transition", active === tab.id ? "bg-perimeter-400/20 text-chalk ring-1 ring-perimeter-400/30" : "text-chalk/55 hover:text-chalk")}>{tab.label}</button>)}
+    <div className="flex overflow-x-auto rounded-3xl border border-white/10 bg-white/[0.03] p-1" role="tablist" aria-label={label}>
+      {tabs.map(tab => <button key={tab.id} id={`${idPrefix}-${tab.id}-tab`} type="button" role="tab" aria-selected={active === tab.id} aria-controls={`${idPrefix}-${tab.id}-panel`} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} className={cn("min-w-28 flex-1 rounded-2xl px-4 py-3 font-bold transition", active === tab.id ? "bg-perimeter-400/20 text-chalk ring-1 ring-perimeter-400/30" : "text-chalk/55 hover:text-chalk")}>{tab.label}</button>)}
     </div>
   );
 }
@@ -88,6 +88,11 @@ export function SecondaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElem
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   const { className, ...rest } = props;
   return <input {...rest} className={cn("w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-chalk outline-none ring-perimeter-400 transition placeholder:text-chalk/35 focus:border-perimeter-400 focus:ring-2", className)} />;
+}
+
+export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const { className, ...rest } = props;
+  return <textarea {...rest} className={cn("w-full resize-y rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-chalk outline-none ring-perimeter-400 transition placeholder:text-chalk/35 focus:border-perimeter-400 focus:ring-2", className)} />;
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
@@ -126,6 +131,7 @@ export function ConfirmDialog({
   text,
   confirmLabel = "Delete",
   cancelLabel = "Cancel",
+  confirmTone = "destructive",
   onConfirm,
   onCancel
 }: {
@@ -134,6 +140,7 @@ export function ConfirmDialog({
   text?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  confirmTone?: "destructive" | "primary";
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }) {
@@ -143,13 +150,15 @@ export function ConfirmDialog({
         {text ? <p className="mt-2 text-sm text-chalk/65">{text}</p> : null}
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <SecondaryButton type="button" onClick={onCancel}>{cancelLabel}</SecondaryButton>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 font-semibold text-red-200 transition hover:bg-red-400/20"
-          >
-            {confirmLabel}
-          </button>
+          {confirmTone === "primary" ? <PrimaryButton type="button" onClick={onConfirm}>{confirmLabel}</PrimaryButton> : (
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 font-semibold text-red-200 transition hover:bg-red-400/20"
+            >
+              {confirmLabel}
+            </button>
+          )}
         </div>
     </Modal>
   );

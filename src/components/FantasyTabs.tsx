@@ -10,6 +10,7 @@ import { FantasyPick, LeagueData } from "@/lib/types";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { Card, EmptyState, Pill, Select, TabList } from "./ui";
 import { PitchPicker } from "./PitchPicker";
+import { PlaySwitcher } from "./PlaySwitcher";
 
 type FantasyTab = "set" | "standings" | "history";
 
@@ -29,6 +30,7 @@ export function FantasyTabs({ data, reload }: { data: LeagueData; reload: () => 
 
   return (
     <div className="space-y-6">
+      <PlaySwitcher active="fantasy" />
       <div><h1 className="font-display text-5xl uppercase">Fantasy</h1><p className="mt-2 text-chalk/60">Pick five, captain one, and chase the weekly top spot.</p></div>
       <TabList idPrefix="fantasy" label="Fantasy views" tabs={[{ id: "set", label: "Set Team" }, { id: "standings", label: "Standings" }, { id: "history", label: "History" }]} active={tab} onChange={setTab} />
       <div id={`fantasy-${tab}-panel`} role="tabpanel" aria-labelledby={`fantasy-${tab}-tab`}>
@@ -133,12 +135,12 @@ function History({ data }: { data: LeagueData }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const finals = data.games.filter(game => game.status === "final").sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
-  const selectedGameId = searchParams.get("game") || finals[0]?.id || "";
+  const revealedGames = data.games.filter(game => game.status === "final" || game.status === "live" || new Date(game.game_date).getTime() <= Date.now()).sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
+  const selectedGameId = searchParams.get("game") || revealedGames[0]?.id || "";
 
-  if (!finals.length) return <EmptyState title="No history yet" text="Final games will appear here with that week's fantasy leaderboard." />;
+  if (!revealedGames.length) return <EmptyState title="No revealed squads yet" text="Fantasy squads become visible to the league once their game locks at kickoff." />;
 
-  const game = finals.find(item => item.id === selectedGameId) || finals[0];
+  const game = revealedGames.find(item => item.id === selectedGameId) || revealedGames[0];
   const board = weeklyLeaderboard({ ...data, game });
   const userId = user?.id;
   const myRow = userId ? board.find(row => row.userId === userId) : undefined;
@@ -154,8 +156,9 @@ function History({ data }: { data: LeagueData }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]">
       <Card>
-        <h2 className="font-display text-3xl uppercase">Past games</h2>
-        <div className="mt-4 space-y-2">{finals.map(item => <button key={item.id} onClick={() => chooseGame(item.id)} className={`w-full rounded-2xl border p-3 text-left transition ${game.id === item.id ? "border-perimeter-400/60 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"}`}><div className="font-semibold">{formatDateTime(item.game_date)}</div><div className="text-sm text-chalk/50">POTM: {playerName(data.players, item.potm_player_id)}</div></button>)}</div>
+        <h2 className="font-display text-3xl uppercase">Locked games</h2>
+        <p className="mt-1 text-sm text-chalk/50">Squads are private until kickoff.</p>
+        <div className="mt-4 space-y-2">{revealedGames.map(item => <button key={item.id} onClick={() => chooseGame(item.id)} className={`w-full rounded-2xl border p-3 text-left transition ${game.id === item.id ? "border-perimeter-400/60 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"}`}><div className="font-semibold">{formatDateTime(item.game_date)}</div><div className="text-sm text-chalk/50">{item.status === "final" ? `POTM: ${playerName(data.players, item.potm_player_id)}` : "In progress · squads revealed"}</div></button>)}</div>
       </Card>
       <Card>
         <h2 className="font-display text-3xl uppercase">Weekly leaderboard</h2>

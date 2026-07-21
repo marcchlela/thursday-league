@@ -3,7 +3,7 @@ import "server-only";
 import webPush from "web-push";
 import { createSupabaseAdmin } from "./supabaseAdmin";
 
-export type NotificationType = "new_game" | "lineups_ready" | "final_results" | "fantasy_deadline";
+export type NotificationType = "new_game" | "lineups_ready" | "final_results" | "fantasy_deadline" | "announcement";
 
 export type PushPayload = {
   title: string;
@@ -75,18 +75,35 @@ async function deliverOne(subscription: PushSubscriptionRow, payload: PushPayloa
 async function preferenceMap(userIds: string[], type: NotificationType) {
   if (!userIds.length) return new Map<string, boolean>();
   const supabaseAdmin = createSupabaseAdmin();
+  const preferenceColumn = type === "announcement" ? "announcements" : type;
   const { data, error } = await supabaseAdmin
     .from("notification_preferences")
-    .select(`user_id, ${type}`)
+    .select(`user_id, ${preferenceColumn}`)
     .in("user_id", userIds);
   if (error) throw new Error("Could not load notification preferences.");
 
   const result = new Map<string, boolean>();
   for (const row of data || []) {
     const preference = row as unknown as Record<string, unknown>;
-    result.set(String(preference.user_id), preference[type] !== false);
+    result.set(String(preference.user_id), preference[preferenceColumn] !== false);
   }
   return result;
+}
+
+export async function countPushRecipients(type: NotificationType) {
+  const supabaseAdmin = createSupabaseAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select("user_id");
+  if (error) throw new Error("Could not load push subscriptions.");
+
+  const subscriptions = data || [];
+  const preferences = await preferenceMap([...new Set(subscriptions.map(item => item.user_id))], type);
+  const enabled = subscriptions.filter(item => preferences.get(item.user_id) !== false);
+  return {
+    users: new Set(enabled.map(item => item.user_id)).size,
+    devices: enabled.length
+  };
 }
 
 async function dispatchSummary(dispatchId: string): Promise<PushSendResult> {

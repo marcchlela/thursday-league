@@ -38,6 +38,7 @@ create table if not exists public.players (
   name text not null unique check (char_length(name) between 2 and 80),
   default_position player_position not null default 'outfield',
   active boolean not null default true,
+  competition_eligible boolean not null default true,
   archived_at timestamptz,
   created_at timestamptz not null default now()
 );

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Game, Profile } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 import { Card, EmptyState, ErrorState, LoadingState, Pill, SecondaryButton, Select } from "./ui";
+import { AdminNotificationComposer } from "./AdminNotificationComposer";
 
 type DeliveryStatus = "pending" | "sent" | "failed" | "expired" | "skipped";
 
@@ -30,6 +31,7 @@ type DispatchRow = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
+  announcement: "Announcement",
   new_game: "New game",
   lineups_ready: "Confirmed lineups",
   final_results: "Final result",
@@ -87,11 +89,12 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
     await load();
   }
 
-  if (loading && !rows.length) return <LoadingState label="Loading notification delivery history" cards={3} />;
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  if (loading && !rows.length) return <div className="space-y-4"><AdminNotificationComposer games={games} onSent={load} /><LoadingState label="Loading notification delivery history" cards={3} /></div>;
+  if (error) return <div className="space-y-4"><AdminNotificationComposer games={games} onSent={load} /><ErrorState message={error} onRetry={load} /></div>;
 
   return (
     <div className="space-y-4">
+      <AdminNotificationComposer games={games} onSent={load} />
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><div className="flex items-center gap-3"><BellRing className="text-perimeter-400" /><h2 className="font-display text-3xl uppercase">Notification delivery</h2></div><p className="mt-1 text-sm text-chalk/55">The latest 100 sends, delivery totals, errors, and retryable failures.</p></div>
@@ -104,7 +107,7 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
         {message ? <p className="mt-3 text-sm text-chalk/65" role="status">{message}</p> : null}
       </Card>
 
-      {!filtered.length ? <EmptyState title="No notification history" text="Game, lineup, result, and reminder sends will appear here." /> : null}
+      {!filtered.length ? <EmptyState title="No notification history" text="Announcements, game updates, results, and reminders will appear here." /> : null}
       {filtered.map(row => {
         const counts = row.notification_deliveries.reduce<Record<DeliveryStatus, number>>((total, delivery) => {
           total[delivery.status] += 1;

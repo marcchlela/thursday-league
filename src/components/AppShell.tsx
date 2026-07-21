@@ -13,7 +13,7 @@ const baseLinks = [
   { href: "/", label: "Home", icon: Home },
   { href: "/games", label: "Games", icon: List },
   { href: "/players", label: "Players", icon: Users },
-  { href: "/fantasy", label: "Fantasy", icon: Trophy },
+  { href: "/fantasy", label: "Play", icon: Trophy },
   { href: "/profile", label: "Profile", icon: UserRound }
 ];
 
@@ -60,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="hidden items-center gap-2 md:flex">
             {links.map(link => {
               const Icon = link.icon;
-              const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/")) || (link.href === "/fantasy" && pathname.startsWith("/fantasy/")) || (link.href === "/profile" && pathname === "/settings");
+              const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/")) || (link.href === "/fantasy" && (pathname.startsWith("/fantasy/") || pathname.startsWith("/betting"))) || (link.href === "/profile" && pathname === "/settings");
               return (
                 <Link key={link.href} href={link.href} className={cn("flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold text-chalk/70 transition hover:bg-white/5 hover:text-chalk", active && "bg-perimeter-400/15 text-chalk ring-1 ring-perimeter-400/30")}>
                   <Icon size={16} /> {link.label}
@@ -81,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}>
           {links.map(link => {
             const Icon = link.icon;
-            const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/")) || (link.href === "/fantasy" && pathname.startsWith("/fantasy/")) || (link.href === "/profile" && pathname === "/settings");
+            const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/")) || (link.href === "/fantasy" && (pathname.startsWith("/fantasy/") || pathname.startsWith("/betting"))) || (link.href === "/profile" && pathname === "/settings");
             return (
               <Link key={link.href} href={link.href} className={cn("flex flex-col items-center gap-1 rounded-2xl py-2 text-[11px] text-chalk/60", active && "bg-perimeter-400/15 text-chalk")}>
                 <Icon size={18} /> {link.label}

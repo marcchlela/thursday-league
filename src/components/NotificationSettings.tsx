@@ -24,6 +24,7 @@ const initialState: PushDeviceState = {
 };
 
 type NotificationPreferences = {
+  announcements: boolean;
   new_game: boolean;
   lineups_ready: boolean;
   final_results: boolean;
@@ -32,6 +33,7 @@ type NotificationPreferences = {
 };
 
 const defaultPreferences: NotificationPreferences = {
+  announcements: true,
   new_game: true,
   lineups_ready: true,
   final_results: true,
@@ -67,7 +69,7 @@ export function NotificationSettings() {
       setPreferencesLoading(true);
       const { data } = await supabase
         .from("notification_preferences")
-        .select("new_game, lineups_ready, final_results, fantasy_deadline, fantasy_reminder_minutes")
+        .select("announcements, new_game, lineups_ready, final_results, fantasy_deadline, fantasy_reminder_minutes")
         .eq("user_id", user!.id)
         .maybeSingle();
       if (!cancelled) {
@@ -182,10 +184,11 @@ export function NotificationSettings() {
         </div>
 
         {preferencesLoading ? (
-          <div className="mt-4 grid gap-2 md:grid-cols-2">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-16 animate-pulse rounded-2xl bg-white/5" />)}</div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-16 animate-pulse rounded-2xl bg-white/5" />)}</div>
         ) : (
           <>
             <div className="mt-4 grid gap-2 md:grid-cols-2">
+              <PreferenceToggle label="League announcements" detail="Custom updates sent by the admin" checked={preferences.announcements} onChange={value => setPreference("announcements", value)} />
               <PreferenceToggle label="New games" detail="When a game is scheduled" checked={preferences.new_game} onChange={value => setPreference("new_game", value)} />
               <PreferenceToggle label="Confirmed lineups" detail="When lineups and fantasy open" checked={preferences.lineups_ready} onChange={value => setPreference("lineups_ready", value)} />
               <PreferenceToggle label="Final results" detail="Score and fantasy result updates" checked={preferences.final_results} onChange={value => setPreference("final_results", value)} />

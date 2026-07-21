@@ -11,6 +11,7 @@ import {
   TeamCode,
   WeeklyFantasyResult
 } from "./types";
+import { isCompetitionEligible } from "./playerEligibility";
 
 export const SAVES_PER_FANTASY_POINT = 1;
 
@@ -54,6 +55,19 @@ export function calculatePlayerBreakdown(args: {
   playerStats?: GamePlayerStat[];
 }): PlayerBreakdown {
   const { game, player, pick, lineups, events, playerStats = [] } = args;
+  if (!isCompetitionEligible(player)) {
+    const lineup = lineups.find(item => item.game_id === game.id && item.player_id === player.id);
+    return {
+      playerId: player.id,
+      playerName: player.name,
+      team: lineup?.team,
+      role: pick?.role || lineup?.role,
+      isCaptain: !!pick?.is_captain,
+      pointsBeforeCaptain: 0,
+      points: 0,
+      lines: ["guest player - excluded from fantasy points"]
+    };
+  }
   const gameLineups = lineups.filter(lineup => lineup.game_id === game.id);
   const gameEvents = events.filter(event => event.game_id === game.id);
   const gamePlayerStats = playerStats.filter(stat => stat.game_id === game.id);
@@ -232,6 +246,9 @@ export function careerStats(args: {
   events: MatchEvent[];
   playerStats: GamePlayerStat[];
 }) {
+  if (!isCompetitionEligible(args.player)) {
+    return { appearances: 0, goals: 0, assists: 0, ownGoals: 0, cleanSheets: 0, saves: 0 };
+  }
   const finalOrLiveGames = args.games.filter(g => g.status === "final" || g.status === "live");
   const gameIds = new Set(finalOrLiveGames.map(g => g.id));
   const playerLineups = args.lineups.filter(l => l.player_id === args.player.id && gameIds.has(l.game_id));
