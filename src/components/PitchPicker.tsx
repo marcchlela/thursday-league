@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Crown, X } from "lucide-react";
 import { GameLineup, FantasyPick, Player, PlayerPosition } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { isCompetitionEligible } from "@/lib/playerEligibility";
 import { PrimaryButton, SecondaryButton, Toast } from "./ui";
 
 const outfieldSlots = [
@@ -48,7 +49,8 @@ export function PitchPicker({
   locked: boolean;
   onSave: (picks: DraftPick[]) => Promise<void>;
 }) {
-  const hasGk = [...lineups, ...extraPlayers].some(player => player.role === "goalkeeper");
+  const eligiblePlayerIds = new Set(players.filter(isCompetitionEligible).map(player => player.id));
+  const hasGk = [...lineups, ...extraPlayers].some(player => eligiblePlayerIds.has(player.player_id) && player.role === "goalkeeper");
   const slots = hasGk ? [...outfieldSlots, gkSlot] : noGkSlots;
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [editing, setEditing] = useState(initialPicks.length !== 5 && !locked);
@@ -72,7 +74,7 @@ export function PitchPicker({
         .filter(extra => !lineups.some(lineup => lineup.player_id === extra.player_id))
         .map(extra => ({ player_id: extra.player_id, role: extra.role, team: null, player: players.find(p => p.id === extra.player_id) }))
     ]
-      .filter(item => item.player)
+      .filter(item => item.player && isCompetitionEligible(item.player))
       .sort((a, b) => a.player!.name.localeCompare(b.player!.name));
   }, [extraPlayers, lineups, players]);
 

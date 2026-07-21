@@ -7,3 +7,5 @@ out
 .vercel
 .DS_Store
 *.log
+model/data/*.json
+model/artifacts/*.json

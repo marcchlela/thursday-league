@@ -4,15 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, GripVertical, Pencil, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { calculateScore } from "@/lib/scoring";
+import { isCompetitionEligible } from "@/lib/playerEligibility";
 import { cn, formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
 import { Game, LeagueData, Player, PlayerPosition, TeamCode } from "@/lib/types";
 import { AdminAuditHistory } from "./AdminAuditHistory";
+import { AdminBettingManager } from "./AdminBettingManager";
 import { AdminNotificationHistory } from "./AdminNotificationHistory";
 import { AdminSeasonManager } from "./AdminSeasonManager";
 import { AdminStatsPanel } from "./AdminStatsPanel";
 import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TabList, TextInput, Toast } from "./ui";
 
-type AdminTab = "games" | "roster" | "seasons" | "notifications" | "audit";
+type AdminTab = "games" | "roster" | "betting" | "seasons" | "notifications" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
 type PushSendResult = { total: number; sent: number; failed: number; removed: number };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
@@ -51,6 +53,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   const [focusGameId, setFocusGameId] = useState<string | null>(null);
   const [playerNameInput, setPlayerNameInput] = useState("");
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>("outfield");
+  const [playerCompetitionEligible, setPlayerCompetitionEligible] = useState(true);
   const [gameDate, setGameDate] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
@@ -75,9 +78,10 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   async function addPlayer(e: React.FormEvent) {
     e.preventDefault();
     if (!playerNameInput.trim()) return;
-    const { error } = await supabase.from("players").insert({ name: playerNameInput.trim(), default_position: playerPosition });
+    const { error } = await supabase.from("players").insert({ name: playerNameInput.trim(), default_position: playerPosition, competition_eligible: playerCompetitionEligible });
     if (error) return notify(error.message);
     setPlayerNameInput("");
+    setPlayerCompetitionEligible(true);
     notify("Player added.");
     reload();
   }
@@ -140,7 +144,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       <TabList
         idPrefix="admin"
         label="Admin sections"
-        tabs={[{ id: "games", label: "Games" }, { id: "roster", label: "Roster" }, { id: "seasons", label: "Seasons" }, { id: "notifications", label: "Notifications" }, { id: "audit", label: "Audit" }]}
+        tabs={[{ id: "games", label: "Games" }, { id: "roster", label: "Roster" }, { id: "betting", label: "Betting" }, { id: "seasons", label: "Seasons" }, { id: "notifications", label: "Notifications" }, { id: "audit", label: "Audit" }]}
         active={activeTab}
         onChange={id => setActiveTab(id as AdminTab)}
       />
@@ -166,12 +170,13 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       ) : activeTab === "roster" ? (
         <Card id="admin-roster-panel" role="tabpanel" aria-labelledby="admin-roster-tab">
           <h2 className="font-display text-3xl uppercase">Roster</h2>
-          <form onSubmit={addPlayer} className="mt-4 grid gap-3 md:grid-cols-[1fr_220px_auto]">
+          <form onSubmit={addPlayer} className="mt-4 grid gap-3 md:grid-cols-[1fr_180px_auto_auto] md:items-center">
             <TextInput value={playerNameInput} onChange={e => setPlayerNameInput(e.target.value)} placeholder="Player name" />
             <Select value={playerPosition} onChange={e => setPlayerPosition(e.target.value as PlayerPosition)}>
               <option value="outfield">Outfield</option>
               <option value="goalkeeper">Goalkeeper</option>
             </Select>
+            <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-chalk/70"><input type="checkbox" checked={playerCompetitionEligible} onChange={event => setPlayerCompetitionEligible(event.target.checked)} className="accent-floodlight" /> Fantasy, stats & bets</label>
             <PrimaryButton>Add player</PrimaryButton>
           </form>
 
@@ -181,6 +186,10 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
             ))}
           </div>
         </Card>
+      ) : activeTab === "betting" ? (
+        <div id="admin-betting-panel" role="tabpanel" aria-labelledby="admin-betting-tab">
+          <AdminBettingManager data={data} />
+        </div>
       ) : activeTab === "seasons" ? (
         <div id="admin-seasons-panel" role="tabpanel" aria-labelledby="admin-seasons-tab">
           <AdminSeasonManager data={data} reload={reload} />
@@ -244,12 +253,18 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
   const [name, setName] = useState(player.name);
   const [position, setPosition] = useState<PlayerPosition>(player.default_position);
   const [active, setActive] = useState(player.active);
+  const [competitionEligible, setCompetitionEligible] = useState(isCompetitionEligible(player));
 
   async function save() {
+    const eligibilityChanged = competitionEligible !== isCompetitionEligible(player);
     const { error } = await supabase.from("players").update({ name: name.trim(), default_position: position, active }).eq("id", player.id);
     if (error) return notify(error.message);
+    if (eligibilityChanged) {
+      const { error: eligibilityError } = await supabase.rpc("admin_set_player_competition_eligibility", { target_player_id: player.id, new_eligibility: competitionEligible });
+      if (eligibilityError) return notify(eligibilityError.message);
+    }
     setEditing(false);
-    notify("Player saved.");
+    notify(!competitionEligible && eligibilityChanged ? "Player saved as a guest. Any affected upcoming betting markets were suspended for review." : "Player saved.");
     reload();
   }
 
@@ -270,6 +285,7 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
             <option value="goalkeeper">Goalkeeper</option>
           </Select>
           <label className="flex items-center gap-2 text-sm text-chalk/70"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="accent-floodlight" /> Active</label>
+          <label className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2 text-sm text-chalk/70"><input type="checkbox" checked={competitionEligible} onChange={event => setCompetitionEligible(event.target.checked)} className="mt-1 accent-floodlight" /><span><span className="block">Fantasy, stats & bets</span><span className="block text-xs text-chalk/40">Turn off for a reusable guest such as Anonymous.</span></span></label>
           <div className="flex gap-2">
             <PrimaryButton type="button" onClick={save} className="flex-1">Save</PrimaryButton>
             <SecondaryButton type="button" onClick={() => setEditing(false)}>Cancel</SecondaryButton>
@@ -283,7 +299,7 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
     <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
       <button type="button" onClick={() => setEditing(true)} className="min-w-0 text-left">
         <div className="truncate font-semibold">{player.name}</div>
-        <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position}{player.archived_at ? " - archived" : player.active ? "" : " - inactive"}</div>
+        <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position}{!isCompetitionEligible(player) ? " - guest/excluded" : player.archived_at ? " - archived" : player.active ? "" : " - inactive"}</div>
       </button>
       {player.archived_at ? <button type="button" onClick={restore} className="rounded-xl border border-perimeter-400/30 px-3 py-1.5 text-xs font-bold text-perimeter-400">Restore</button> : <button type="button" onClick={() => onArchive(player.id)} className="rounded-xl p-2 text-chalk/45 hover:text-floodlight" aria-label={`Archive ${player.name}`}><Trash2 size={16} /></button>}
     </div>
@@ -498,9 +514,9 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
     if (status === "final") {
       try {
         const result = await sendAdminGameNotification(game.id, "result_finalized");
-        notify(deliveryMessage("Game marked final.", result));
+        notify(deliveryMessage("Game finalized and virtual bets settled.", result));
       } catch (notificationError) {
-        notify(`Game marked final, but its notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
+        notify(`Game and virtual bets were finalized, but the notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
       }
     } else {
       notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
@@ -516,8 +532,8 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
     ].filter(Boolean);
     requestConfirm({
       title: "Finalize this game?",
-      text: `Final score: Team A ${score.A} - ${score.B} Team B. POTM: ${playerName(data.players, game.potm_player_id)}.${warnings.length ? ` Check before finalizing: ${warnings.join(" ")}` : " All key result data is present."} Final games are locked until reopened with a correction reason.`,
-      confirmLabel: "Finalize game",
+      text: `Final score: Team A ${score.A} - ${score.B} Team B. POTM: ${playerName(data.players, game.potm_player_id)}.${warnings.length ? ` Check before finalizing: ${warnings.join(" ")}` : " All key result data is present."} Finalizing freezes a versioned result, settles all virtual bets in the same transaction, and locks the game until it is reopened with a correction reason.`,
+      confirmLabel: "Finalize and settle",
       onConfirm: () => updateStatus("final")
     });
   }
@@ -691,7 +707,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
             <p className="text-sm text-chalk/55">{matchControlText}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {game.status === "final" ? <SecondaryButton type="button" onClick={() => setReopenDialogOpen(true)}>Reopen for correction</SecondaryButton> : <><SecondaryButton type="button" onClick={() => updateStatus("upcoming")}>Upcoming</SecondaryButton><SecondaryButton type="button" onClick={() => updateStatus("draft")}>Draft</SecondaryButton><PrimaryButton type="button" disabled={!lineupReady} onClick={() => updateStatus("live")}>Mark live</PrimaryButton><SecondaryButton type="button" disabled={!canFinalize} onClick={requestFinalization}>Final</SecondaryButton></>}
+            {game.status === "final" ? <SecondaryButton type="button" onClick={() => setReopenDialogOpen(true)}>Reopen for correction</SecondaryButton> : <><SecondaryButton type="button" onClick={() => updateStatus("upcoming")}>Upcoming</SecondaryButton><SecondaryButton type="button" onClick={() => updateStatus("draft")}>Draft</SecondaryButton><PrimaryButton type="button" disabled={!lineupReady} onClick={() => updateStatus("live")}>Mark live</PrimaryButton><SecondaryButton type="button" disabled={!canFinalize} onClick={requestFinalization}>Finalize &amp; settle</SecondaryButton></>}
           </div>
         </div>
 

@@ -39,6 +39,14 @@ describe("calculatePlayerBreakdown", () => {
     const result = calculatePlayerBreakdown({ game, player: players[1], lineups, events, playerStats });
     expect(result.lines).toContain("3 saves = 3");
   });
+
+  it("gives an excluded guest zero fantasy points", () => {
+    const guest = { ...players[0], competition_eligible: false };
+    const pick: FantasyPick = { id: "pick-guest", squad_id: "squad-1", player_id: guest.id, role: "outfield", is_captain: true, slot_index: 1 };
+    const result = calculatePlayerBreakdown({ game, player: guest, pick, lineups, events, playerStats });
+    expect(result.points).toBe(0);
+    expect(result.lines).toEqual(["guest player - excluded from fantasy points"]);
+  });
 });
 
 describe("careerStats", () => {
@@ -47,5 +55,17 @@ describe("careerStats", () => {
     expect(result.appearances).toBe(1);
     expect(result.goals).toBe(1);
     expect(result.ownGoals).toBe(0);
+  });
+
+  it("excludes a guest from career totals without deleting match records", () => {
+    const guest = { ...players[0], competition_eligible: false };
+    expect(careerStats({ player: guest, games: [game], lineups, events, playerStats })).toEqual({
+      appearances: 0,
+      goals: 0,
+      assists: 0,
+      ownGoals: 0,
+      cleanSheets: 0,
+      saves: 0
+    });
   });
 });

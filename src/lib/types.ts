@@ -15,6 +15,7 @@ export type Player = {
   name: string;
   default_position: PlayerPosition;
   active: boolean;
+  competition_eligible?: boolean;
   archived_at?: string | null;
   created_at?: string;
 };
@@ -121,6 +122,187 @@ export type LeagueData = {
   picks: FantasyPick[];
   seasons: Season[];
   leagueSettings: LeagueSettings | null;
+};
+
+export type BettingMarketType =
+  | "match_result"
+  | "total_goals"
+  | "player_goals"
+  | "player_assists"
+  | "goalkeeper_saves"
+  | "own_goal";
+
+export type BettingMarketStatus = "draft" | "open" | "suspended" | "locked" | "settled" | "void";
+export type BetLegStatus = "pending" | "won" | "lost" | "void";
+export type BetSlipStatus = BetLegStatus;
+
+export type BettingSettings = {
+  id: number;
+  starting_balance_units: number;
+  lock_minutes: number;
+  single_margin: number;
+  builder_margin: number;
+  model_version: string;
+  updated_at?: string;
+};
+
+export type OddsGenerationRun = {
+  id: string;
+  game_id: string;
+  model_version: string;
+  input_snapshot: Record<string, unknown>;
+  generated_by: string | null;
+  created_at: string;
+};
+
+export type BettingMarket = {
+  id: string;
+  game_id: string;
+  generation_run_id: string;
+  market_key: string;
+  market_type: BettingMarketType;
+  title: string;
+  subject_player_id: string | null;
+  line: number | null;
+  status: BettingMarketStatus;
+  invalidated: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BettingOutcome = {
+  id: string;
+  market_id: string;
+  outcome_key: string;
+  label: string;
+  fair_probability: number;
+  offered_odds: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BettingWallet = {
+  id: string;
+  user_id: string;
+  season_id: string;
+  balance_units: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BetSlip = {
+  id: string;
+  user_id: string;
+  wallet_id: string;
+  game_id: string;
+  season_id: string;
+  slip_type: "single" | "builder";
+  stake_units: number;
+  accepted_odds: number;
+  potential_payout_units: number;
+  settled_payout_units: number | null;
+  status: BetSlipStatus;
+  request_id: string;
+  placed_at: string;
+  settled_at: string | null;
+  result_version_id: string | null;
+};
+
+export type BetLeg = {
+  id: string;
+  slip_id: string;
+  market_id: string;
+  outcome_id: string;
+  accepted_odds: number;
+  fair_probability: number;
+  status: BetLegStatus;
+  result_value: number | null;
+  created_at: string;
+};
+
+export type CoinLedgerEntry = {
+  id: string;
+  wallet_id: string;
+  slip_id: string | null;
+  entry_type: "initial_grant" | "stake" | "payout" | "settlement_correction";
+  amount_units: number;
+  balance_after_units: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type GameResultVersion = {
+  id: string;
+  game_id: string;
+  version_number: number;
+  score_a: number;
+  score_b: number;
+  own_goal_count: number;
+  player_totals: Record<string, { team: TeamCode; role: PlayerPosition; goals: number; assists: number; saves: number; own_goals: number }>;
+  source_summary: Record<string, unknown>;
+  correction_reason: string | null;
+  created_at: string;
+};
+
+export type BetSettlementRun = {
+  id: string;
+  game_id: string;
+  result_version_id: string;
+  settled_by: string | null;
+  slips_processed: number;
+  slips_won: number;
+  slips_lost: number;
+  slips_void: number;
+  total_adjustment_units: number;
+  created_at: string;
+};
+
+export type BettingData = {
+  settings: BettingSettings | null;
+  generations: OddsGenerationRun[];
+  markets: BettingMarket[];
+  outcomes: BettingOutcome[];
+  wallets: BettingWallet[];
+  slips: BetSlip[];
+  legs: BetLeg[];
+  ledger: CoinLedgerEntry[];
+  resultVersions: GameResultVersion[];
+  settlementRuns: BetSettlementRun[];
+};
+
+export type BettingStanding = {
+  user_id: string;
+  username: string;
+  balance_units: number;
+  settled_profit_units: number;
+  total_bets: number;
+  settled_bets: number;
+  won_bets: number;
+};
+
+export type PublicBetLeg = {
+  market_title: string;
+  market_type: BettingMarketType;
+  line: number | null;
+  outcome_label: string;
+  accepted_odds: number;
+  status: BetLegStatus;
+};
+
+export type PublicBetSlip = {
+  slip_id: string;
+  user_id: string;
+  username: string;
+  game_id: string;
+  slip_type: "single" | "builder";
+  stake_units: number;
+  accepted_odds: number;
+  potential_payout_units: number;
+  settled_payout_units: number | null;
+  status: BetSlipStatus;
+  placed_at: string;
+  picks_revealed: boolean;
+  legs: PublicBetLeg[];
 };
 
 export type PlayerBreakdown = {

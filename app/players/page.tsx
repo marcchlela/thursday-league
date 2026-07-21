@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { careerStats } from "@/lib/scoring";
+import { isCompetitionEligible } from "@/lib/playerEligibility";
 import { LeagueData, Player } from "@/lib/types";
 import { currentSeason } from "@/lib/utils";
 import { Card, EmptyState, ErrorState, LoadingState, Pill, Select, TabList, TextInput } from "@/components/ui";
@@ -40,9 +41,9 @@ export default function PlayersPage() {
                   <h2 className="font-display text-3xl uppercase">{player.name}</h2>
                   <p className="text-sm text-chalk/50">Default: {player.default_position === "goalkeeper" ? "Goalkeeper" : "Outfield"}</p>
                 </div>
-                <Pill>{player.archived_at ? "Archived" : player.active ? "Active" : "Inactive"}</Pill>
+                <Pill>{!isCompetitionEligible(player) ? "Guest" : player.archived_at ? "Archived" : player.active ? "Active" : "Inactive"}</Pill>
               </div>
-              <p className="mt-5 text-sm text-chalk/55">Open the Stats tab for appearances, goals, assists, saves, clean sheets, and own goals.</p>
+              <p className="mt-5 text-sm text-chalk/55">{isCompetitionEligible(player) ? "Open the Stats tab for appearances, goals, assists, saves, clean sheets, and own goals." : "Available for lineups and match scoring, but excluded from league statistics, fantasy, and betting."}</p>
             </Card>
           );
         })}
@@ -55,7 +56,8 @@ function PlayerStatBoards({ players, data, seasonScope }: { players: Player[]; d
   const currentSeasonId = currentSeason(data)?.id;
   const selectedSeasonId = seasonScope === "current" ? currentSeasonId : seasonScope === "all" ? null : seasonScope;
   const games = selectedSeasonId ? data.games.filter(game => game.season_id === selectedSeasonId) : data.games;
-  const rows = players.map(player => ({ player, stats: careerStats({ player, games, lineups: data.lineups, events: data.events, playerStats: data.playerStats }) }));
+  const rows = players.filter(isCompetitionEligible).map(player => ({ player, stats: careerStats({ player, games, lineups: data.lineups, events: data.events, playerStats: data.playerStats }) }));
+  if (!rows.length) return <EmptyState title="No eligible players" text="Guest players are intentionally excluded from statistics." />;
   const boards = [
     ["Appearances", "appearances"], ["Goals", "goals"], ["Assists", "assists"], ["Saves", "saves"], ["Clean sheets", "cleanSheets"], ["Own goals", "ownGoals"]
   ] as const;

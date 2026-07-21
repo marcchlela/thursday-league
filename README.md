@@ -16,6 +16,9 @@ A Next.js + Supabase web app for a weekly 5-a-side friend-group league: match tr
 - Profile page with expandable weekly history plus account username and password settings.
 - Transactional lineup and fantasy saves with database-side squad validation.
 - Final-game locking, controlled corrections, player archiving, and an admin audit-log foundation.
+- Push notifications with per-event preferences, admin-authored announcements, fantasy reminders, delivery history, and retry controls.
+- Yearly or custom seasons with seasonal and all-time standings.
+- Virtual-coin betting with player-lineup probability modelling, admin-approved odds, singles, same-game builders, transactional settlement, and correction recalculation.
 - Supabase Realtime subscriptions for live updates.
 - Turf/blue/chalk/floodlight visual system with generated turf texture assets.
 
@@ -59,13 +62,20 @@ Open Supabase → SQL Editor → New query, paste the full contents of:
 supabase/schema.sql
 ```
 
-Run it once, then run the migration files in `supabase/migrations` in filename order. Existing projects only need migrations they have not already applied. The latest integrity upgrade is:
+Run it once, then run the migration files in `supabase/migrations` in filename order. Existing projects only need migrations they have not already applied. The latest feature migrations are:
 
 ```txt
 supabase/migrations/20260719_integrity_and_history.sql
+supabase/migrations/20260719220000_notification_preferences_and_delivery.sql
+supabase/migrations/20260719223000_add_seasons.sql
+supabase/migrations/20260719230000_improve_controlled_corrections.sql
+supabase/migrations/20260721220000_add_virtual_betting.sql
+supabase/migrations/20260721234500_expand_betting_management_and_social.sql
+supabase/migrations/20260722010000_add_competition_eligible_players.sql
+supabase/migrations/20260722020000_add_custom_notifications.sql
 ```
 
-This migration is required before using the updated lineup, fantasy, archive, or finalization controls.
+Run all migrations in filename order. The virtual betting migration depends on the integrity, seasons, and controlled-corrections migrations. The expanded betting migration adds alternate lines, safe admin edit/delete controls, and privacy-aware league picks and standings. The competition-eligibility migration adds reusable guest players that can play in a match without entering fantasy, personal betting markets, league statistics, or player-model history. The custom-notification migration adds opted-in admin announcements to the existing delivery history and retry workflow.
 
 ### 4) Auth setting
 
@@ -82,6 +92,14 @@ In Supabase, enable Realtime for these tables:
 - `fantasy_picks`
 - `players`
 - `profiles`
+- `betting_markets`
+- `betting_outcomes`
+- `betting_wallets`
+- `bet_slips`
+- `bet_legs`
+- `coin_ledger`
+- `game_result_versions`
+- `bet_settlement_runs`
 
 ### 6) Run locally
 
@@ -121,4 +139,8 @@ Users only see usernames in the UI.
 - Normal users can only save/edit their own fantasy squad before the game is live/final.
 - Fantasy saving also locks automatically at the scheduled kickoff time.
 - Players with historical records are archived instead of deleted so old results and fantasy points stay intact.
+- Admins can turn off `Fantasy, stats & bets` for reusable guest players. Their real goals still count toward the match score and game-level betting results, but they have no career totals, fantasy points, individual betting markets, or persistent model identity.
+- Betting coins are virtual only: no purchase, sale, transfer, cash-out, or real-world value.
+- Betting closes five minutes before kick-off at the database level. Finalizing a game freezes an additive event-plus-manual-stat result version and settles bets atomically.
+- See `docs/virtual-betting-design.md` for model, security, settlement, correction, and future ML details.
 - The app keeps the spec wording distinction: roster members are called `players`; fantasy users are not called players in participation reminders.
