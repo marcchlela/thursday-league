@@ -220,10 +220,10 @@ export function NotificationSettings() {
 
 function PreferenceToggle({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-league-gold/10 bg-white/[.018] p-3.5 transition hover:border-league-gold/20">
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-[rgba(218,165,32,.22)] bg-white/[.018] p-3.5 transition hover:border-league-gold/35">
       <span><span className="block text-sm font-semibold text-chalk">{label}</span><span className="mt-1 block text-xs text-chalk/35">{detail}</span></span>
       <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="peer sr-only" />
-      <span className="relative h-7 w-12 shrink-0 rounded-full border border-white/[.06] bg-white/[.09] transition peer-checked:border-turf-400/30 peer-checked:bg-turf-500 peer-focus-visible:ring-2 peer-focus-visible:ring-league-gold after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-chalk after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
+      <span className="relative h-7 w-12 shrink-0 rounded-full border border-[rgba(218,165,32,.22)] bg-white/[.09] transition peer-checked:border-turf-400/30 peer-checked:bg-turf-500 peer-focus-visible:ring-2 peer-focus-visible:ring-league-gold after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-chalk after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
     </label>
   );
 }

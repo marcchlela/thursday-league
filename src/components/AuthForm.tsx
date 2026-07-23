@@ -1,11 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, LockKeyhole, Smartphone, UserPlus } from "lucide-react";
+import { AlertCircle, BellRing, Coins, Eye, EyeOff, LockKeyhole, Shirt, Smartphone, UserPlus } from "lucide-react";
 import { isInstalledApp } from "@/lib/pushClient";
 import { cleanUsername, supabase, supabaseConfigError, usernameToEmail } from "@/lib/supabase";
-import { PrimaryButton, SecondaryButton, TextInput } from "./ui";
+import { cn } from "@/lib/utils";
+import { PrimaryButton, TextInput } from "./ui";
+import leagueLogo from "../../Thursday League logo (no bg).png";
 
 const inviteCode = process.env.NEXT_PUBLIC_LEAGUE_INVITE_CODE?.trim();
 
@@ -65,73 +68,106 @@ export function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-900 bg-turf text-chalk">
-      <div className="min-h-screen bg-gradient-to-b from-black/65 via-ink-900/65 to-black/85 px-4 py-10">
-        <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_.9fr]">
-          <div className="space-y-6">
-            <div className="inline-flex rounded-full border border-perimeter-400/50 bg-black/30 px-4 py-2 text-sm font-semibold text-perimeter-400 shadow-glow">Weekly 5-a-side + fantasy</div>
-            <h1 className="max-w-3xl font-display text-6xl uppercase leading-none tracking-tight md:text-8xl">Thursday League</h1>
-            <p className="max-w-xl text-lg text-chalk/75">Track the game, lock in a five-man fantasy squad, captain your best shout, and let the points settle the group chat.</p>
-            <div className="grid max-w-xl grid-cols-3 gap-3 border-y border-dashed border-chalk/25 py-5">
-              <div><div className="font-mono text-3xl">5</div><p className="text-xs uppercase tracking-wider text-chalk/55">picks</p></div>
-              <div><div className="font-mono text-3xl">+4</div><p className="text-xs uppercase tracking-wider text-chalk/55">goal</p></div>
-              <div><div className="font-mono text-3xl text-floodlight">x2</div><p className="text-xs uppercase tracking-wider text-chalk/55">captain</p></div>
+    <div className="relative min-h-screen overflow-hidden bg-[#11110f] text-chalk">
+      <div className="pointer-events-none absolute -left-32 -top-32 h-80 w-80 rounded-full border-[52px] border-league-gold/[.035]" />
+      <div className="pointer-events-none absolute bottom-0 right-[-8rem] h-[34rem] w-[34rem] rounded-full border border-league-gold/[.07]" />
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px bg-league-gold/[.07] lg:block" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 hidden h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full border border-league-gold/[.07] lg:block" />
+
+      <div className="relative mx-auto grid min-h-screen max-w-6xl items-center gap-7 px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(2rem+env(safe-area-inset-top))] sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:gap-16 lg:py-12">
+        <section className="text-center lg:text-left">
+          <div className="flex items-center justify-center gap-2.5 lg:justify-start">
+            <Image src={leagueLogo} alt="" priority className="h-16 w-16 scale-125 object-contain sm:h-20 sm:w-20" />
+            <div className="text-left">
+              <div className="text-[9px] font-black uppercase tracking-[.22em] text-league-gold/65">Weekly five-a-side</div>
+              <div className="mt-1 font-display text-2xl uppercase leading-none sm:text-3xl">Thursday League</div>
             </div>
           </div>
 
-          <form onSubmit={submit} className="panel rounded-[2rem] border border-white/10 p-6 shadow-glow md:p-8">
-            <div className="mb-6 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-display text-4xl uppercase">{mode === "login" ? "Log in" : "Sign up"}</h2>
-                <p className="text-sm text-chalk/60">The first account created becomes admin.</p>
-              </div>
-              {mode === "login" ? <LockKeyhole className="text-perimeter-400" /> : <UserPlus className="text-floodlight" />}
+          <h1 className="mx-auto mt-7 max-w-xl font-display text-5xl uppercase leading-[.92] tracking-tight sm:text-6xl lg:mx-0 lg:text-7xl">Your matchweek.<br /><span className="text-league-gold">One place.</span></h1>
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-chalk/48 sm:text-base lg:mx-0">Lineups, Fantasy, virtual betting, results and league history built around your Thursday game.</p>
+
+          <div className="mx-auto mt-6 grid max-w-lg grid-cols-3 gap-2 lg:mx-0">
+            <LoginFeature icon={Shirt} label="Fantasy" />
+            <LoginFeature icon={Coins} label="Virtual bets" />
+            <LoginFeature icon={BellRing} label="Updates" />
+          </div>
+        </section>
+
+        <form onSubmit={submit} className="rounded-[1.45rem] border border-league-gold/30 bg-[#171814] p-4 shadow-[0_16px_44px_rgba(0,0,0,.28)] sm:p-6 lg:p-7">
+          <div className="grid grid-cols-2 rounded-[1rem] border border-league-gold/20 bg-black/20 p-1" role="group" aria-label="Account access">
+            {(["login", "signup"] as const).map(item => (
+              <button key={item} type="button" aria-pressed={mode === item} onClick={() => { setMode(item); setMessage(null); }} className={cn("rounded-[.75rem] px-3 py-2.5 text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", mode === item ? "bg-league-gold/[.11] text-league-gold" : "text-chalk/40 hover:text-chalk")}>{item === "login" ? "Log in" : "Sign up"}</button>
+            ))}
+          </div>
+
+          <div className="mb-5 mt-6 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[9px] font-black uppercase tracking-[.18em] text-league-gold/60">League access</div>
+              <h2 className="mt-1 font-display text-4xl uppercase">{mode === "login" ? "Welcome back" : "Join the league"}</h2>
+              <p className="mt-1 text-sm text-chalk/40">{mode === "login" ? "Sign in to continue your matchweek." : "Create your private league account."}</p>
             </div>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-league-gold/20 bg-league-gold/[.055] text-league-gold">
+              {mode === "login" ? <LockKeyhole size={20} /> : <UserPlus size={20} />}
+            </span>
+          </div>
 
-            {installedApp ? (
-              <div className="mb-6 flex gap-3 rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-4 text-sm text-chalk/75">
-                <Smartphone className="shrink-0 text-perimeter-400" size={20} />
-                <div><strong className="text-chalk">One quick sign-in</strong><p className="mt-1">The installed app keeps its own secure session. Sign in once and notification setup will resume automatically.</p></div>
-              </div>
-            ) : null}
+          {installedApp ? (
+            <div className="mb-5 flex gap-3 rounded-xl border border-turf-400/20 bg-turf-400/[.055] p-3.5 text-sm text-chalk/65">
+              <Smartphone className="mt-0.5 shrink-0 text-turf-400" size={18} />
+              <div><strong className="text-chalk">Installed app</strong><p className="mt-0.5 text-xs leading-relaxed">Sign in once and this app will keep your secure session.</p></div>
+            </div>
+          ) : null}
 
-            <div className="space-y-4">
-              <label className="block text-sm font-semibold text-chalk/70">Username</label>
-              <TextInput value={username} onChange={e => setUsername(e.target.value)} placeholder="marc" autoComplete="username" />
+          <div className="space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Username</span>
+              <TextInput value={username} onChange={e => setUsername(e.target.value)} placeholder="Your username" autoComplete="username" autoCapitalize="none" className="rounded-xl border-league-gold/15 py-3" />
+            </label>
 
-              <label className="block text-sm font-semibold text-chalk/70">Password</label>
-              <div className="relative">
-                <TextInput type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" autoComplete={mode === "login" ? "current-password" : "new-password"} />
-                <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-chalk/50 hover:text-chalk">
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Password</span>
+              <span className="relative block">
+                <TextInput type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" autoComplete={mode === "login" ? "current-password" : "new-password"} className="rounded-xl border-league-gold/15 py-3 pr-12" />
+                <button type="button" onClick={() => setShowPassword(value => !value)} className="absolute right-2.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-chalk/35 transition hover:bg-league-gold/[.06] hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold" aria-label={showPassword ? "Hide password" : "Show password"}>
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
-              </div>
+              </span>
+            </label>
 
-              {mode === "signup" ? (
-                <>
-                  <label className="block text-sm font-semibold text-chalk/70">Confirm password</label>
-                  <TextInput type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Password again" autoComplete="new-password" />
-                  {inviteCode ? (
-                    <>
-                      <label className="block text-sm font-semibold text-chalk/70">Invite code</label>
-                      <TextInput value={enteredInviteCode} onChange={e => setEnteredInviteCode(e.target.value)} placeholder="League code" autoComplete="off" />
-                    </>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
+            {mode === "signup" ? (
+              <>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Confirm password</span>
+                  <TextInput type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Password again" autoComplete="new-password" className="rounded-xl border-league-gold/15 py-3" />
+                </label>
+                {inviteCode ? (
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Invite code</span>
+                    <TextInput value={enteredInviteCode} onChange={e => setEnteredInviteCode(e.target.value)} placeholder="League code" autoComplete="off" autoCapitalize="none" className="rounded-xl border-league-gold/15 py-3" />
+                  </label>
+                ) : null}
+              </>
+            ) : null}
+          </div>
 
-            {message ? <div className="mt-4 rounded-2xl border border-floodlight/30 bg-floodlight/10 p-3 text-sm text-floodlight">{message}</div> : null}
+          {message ? <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-red-400/25 bg-red-400/[.07] p-3 text-sm leading-relaxed text-red-200" role="alert"><AlertCircle className="mt-0.5 shrink-0" size={17} />{message}</div> : null}
 
-            <PrimaryButton disabled={loading} className="mt-6 w-full py-3">
-              {loading ? "Working..." : mode === "login" ? "Log in" : "Create account"}
-            </PrimaryButton>
-            <SecondaryButton type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")} className="mt-3 w-full py-3">
-              {mode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}
-            </SecondaryButton>
-          </form>
-        </div>
+          <PrimaryButton disabled={loading} className="mt-6 w-full rounded-xl py-3">
+            {loading ? "Working…" : mode === "login" ? "Enter Thursday League" : "Create account"}
+          </PrimaryButton>
+          <p className="mt-4 text-center text-xs text-chalk/30">{mode === "login" ? "Use the username and password linked to your league account." : inviteCode ? "An invite code is required to join this league." : "Your username is also used when signing in."}</p>
+        </form>
       </div>
+    </div>
+  );
+}
+
+function LoginFeature({ icon: Icon, label }: { icon: typeof Shirt; label: string }) {
+  return (
+    <div className="rounded-[1rem] border border-league-gold/20 bg-[#171814] px-2 py-3 text-center shadow-[0_7px_18px_rgba(0,0,0,.12)]">
+      <Icon size={18} className="mx-auto text-league-gold" />
+      <div className="mt-1.5 text-[9px] font-black uppercase tracking-[.12em] text-chalk/45 sm:text-[10px]">{label}</div>
     </div>
   );
 }

@@ -34,6 +34,18 @@ body {
   border-top: 1px dashed rgba(245, 242, 232, .32);
 }
 
+.gold-dividers > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(218, 165, 32, .22);
+}
+
+[class~="divide-league-gold/18"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(218, 165, 32, .22);
+}
+
+[class~="border-league-gold/18"] {
+  border-color: rgba(218, 165, 32, .22);
+}
+
 ::selection {
   background: rgba(247, 183, 51, .35);
 }

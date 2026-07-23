@@ -133,7 +133,7 @@ function Standings({ data }: { data: LeagueData }) {
           {data.seasons.filter(season => season.id !== selectedCurrentSeason?.id).map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
         </Select>
       </div>
-      <ol className="divide-y divide-league-gold/18">
+      <ol className="gold-dividers divide-y">
         {board.map(row => <li key={row.userId} className={`grid grid-cols-[2.4rem_1fr_auto] items-center gap-3 px-4 py-3.5 sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold ${row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-white/[.035] text-chalk/35"}`}>#{row.rank}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span></li>)}
       </ol>
     </section>
@@ -164,7 +164,7 @@ function History({ data }: { data: LeagueData }) {
     <div className="space-y-4">
       <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="border-b border-league-gold/15 px-4 py-3 sm:px-5"><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Matchweeks</div><h2 className="mt-0.5 font-display text-2xl uppercase">Fantasy history</h2></div>
-        <div className="divide-y divide-league-gold/18">
+        <div className="gold-dividers divide-y">
           {games.map(item => {
             const itemLineups = data.lineups.filter(lineup => lineup.game_id === item.id);
             const score = calculateScore(data.events.filter(event => event.game_id === item.id), itemLineups, data.playerStats.filter(stat => stat.game_id === item.id));
@@ -180,7 +180,7 @@ function History({ data }: { data: LeagueData }) {
                     <HistoryTeam gameId={item.id} team="B" reverse />
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3 border-t border-league-gold/18 pt-2 sm:min-w-44 sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right">
+                <div className="flex items-center justify-between gap-3 border-t border-[rgba(218,165,32,.22)] pt-2 sm:min-w-44 sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right">
                   <div className="min-w-0"><div className="text-[9px] font-black uppercase tracking-wider text-chalk/30">Your points</div><div className="truncate text-sm font-bold">{personalResult ? `#${personalResult.rank} this week` : "No squad saved"}</div></div>
                   <span className="shrink-0 font-mono text-lg font-bold text-league-gold">{personalResult ? `${personalResult.points} pts` : "—"}</span>
                 </div>
@@ -192,7 +192,7 @@ function History({ data }: { data: LeagueData }) {
 
       <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="flex items-center justify-between gap-3 border-b border-league-gold/15 px-4 py-3 sm:px-5"><div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Selected week</div><h2 className="mt-0.5 font-display text-2xl uppercase">Weekly leaderboard</h2></div><Trophy size={23} className="text-league-gold" /></div>
-        {board.length ? <ol className="divide-y divide-league-gold/18">{board.map(row => <li key={row.userId}><Link href={`/fantasy/history/${game.id}/${row.userId}`} className={`group grid grid-cols-[2.4rem_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-league-gold/[.075] focus:outline-none focus-visible:bg-league-gold/[.075] sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg ${row.rank === 1 ? "bg-league-gold text-[#171814]" : "bg-white/[.035] text-chalk/40"}`}>{row.rank === 1 ? <Crown size={15} /> : <span className="font-mono text-xs">#{row.rank}</span>}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span><ChevronRight size={16} className="text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" /></Link></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No squads were saved for this matchweek.</p>}
+        {board.length ? <ol className="gold-dividers divide-y">{board.map(row => <li key={row.userId}><Link href={`/fantasy/history/${game.id}/${row.userId}`} className={`group grid grid-cols-[2.4rem_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-league-gold/[.075] focus:outline-none focus-visible:bg-league-gold/[.075] sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg ${row.rank === 1 ? "bg-league-gold text-[#171814]" : "bg-white/[.035] text-chalk/40"}`}>{row.rank === 1 ? <Crown size={15} /> : <span className="font-mono text-xs">#{row.rank}</span>}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span><ChevronRight size={16} className="text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" /></Link></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No squads were saved for this matchweek.</p>}
       </section>
     </div>
   );
