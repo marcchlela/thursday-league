@@ -38,7 +38,7 @@ function JsonSnapshot({ label, value }: { label: string; value: AdminAuditLog["b
   return (
     <div>
       <div className="mb-1 text-xs font-bold uppercase tracking-wider text-chalk/45">{label}</div>
-      <pre className="max-h-64 overflow-auto rounded-2xl border border-white/10 bg-black/25 p-3 text-xs leading-relaxed text-chalk/70">
+      <pre className="max-h-64 overflow-auto rounded-2xl border border-league-gold/15 bg-black/25 p-3 text-xs leading-relaxed text-chalk/70">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>
@@ -102,7 +102,7 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
             <RefreshCw size={16} /> Refresh
           </SecondaryButton>
         </div>
-        <div className="mt-4 rounded-2xl border border-perimeter-400/20 bg-perimeter-400/[0.07] p-4 text-sm text-chalk/65">Final results stay locked. Use <strong className="text-chalk">Correct game</strong> below, reopen the result with a reason, make the edits in Games, then finalize it again. Every edit keeps that reason in this history.</div>
+        <div className="mt-4 rounded-2xl border border-league-gold/20 bg-league-gold/[.055] p-4 text-sm text-chalk/65">Final results stay locked. Use <strong className="text-chalk">Correct game</strong> below, reopen the result with a reason, make the edits in Games, then finalize it again. Every edit keeps that reason in this history.</div>
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_260px]">
           <label className="relative">
             <span className="sr-only">Search audit history</span>
@@ -134,8 +134,8 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
                   </div>
                   <time className="text-xs text-chalk/45" dateTime={row.created_at}>{formatDateTime(row.created_at)}</time>
                 </div>
-                <div className="mt-3 text-xs font-bold uppercase tracking-wider text-perimeter-400 group-open:hidden">View details</div>
-                <div className="mt-3 hidden text-xs font-bold uppercase tracking-wider text-perimeter-400 group-open:block">Hide details</div>
+                <div className="mt-3 text-xs font-bold uppercase tracking-wider text-league-gold group-open:hidden">View details</div>
+                <div className="mt-3 hidden text-xs font-bold uppercase tracking-wider text-league-gold group-open:block">Hide details</div>
               </summary>
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <JsonSnapshot label="Before" value={row.before_data} />

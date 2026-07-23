@@ -29,7 +29,8 @@ self.addEventListener("push", event => {
       typeof payload.body === "string"
         ? payload.body
         : "You have a new league update.",
-    icon: "/icon.svg",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/badge-96.png",
     data: {
       url: typeof payload.url === "string" ? payload.url : "/"
     },

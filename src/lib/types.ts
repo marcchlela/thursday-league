@@ -7,6 +7,10 @@ export type Profile = {
   id: string;
   username: string;
   is_admin: boolean;
+  avatar_path?: string | null;
+  account_status?: "active" | "deactivated" | "deleted";
+  deactivated_at?: string | null;
+  deleted_at?: string | null;
   created_at?: string;
 };
 
@@ -134,7 +138,7 @@ export type BettingMarketType =
 
 export type BettingMarketStatus = "draft" | "open" | "suspended" | "locked" | "settled" | "void";
 export type BetLegStatus = "pending" | "won" | "lost" | "void";
-export type BetSlipStatus = BetLegStatus;
+export type BetSlipStatus = BetLegStatus | "cashed_out";
 
 export type BettingSettings = {
   id: number;
@@ -224,7 +228,7 @@ export type CoinLedgerEntry = {
   id: string;
   wallet_id: string;
   slip_id: string | null;
-  entry_type: "initial_grant" | "stake" | "payout" | "settlement_correction";
+  entry_type: "initial_grant" | "stake" | "cashout" | "payout" | "settlement_correction";
   amount_units: number;
   balance_after_units: number;
   metadata: Record<string, unknown>;
@@ -299,7 +303,7 @@ export type PublicBetSlip = {
   accepted_odds: number;
   potential_payout_units: number;
   settled_payout_units: number | null;
-  status: BetSlipStatus;
+  status: BetSlipStatus | "hidden";
   placed_at: string;
   picks_revealed: boolean;
   legs: PublicBetLeg[];

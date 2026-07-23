@@ -97,7 +97,7 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
       <AdminNotificationComposer games={games} onSent={load} />
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="flex items-center gap-3"><BellRing className="text-perimeter-400" /><h2 className="font-display text-3xl uppercase">Notification delivery</h2></div><p className="mt-1 text-sm text-chalk/55">The latest 100 sends, delivery totals, errors, and retryable failures.</p></div>
+          <div><div className="flex items-center gap-3"><BellRing className="text-league-gold" /><h2 className="font-display text-3xl uppercase">Notification delivery</h2></div><p className="mt-1 text-sm text-chalk/55">The latest 100 sends, delivery totals, errors, and retryable failures.</p></div>
           <SecondaryButton type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2"><RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh</SecondaryButton>
         </div>
         <Select value={type} onChange={event => setType(event.target.value)} className="mt-4 md:max-w-xs" aria-label="Filter notification type">
@@ -143,6 +143,6 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
 }
 
 function DeliveryCount({ label, value, tone }: { label: string; value: number; tone?: "success" | "danger" }) {
-  const color = tone === "success" ? "text-perimeter-400" : tone === "danger" ? "text-red-300" : "text-chalk";
-  return <div className="rounded-xl border border-white/10 bg-black/20 p-2 text-center"><div className={`font-mono text-xl ${color}`}>{value}</div><div className="text-[10px] uppercase tracking-wider text-chalk/40">{label}</div></div>;
+  const color = tone === "success" ? "text-turf-400" : tone === "danger" ? "text-red-300" : "text-chalk";
+  return <div className="rounded-xl border border-league-gold/15 bg-black/20 p-2 text-center"><div className={`font-mono text-xl ${color}`}>{value}</div><div className="text-[10px] uppercase tracking-wider text-chalk/40">{label}</div></div>;
 }

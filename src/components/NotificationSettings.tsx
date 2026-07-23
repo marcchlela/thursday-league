@@ -13,7 +13,7 @@ import {
   pushResponseError,
   readPushDeviceState
 } from "@/lib/pushClient";
-import { Card, Pill, PrimaryButton, SecondaryButton, Select } from "./ui";
+import { Pill, PrimaryButton, SecondaryButton, Select } from "./ui";
 
 const initialState: PushDeviceState = {
   supported: false,
@@ -145,46 +145,50 @@ export function NotificationSettings() {
   }
 
   if (detecting) {
-    return <Card className="lg:col-span-2"><p className="text-sm text-chalk/60">Checking notification support...</p></Card>;
+    return <section className="rounded-[1.35rem] border border-league-gold/25 bg-[#171814] p-5 shadow-[0_9px_24px_rgba(0,0,0,.13)]"><div className="skeleton-shimmer h-5 w-56 rounded-lg" /><div className="skeleton-shimmer mt-3 h-3 w-full max-w-md rounded" /></section>;
   }
 
   return (
-    <Card className="lg:col-span-2">
+    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+      <div className="p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex gap-3">
-          {state.enabled ? <BellRing className="mt-1 text-perimeter-400" /> : <BellOff className="mt-1 text-chalk/45" />}
+          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${state.enabled ? "border-turf-400/20 bg-turf-400/[.045] text-turf-400" : "border-white/[.07] bg-white/[.025] text-chalk/40"}`}>
+            {state.enabled ? <BellRing size={19} /> : <BellOff size={19} />}
+          </span>
           <div>
-            <h2 className="font-display text-3xl uppercase">Push notifications</h2>
-            <p className="mt-1 max-w-xl text-sm text-chalk/55">Receive game announcements, lineup updates, fantasy reminders, and final results on this device.</p>
+            <h2 className="font-display text-2xl uppercase sm:text-3xl">Push notifications</h2>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-chalk/42">Receive game announcements, lineup updates, Fantasy reminders, and final results on this device.</p>
           </div>
         </div>
-        <Pill>{state.enabled ? "Enabled" : state.permission === "denied" ? "Blocked" : "Disabled"}</Pill>
+        <Pill className={state.enabled ? "border-turf-400/20 bg-turf-400/[.055] text-turf-400" : state.permission === "denied" ? "border-red-400/20 bg-red-400/[.055] text-red-300" : "border-white/[.07] bg-white/[.025] text-chalk/40"}>{state.enabled ? "Enabled" : state.permission === "denied" ? "Blocked" : "Disabled"}</Pill>
       </div>
 
       <div className="mt-5">
         {!state.supported ? (
-          <p className="text-sm text-floodlight">Push notifications are not supported here.{state.isIOS && !state.installed ? " Add the app to your iPhone Home Screen and open it from there first." : ""}</p>
+          <p className="rounded-xl border border-red-400/15 bg-red-400/[.045] p-3 text-sm text-red-200/80">Push notifications are not supported here.{state.isIOS && !state.installed ? " Add the app to your iPhone Home Screen and open it from there first." : ""}</p>
         ) : state.permission === "denied" ? (
-          <p className="text-sm text-floodlight">Notifications are blocked. Open this app in iPhone Settings or your browser notification settings and allow notifications.</p>
+          <p className="rounded-xl border border-red-400/15 bg-red-400/[.045] p-3 text-sm text-red-200/80">Notifications are blocked. Open this app in iPhone Settings or your browser notification settings and allow notifications.</p>
         ) : state.enabled ? (
           <div className="flex flex-wrap gap-2">
-            <PrimaryButton type="button" disabled={busy} onClick={sendTestNotification}>{busy ? "Sending..." : "Send test notification"}</PrimaryButton>
-            <SecondaryButton type="button" disabled={busy} onClick={disable}>Disable notifications</SecondaryButton>
+            <PrimaryButton type="button" disabled={busy} onClick={sendTestNotification} className="rounded-xl">{busy ? "Sending..." : "Send test notification"}</PrimaryButton>
+            <SecondaryButton type="button" disabled={busy} onClick={disable} className="rounded-xl">Disable notifications</SecondaryButton>
           </div>
         ) : (
-          <PrimaryButton type="button" disabled={busy} onClick={enable}>{busy ? "Enabling..." : "Enable notifications"}</PrimaryButton>
+          <PrimaryButton type="button" disabled={busy} onClick={enable} className="rounded-xl">{busy ? "Enabling..." : "Enable notifications"}</PrimaryButton>
         )}
         {message ? <p className="mt-3 text-sm text-chalk/65">{message}</p> : null}
       </div>
+      </div>
 
-      <div className="mt-6 border-t border-white/10 pt-6">
+      <div className="border-t border-league-gold/12 p-4 sm:p-5">
         <div className="flex items-center gap-3">
-          <SlidersHorizontal className="text-perimeter-400" size={20} />
-          <div><h3 className="font-display text-2xl uppercase">What should we send?</h3><p className="text-sm text-chalk/50">These choices apply across all your subscribed devices.</p></div>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-league-gold/20 bg-league-gold/[.055] text-league-gold"><SlidersHorizontal size={18} /></span>
+          <div><h3 className="font-display text-2xl uppercase">What should we send?</h3><p className="text-xs text-chalk/38">These choices apply across all your subscribed devices.</p></div>
         </div>
 
         {preferencesLoading ? (
-          <div className="mt-4 grid gap-2 md:grid-cols-2">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-16 animate-pulse rounded-2xl bg-white/5" />)}</div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">{Array.from({ length: 5 }, (_, index) => <div key={index} className="skeleton-shimmer h-16 rounded-xl border border-league-gold/10" />)}</div>
         ) : (
           <>
             <div className="mt-4 grid gap-2 md:grid-cols-2">
@@ -195,9 +199,9 @@ export function NotificationSettings() {
               <PreferenceToggle label="Fantasy deadline" detail="Only when your team is not saved" checked={preferences.fantasy_deadline} onChange={value => setPreference("fantasy_deadline", value)} />
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3"><Clock3 className="text-floodlight" size={19} /><div><div className="font-semibold">Reminder time</div><div className="text-xs text-chalk/45">Before the scheduled kickoff</div></div></div>
-              <Select className="sm:w-56" disabled={!preferences.fantasy_deadline} value={preferences.fantasy_reminder_minutes} onChange={event => setPreference("fantasy_reminder_minutes", Number(event.target.value))}>
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-league-gold/12 bg-black/15 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3"><Clock3 className="text-league-gold/70" size={19} /><div><div className="font-semibold">Reminder time</div><div className="text-xs text-chalk/38">Before the scheduled kickoff</div></div></div>
+              <Select className="rounded-xl border-league-gold/15 py-2.5 sm:w-56" disabled={!preferences.fantasy_deadline} value={preferences.fantasy_reminder_minutes} onChange={event => setPreference("fantasy_reminder_minutes", Number(event.target.value))}>
                 <option value={30}>30 minutes before</option>
                 <option value={60}>1 hour before</option>
                 <option value={120}>2 hours before</option>
@@ -206,20 +210,20 @@ export function NotificationSettings() {
                 <option value={1440}>1 day before</option>
               </Select>
             </div>
-            <PrimaryButton type="button" onClick={savePreferences} disabled={preferencesSaving} className="mt-4">{preferencesSaving ? "Saving..." : "Save preferences"}</PrimaryButton>
+            <PrimaryButton type="button" onClick={savePreferences} disabled={preferencesSaving} className="mt-4 w-full rounded-xl py-3 sm:w-auto">{preferencesSaving ? "Saving..." : "Save preferences"}</PrimaryButton>
           </>
         )}
       </div>
-    </Card>
+    </section>
   );
 }
 
 function PreferenceToggle({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <span><span className="block font-semibold text-chalk">{label}</span><span className="mt-1 block text-xs text-chalk/45">{detail}</span></span>
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-league-gold/10 bg-white/[.018] p-3.5 transition hover:border-league-gold/20">
+      <span><span className="block text-sm font-semibold text-chalk">{label}</span><span className="mt-1 block text-xs text-chalk/35">{detail}</span></span>
       <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="peer sr-only" />
-      <span className="relative h-7 w-12 shrink-0 rounded-full bg-white/15 transition peer-checked:bg-perimeter-500 peer-focus-visible:ring-2 peer-focus-visible:ring-floodlight after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-chalk after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
+      <span className="relative h-7 w-12 shrink-0 rounded-full border border-white/[.06] bg-white/[.09] transition peer-checked:border-turf-400/30 peer-checked:bg-turf-500 peer-focus-visible:ring-2 peer-focus-visible:ring-league-gold after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-chalk after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
     </label>
   );
 }

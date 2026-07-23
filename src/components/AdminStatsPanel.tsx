@@ -77,7 +77,7 @@ export function AdminStatsPanel({ data }: { data: LeagueData }) {
           type="button"
           onClick={() => void loadNotificationStats()}
           disabled={loading}
-          className="rounded-xl border border-white/10 bg-white/5 p-2 text-chalk/55 transition hover:border-perimeter-400/50 hover:text-perimeter-400 disabled:opacity-40"
+          className="rounded-xl border border-league-gold/15 bg-black/15 p-2 text-chalk/55 transition hover:border-league-gold/50 hover:text-league-gold disabled:opacity-40"
           aria-label="Refresh notification statistics"
           title="Refresh notification statistics"
         >
@@ -90,10 +90,10 @@ export function AdminStatsPanel({ data }: { data: LeagueData }) {
           const Icon = metric.icon;
           const showSkeleton = metric.remote && loading;
           return (
-            <div key={metric.label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div key={metric.label} className="rounded-2xl border border-league-gold/15 bg-black/20 p-4">
               <div className="flex items-center justify-between gap-2">
-                {showSkeleton ? <span className="h-8 w-12 animate-pulse rounded-lg bg-white/10" /> : <span className="font-mono text-3xl text-chalk">{metric.value}</span>}
-                <Icon size={19} className="text-perimeter-400" />
+                {showSkeleton ? <span className="skeleton-shimmer h-8 w-12 rounded-lg" /> : <span className="font-mono text-3xl text-chalk">{metric.value}</span>}
+                <Icon size={19} className="text-league-gold" />
               </div>
               <div className="mt-3 text-xs font-bold uppercase tracking-wider text-chalk/70">{metric.label}</div>
               <div className="mt-1 text-xs text-chalk/40">{showSkeleton ? "Loading..." : metric.detail}</div>

@@ -7,6 +7,14 @@ export const metadata: Metadata = {
   title: "Thursday League",
   applicationName: "Thursday League",
   description: "Weekly 5-a-side match tracker and fantasy league",
+  icons: {
+    icon: [
+      { url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" }
+    ],
+    shortcut: "/icons/icon-32.png",
+    apple: [{ url: "/icons/apple-touch-icon.png", type: "image/png", sizes: "180x180" }]
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

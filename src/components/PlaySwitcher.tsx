@@ -1,19 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Coins, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function PlaySwitcher({ active }: { active: "fantasy" | "bets" }) {
   const sections = [
-    { id: "fantasy" as const, href: "/fantasy", label: "Fantasy", icon: Trophy },
-    { id: "bets" as const, href: "/betting", label: "Bets", icon: Coins }
+    { id: "fantasy" as const, href: "/fantasy", label: "Fantasy" },
+    { id: "bets" as const, href: "/betting", label: "Bets" }
   ];
   return (
-    <nav aria-label="Play sections" className="grid grid-cols-2 rounded-3xl border border-white/10 bg-white/[0.03] p-1">
+    <nav aria-label="Play sections" className="grid grid-cols-2 rounded-[1.15rem] border border-league-gold/25 bg-[#171814] p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)]">
       {sections.map(section => {
-        const Icon = section.icon;
-        return <Link key={section.id} href={section.href} aria-current={active === section.id ? "page" : undefined} className={cn("flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-bold transition", active === section.id ? "bg-perimeter-400/20 text-chalk ring-1 ring-perimeter-400/30" : "text-chalk/55 hover:text-chalk")}><Icon size={18} />{section.label}</Link>;
+        return <Link key={section.id} href={section.href} aria-current={active === section.id ? "page" : undefined} className={cn("relative rounded-[.85rem] px-4 py-3 text-center text-sm font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", active === section.id ? "bg-turf-400/[.09] text-turf-400 after:absolute after:inset-x-8 after:bottom-1 after:h-0.5 after:rounded-full after:bg-turf-400" : "text-chalk/45 hover:bg-white/[.035] hover:text-chalk")}>{section.label}</Link>;
       })}
     </nav>
   );
