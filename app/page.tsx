@@ -249,7 +249,7 @@ function LeaderTable({ title, icon: Icon, rows, tone }: { title: string; icon: I
         </div>
         <span className="hidden text-[9px] font-bold uppercase tracking-widest text-chalk/30 sm:block">All time</span>
       </div>
-      <ol className="divide-y divide-league-gold/18">
+      <ol className="gold-dividers divide-y">
         {rows.map((row, index) => (
           <li key={row.id} className="grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-1.5 px-3 py-2.5 text-xs md:grid-cols-[1.25rem_minmax(0,1fr)_auto] md:gap-2 md:px-4 md:text-sm">
             <span className="font-mono text-[10px] text-chalk/30 md:text-xs">{index + 1}</span>
@@ -340,7 +340,7 @@ function LeaderSkeleton({ title, icon: Icon, tone }: { title: string; icon: Icon
         <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full opacity-45", tone === "green" ? "bg-turf-400/10 text-turf-400" : "bg-league-gold/10 text-league-gold")}><Icon size={18} /></span>
         <h2 className="text-sm font-extrabold text-chalk/55 md:text-base">{title}</h2>
       </div>
-      <div className="divide-y divide-league-gold/18">
+      <div className="gold-dividers divide-y">
         {Array.from({ length: 5 }, (_, index) => <div key={index} className="grid grid-cols-[1rem_minmax(0,1fr)_1.25rem] items-center gap-1.5 px-3 py-2.5 md:grid-cols-[1.25rem_minmax(0,1fr)_1.5rem] md:gap-2 md:px-4"><SkeletonBlock className="h-3 w-3 rounded" /><SkeletonBlock className={cn("h-3 rounded-full", index % 2 ? "w-14" : "w-20")} /><SkeletonBlock className="h-4 w-4 justify-self-end rounded" /></div>)}
       </div>
     </section>
