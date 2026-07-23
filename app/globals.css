@@ -47,3 +47,30 @@ body {
     transform: scaleX(0);
   }
 }
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    105deg,
+    rgba(245, 242, 232, .045) 20%,
+    rgba(218, 165, 32, .105) 38%,
+    rgba(245, 242, 232, .045) 56%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+  }
+}

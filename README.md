@@ -73,9 +73,12 @@ supabase/migrations/20260721220000_add_virtual_betting.sql
 supabase/migrations/20260721234500_expand_betting_management_and_social.sql
 supabase/migrations/20260722010000_add_competition_eligible_players.sql
 supabase/migrations/20260722020000_add_custom_notifications.sql
+supabase/migrations/20260722030000_add_bet_cashout_and_final_privacy.sql
+supabase/migrations/20260723010000_add_profile_avatars.sql
+supabase/migrations/20260723020000_add_account_lifecycle.sql
 ```
 
-Run all migrations in filename order. The virtual betting migration depends on the integrity, seasons, and controlled-corrections migrations. The expanded betting migration adds alternate lines, safe admin edit/delete controls, and privacy-aware league picks and standings. The competition-eligibility migration adds reusable guest players that can play in a match without entering fantasy, personal betting markets, league statistics, or player-model history. The custom-notification migration adds opted-in admin announcements to the existing delivery history and retry workflow.
+Run all migrations in filename order. The virtual betting migration depends on the integrity, seasons, and controlled-corrections migrations. The expanded betting migration adds alternate lines, safe admin edit/delete controls, and privacy-aware league picks and standings. The competition-eligibility migration adds reusable guest players that can play in a match without entering fantasy, personal betting markets, league statistics, or player-model history. The custom-notification migration adds opted-in admin announcements to the existing delivery history and retry workflow. The profile-avatar migration creates the avatar bucket and controlled profile update function. The account-lifecycle migration adds safe deactivation and anonymized deletion without removing historical fantasy or betting results.
 
 ### 4) Auth setting
 
@@ -140,7 +143,8 @@ Users only see usernames in the UI.
 - Fantasy saving also locks automatically at the scheduled kickoff time.
 - Players with historical records are archived instead of deleted so old results and fantasy points stay intact.
 - Admins can turn off `Fantasy, stats & bets` for reusable guest players. Their real goals still count toward the match score and game-level betting results, but they have no career totals, fantasy points, individual betting markets, or persistent model identity.
-- Betting coins are virtual only: no purchase, sale, transfer, cash-out, or real-world value.
+- Betting coins are virtual only: no purchase, sale, transfer, real-money withdrawal, or real-world value.
+- Pending bets can be cancelled for a full virtual-coin refund until scheduled kickoff. Other bettors' picks, stakes, and odds remain private until the result is final.
 - Betting closes five minutes before kick-off at the database level. Finalizing a game freezes an additive event-plus-manual-stat result version and settles bets atomically.
 - See `docs/virtual-betting-design.md` for model, security, settlement, correction, and future ML details.
 - The app keeps the spec wording distinction: roster members are called `players`; fantasy users are not called players in participation reminders.

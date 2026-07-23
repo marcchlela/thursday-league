@@ -2,21 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarClock, Check, EyeOff, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronRight, EyeOff, HandCoins, ShieldCheck, X } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useBettingData } from "@/hooks/useBettingData";
 import { useBettingSocial } from "@/hooks/useBettingSocial";
 import { useLeagueData } from "@/hooks/useLeagueData";
-import { bettingSelectionGroup, coinsFromUnits, quoteBuilderOdds } from "@/lib/betting";
+import { bettingSelectionGroup, coinsFromUnits, formatCoins, quoteBuilderOdds } from "@/lib/betting";
+import { calculateScore } from "@/lib/scoring";
 import { supabase } from "@/lib/supabase";
-import { BetSlip, BettingMarket, BettingOutcome, Game, PublicBetSlip } from "@/lib/types";
+import { BetSlip, BettingMarket, BettingOutcome, BettingStanding, Game, LeagueData, PublicBetSlip } from "@/lib/types";
 import { cn, currentSeason, formatDateTime } from "@/lib/utils";
-import { BetSlipCard, BettingBalance, bettingCategoryOrder, MarketSection } from "@/components/BettingMarketComponents";
-import { CoinAmount, LeagueCoin } from "@/components/LeagueCoin";
+import { BetSlipCard, BetSlipDrawer, BettingBalance, bettingCategoryOrder, MarketSection } from "@/components/BettingMarketComponents";
+import { CoinAmount } from "@/components/LeagueCoin";
 import { PlaySwitcher } from "@/components/PlaySwitcher";
-import { Card, EmptyState, ErrorState, LoadingState, Pill, Select, TabList, Toast } from "@/components/ui";
+import { TeamCrest } from "@/components/TeamCrest";
+import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Select, TabList, Toast } from "@/components/ui";
 
-type PageTab = "markets" | "mine" | "league";
+type PageTab = "markets" | "mine" | "standings";
 
 export default function BettingPage() {
   const league = useLeagueData();
@@ -26,13 +28,18 @@ export default function BettingPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const tab: PageTab = requestedTab === "mine" || requestedTab === "league" ? requestedTab : "markets";
+  const requestedGameId = searchParams.get("game");
+  const tab: PageTab = requestedTab === "mine" ? "mine" : requestedTab === "standings" || requestedTab === "league" ? "standings" : "markets";
   const [gameId, setGameId] = useState("");
   const [seasonId, setSeasonId] = useState("");
+  const [marketGameOpen, setMarketGameOpen] = useState(Boolean(requestedGameId));
   const [selectedOutcomeIds, setSelectedOutcomeIds] = useState<string[]>([]);
   const [stake, setStake] = useState("");
   const [placing, setPlacing] = useState(false);
+  const [cashOutSlip, setCashOutSlip] = useState<BetSlip | null>(null);
+  const [cashingOut, setCashingOut] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastLinksToMyBets, setToastLinksToMyBets] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -44,14 +51,25 @@ export default function BettingPage() {
     const gameIds = new Set(betting.data.markets.filter(market => market.status !== "draft").map(market => market.game_id));
     return league.data.games
       .filter(game => gameIds.has(game.id))
-      .sort((first, second) => new Date(second.game_date).getTime() - new Date(first.game_date).getTime());
+      .sort((first, second) => {
+        const firstUpcoming = first.status === "upcoming" || first.status === "draft";
+        const secondUpcoming = second.status === "upcoming" || second.status === "draft";
+        if (firstUpcoming !== secondUpcoming) return firstUpcoming ? -1 : 1;
+        const dateDifference = new Date(first.game_date).getTime() - new Date(second.game_date).getTime();
+        return firstUpcoming ? dateDifference : -dateDifference;
+      });
   }, [betting.data.markets, league.data.games]);
 
   useEffect(() => {
     if (gameId && availableGames.some(game => game.id === gameId)) return;
+    if (requestedGameId && availableGames.some(game => game.id === requestedGameId)) {
+      setGameId(requestedGameId);
+      setMarketGameOpen(true);
+      return;
+    }
     const preferred = availableGames.find(game => game.status === "upcoming" || game.status === "draft") || availableGames[0];
     setGameId(preferred?.id || "");
-  }, [availableGames, gameId]);
+  }, [availableGames, gameId, requestedGameId]);
 
   useEffect(() => {
     if (seasonId && league.data.seasons.some(season => season.id === seasonId)) return;
@@ -59,16 +77,19 @@ export default function BettingPage() {
   }, [league.data, seasonId]);
 
   const game = league.data.games.find(item => item.id === gameId);
-  const social = useBettingSocial(gameId, seasonId, tab === "league");
+  const social = useBettingSocial(gameId, seasonId, tab === "standings", game?.status);
 
   useEffect(() => {
     if (!game?.season_id || !user) return;
     void supabase.rpc("ensure_betting_wallet", { target_season_id: game.season_id }).then(() => betting.reload());
-    // The wallet RPC is idempotent; rerun only when the selected season changes.
+    // Wallet creation is idempotent and only needs to rerun when the selected season changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.season_id, user?.id]);
 
-  useEffect(() => { setSelectedOutcomeIds([]); setStake(""); }, [gameId]);
+  useEffect(() => {
+    setSelectedOutcomeIds([]);
+    setStake("");
+  }, [gameId]);
 
   if (league.loading || betting.loading) return <LoadingState label="Loading betting markets" cards={4} />;
   if (league.error) return <ErrorState message={league.error} onRetry={league.reload} />;
@@ -83,13 +104,38 @@ export default function BettingPage() {
   const potentialReturn = stakeCoins > 0 ? stakeCoins * builderOdds : 0;
   const wallet = betting.data.wallets.find(item => item.user_id === user?.id && item.season_id === game?.season_id);
   const balanceUnits = wallet?.balance_units ?? Number(settings?.starting_balance_units ?? 10000);
-  const lockAt = game ? new Date(new Date(game.game_date).getTime() - Number(settings?.lock_minutes ?? 5) * 60_000) : null;
-  const isOpen = !!game && (game.status === "upcoming" || game.status === "draft") && !!lockAt && now < lockAt.getTime() && markets.some(market => market.status === "open");
+  const lockMinutes = Number(settings?.lock_minutes ?? 5);
+  const lockAt = game ? lockTime(game, lockMinutes) : null;
+  const isOpen = !!game && bettingOpen(game, markets, lockMinutes, now);
   const lineups = league.data.lineups.filter(lineup => lineup.game_id === gameId);
 
   function setTab(nextTab: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", nextTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  function showToast(message: string, linksToMyBets = false) {
+    setToast(message);
+    setToastLinksToMyBets(linksToMyBets);
+  }
+
+  function openGameMarkets(id: string) {
+    setGameId(id);
+    setMarketGameOpen(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "markets");
+    params.set("game", id);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  function closeGameMarkets() {
+    setMarketGameOpen(false);
+    setSelectedOutcomeIds([]);
+    setStake("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "markets");
+    params.delete("game");
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
@@ -105,7 +151,7 @@ export default function BettingPage() {
         return !existingMarket || bettingSelectionGroup(existingMarket) !== selectedGroup;
       });
       if (withoutSameGroup.length >= 5) {
-        setToast("A same-game builder can contain up to five selections.");
+        showToast("A same-game builder can contain up to five selections.");
         return current;
       }
       return [...withoutSameGroup, outcome.id];
@@ -114,8 +160,8 @@ export default function BettingPage() {
 
   async function placeBet() {
     if (!game || !selectedOutcomeIds.length) return;
-    if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return setToast("Enter a positive stake with up to two decimals.");
-    if (!wallet || stakeCoins > coinsFromUnits(wallet.balance_units)) return setToast("You do not have enough coins for that stake.");
+    if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return showToast("Enter a positive stake with up to two decimals.");
+    if (!wallet || stakeCoins > coinsFromUnits(wallet.balance_units)) return showToast("You do not have enough coins for that stake.");
     setPlacing(true);
     const { error } = await supabase.rpc("place_bet", {
       target_game_id: game.id,
@@ -124,95 +170,252 @@ export default function BettingPage() {
       client_request_id: crypto.randomUUID()
     });
     setPlacing(false);
-    if (error) return setToast(error.message);
-    setToast(`${selectedOutcomeIds.length === 1 ? "Bet" : "Bet builder"} placed at ${builderOdds.toFixed(2)} odds.`);
+    if (error) return showToast(error.message);
+    showToast(`${selectedOutcomeIds.length === 1 ? "Bet" : "Bet builder"} placed at ${builderOdds.toFixed(2)} odds.`, true);
     setSelectedOutcomeIds([]);
     setStake("");
     await betting.reload();
   }
 
+  async function cashOutBet() {
+    if (!cashOutSlip || cashingOut) return;
+    setCashingOut(true);
+    const { data, error } = await supabase.rpc("cash_out_bet", { target_slip_id: cashOutSlip.id });
+    setCashingOut(false);
+    if (error) return showToast(error.message);
+    const result = data as { refund_units?: number } | null;
+    showToast(`Bet cashed out. ${formatCoins(Number(result?.refund_units ?? cashOutSlip.stake_units))} coins returned.`);
+    setCashOutSlip(null);
+    await betting.reload();
+  }
+
   return (
-    <div className="space-y-6">
-      <Toast message={toast} onDone={() => setToast(null)} />
+    <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
+      <Toast
+        message={toast}
+        duration={toastLinksToMyBets ? 6000 : 3200}
+        actionLabel={toastLinksToMyBets ? "View in My Bets" : undefined}
+        onAction={toastLinksToMyBets ? () => {
+          setToast(null);
+          setToastLinksToMyBets(false);
+          setTab("mine");
+        } : undefined}
+        onDone={() => {
+          setToast(null);
+          setToastLinksToMyBets(false);
+        }}
+      />
+      <ConfirmDialog open={!!cashOutSlip} title="Cash out this bet?" text={cashOutSlip ? `Your full ${formatCoins(cashOutSlip.stake_units)} coin stake will be returned. The bet will be permanently cancelled and cannot be restored.` : undefined} confirmLabel={cashingOut ? "Cashing out..." : "Cash out bet"} confirmTone="primary" cancelLabel="Keep bet" onCancel={() => { if (!cashingOut) setCashOutSlip(null); }} onConfirm={cashOutBet} />
+
       <PlaySwitcher active="bets" />
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-floodlight"><LeagueCoin size={23} /><span className="text-xs font-bold uppercase tracking-[.2em]">Virtual coins only</span></div>
-          <h1 className="mt-2 font-display text-5xl uppercase">Bets</h1>
-          <p className="mt-2 max-w-2xl text-sm text-chalk/60">Make predictions, compare picks after lock, and climb the league table. Coins have no cash value.</p>
-        </div>
-        <BettingBalance balanceUnits={balanceUnits} compact />
-      </header>
-
-      <div className="rounded-3xl border border-perimeter-400/25 bg-perimeter-400/10 p-4 text-sm text-chalk/75">
-        <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 shrink-0 text-perimeter-400" size={20} /><p><strong className="text-chalk">Fair-play design:</strong> probabilities come from the ten selected players and historical 5v5 performance, not permanent team names. Other players&apos; selections stay hidden until betting locks.</p></div>
-      </div>
-
-      <TabList idPrefix="betting" label="Betting sections" tabs={[{ id: "markets", label: "Markets" }, { id: "mine", label: "My bets" }, { id: "league", label: "League" }]} active={tab} onChange={setTab} />
+      <TabList idPrefix="betting" label="Betting sections" tabs={[{ id: "markets", label: "Markets" }, { id: "mine", label: "My Bets" }, { id: "standings", label: "Standings" }]} active={tab} onChange={setTab} />
+      <BettingBalance balanceUnits={balanceUnits} lockAt={tab === "markets" && marketGameOpen ? lockAt : undefined} lockMinutes={lockMinutes} isOpen={isOpen} compact />
 
       {tab === "markets" ? (
-        <div id="betting-markets-panel" role="tabpanel" aria-labelledby="betting-markets-tab" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-5">
-            <GamePicker gameId={gameId} games={availableGames} lockAt={lockAt} isOpen={isOpen} onGame={setGameId} />
-            {!availableGames.length ? <EmptyState title="No betting markets yet" text="Markets appear here after the lineups are confirmed and an admin approves the generated probabilities and odds." /> : null}
-            {bettingCategoryOrder.map(category => {
-              const categoryMarkets = markets.filter(market => market.market_type === category.type);
-              if (!categoryMarkets.length) return null;
-              return <MarketSection key={category.type} label={category.label} markets={categoryMarkets} outcomes={outcomes} lineups={lineups} selected={selectedOutcomeIds} disabled={!isOpen} onToggle={toggleOutcome} />;
-            })}
-          </div>
-          <BetSlipCard markets={markets} outcomes={selectedOutcomes} odds={builderOdds} stake={stake} potentialReturn={potentialReturn} balanceUnits={balanceUnits} disabled={!isOpen} placing={placing} onStake={setStake} onRemove={id => setSelectedOutcomeIds(current => current.filter(item => item !== id))} onPlace={placeBet} />
+        <div id="betting-markets-panel" role="tabpanel" aria-labelledby="betting-markets-tab">
+          {!marketGameOpen ? (
+            <BetGameList games={availableGames} data={league.data} allMarkets={betting.data.markets} lockMinutes={lockMinutes} now={now} onGame={openGameMarkets} />
+          ) : game ? (
+            <div className="space-y-4">
+              <SelectedGameHeader game={game} data={league.data} marketCount={markets.length} isOpen={isOpen} onBack={closeGameMarkets} />
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="space-y-4">
+                  {bettingCategoryOrder.map(category => {
+                    const categoryMarkets = markets.filter(market => market.market_type === category.type);
+                    if (!categoryMarkets.length) return null;
+                    return <MarketSection key={category.type} label={category.label} icon={category.icon} markets={categoryMarkets} outcomes={outcomes} lineups={lineups} selected={selectedOutcomeIds} disabled={!isOpen} onToggle={toggleOutcome} />;
+                  })}
+                  {!markets.length ? <EmptyState title="No markets for this game" text="The published markets may have been removed or returned to draft." /> : null}
+                </div>
+                <div className="hidden xl:block"><BetSlipCard markets={markets} outcomes={selectedOutcomes} odds={builderOdds} stake={stake} potentialReturn={potentialReturn} balanceUnits={balanceUnits} disabled={!isOpen} placing={placing} onStake={setStake} onRemove={id => setSelectedOutcomeIds(current => current.filter(item => item !== id))} onPlace={placeBet} /></div>
+                <div className="xl:hidden"><BetSlipDrawer markets={markets} outcomes={selectedOutcomes} odds={builderOdds} stake={stake} potentialReturn={potentialReturn} balanceUnits={balanceUnits} disabled={!isOpen} placing={placing} onStake={setStake} onRemove={id => setSelectedOutcomeIds(current => current.filter(item => item !== id))} onPlace={placeBet} /></div>
+              </div>
+            </div>
+          ) : <EmptyState title="Game unavailable" text="Return to the game list and choose another match." />}
         </div>
       ) : null}
 
-      {tab === "mine" ? <div id="betting-mine-panel" role="tabpanel" aria-labelledby="betting-mine-tab"><BetHistory slips={betting.data.slips.filter(slip => slip.user_id === user?.id)} games={league.data.games} markets={betting.data.markets} outcomes={betting.data.outcomes} allLegs={betting.data.legs} /></div> : null}
+      {tab === "mine" ? <div id="betting-mine-panel" role="tabpanel" aria-labelledby="betting-mine-tab"><BetHistory slips={betting.data.slips.filter(slip => slip.user_id === user?.id)} games={league.data.games} markets={betting.data.markets} outcomes={betting.data.outcomes} allLegs={betting.data.legs} now={now} onCashOut={setCashOutSlip} /></div> : null}
 
-      {tab === "league" ? <div id="betting-league-panel" role="tabpanel" aria-labelledby="betting-league-tab"><LeagueBets userId={user?.id} gameId={gameId} seasonId={seasonId} games={availableGames} seasons={league.data.seasons} standings={social.standings} slips={social.slips} loading={social.loading} error={social.error} onGame={setGameId} onSeason={setSeasonId} onRetry={social.reload} /></div> : null}
+      {tab === "standings" ? <div id="betting-standings-panel" role="tabpanel" aria-labelledby="betting-standings-tab"><BetStandings userId={user?.id} gameId={gameId} seasonId={seasonId} games={availableGames} seasons={league.data.seasons} standings={social.standings} slips={social.slips} loading={social.loading} error={social.error} onGame={setGameId} onSeason={setSeasonId} onRetry={social.reload} /></div> : null}
     </div>
   );
 }
 
-function GamePicker({ gameId, games, lockAt, isOpen, onGame }: { gameId: string; games: Game[]; lockAt: Date | null; isOpen: boolean; onGame: (id: string) => void }) {
-  return <Card><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><label className="block flex-1"><span className="mb-2 block text-xs font-bold uppercase tracking-widest text-chalk/50">Game</span><Select value={gameId} onChange={event => onGame(event.target.value)}>{games.map(game => <option key={game.id} value={game.id}>{formatDateTime(game.game_date)}</option>)}</Select></label>{gameId ? <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm"><div className="flex items-center gap-2 font-semibold"><CalendarClock size={16} className="text-floodlight" /> Locks {lockAt?.toLocaleString()}</div><div className={cn("mt-1 text-xs font-bold uppercase tracking-wider", isOpen ? "text-turf-400" : "text-red-300")}>{isOpen ? "Open" : "Betting closed"}</div></div> : null}</div></Card>;
+function lockTime(game: Game, lockMinutes: number) {
+  return new Date(new Date(game.game_date).getTime() - lockMinutes * 60_000);
 }
 
-function BetHistory({ slips, games, markets, outcomes, allLegs }: { slips: BetSlip[]; games: Game[]; markets: BettingMarket[]; outcomes: BettingOutcome[]; allLegs: import("@/lib/types").BetLeg[] }) {
-  if (!slips.length) return <EmptyState title="No bets yet" text="Your open and settled slips will appear here." />;
-  return <div className="space-y-3">{slips.map(slip => {
-    const game = games.find(item => item.id === slip.game_id);
-    const legs = allLegs.filter(leg => leg.slip_id === slip.id);
-    const statusTone = slip.status === "won" ? "text-turf-400 border-turf-400/30 bg-turf-400/10" : slip.status === "lost" ? "text-red-300 border-red-400/30 bg-red-400/10" : slip.status === "void" ? "text-chalk/60 border-white/15 bg-white/5" : "text-floodlight border-floodlight/30 bg-floodlight/10";
-    return <Card key={slip.id}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Pill>{slip.slip_type}</Pill><span className="text-xs text-chalk/45">{new Date(slip.placed_at).toLocaleString()}</span></div><h2 className="mt-2 font-display text-2xl uppercase">{game ? formatDateTime(game.game_date) : "Game"}</h2></div><span className={cn("rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider", statusTone)}>{slip.status}</span></div><div className="mt-4 space-y-2">{legs.map(leg => { const market = markets.find(item => item.id === leg.market_id); const outcome = outcomes.find(item => item.id === leg.outcome_id); return <div key={leg.id} className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-sm"><span>{market?.title}: <strong>{outcome?.label}</strong></span><span className="flex items-center gap-2 font-mono">{Number(leg.accepted_odds).toFixed(2)} {leg.status === "won" ? <Check size={15} className="text-turf-400" /> : leg.status === "lost" ? <X size={15} className="text-red-300" /> : null}</span></div>; })}</div><SlipNumbers stake={slip.stake_units} odds={Number(slip.accepted_odds)} payout={slip.status === "pending" ? slip.potential_payout_units : (slip.settled_payout_units || 0)} payoutLabel={slip.status === "pending" ? "Potential" : "Paid"} /></Card>;
-  })}</div>;
+function bettingOpen(game: Game, markets: BettingMarket[], lockMinutes: number, now: number) {
+  return (game.status === "upcoming" || game.status === "draft")
+    && now < lockTime(game, lockMinutes).getTime()
+    && markets.some(market => market.status === "open");
 }
 
-function LeagueBets({ userId, gameId, seasonId, games, seasons, standings, slips, loading, error, onGame, onSeason, onRetry }: { userId?: string; gameId: string; seasonId: string; games: Game[]; seasons: import("@/lib/types").Season[]; standings: import("@/lib/types").BettingStanding[]; slips: PublicBetSlip[]; loading: boolean; error: string | null; onGame: (id: string) => void; onSeason: (id: string) => void; onRetry: () => void | Promise<void> }) {
-  if (loading) return <LoadingState label="Loading league bets" cards={3} />;
-  if (error) return <ErrorState message={error} onRetry={onRetry} />;
+function BetGameList({ games, data, allMarkets, lockMinutes, now, onGame }: { games: Game[]; data: LeagueData; allMarkets: BettingMarket[]; lockMinutes: number; now: number; onGame: (id: string) => void }) {
+  if (!games.length) return <EmptyState title="No betting markets yet" text="Games appear here after the lineups are confirmed and an admin publishes the odds." />;
   return (
-    <div className="grid gap-5 lg:grid-cols-[.85fr_1.15fr]">
-      <Card>
-        <h2 className="font-display text-3xl uppercase">Bet standings</h2>
-        <p className="mt-1 text-sm text-chalk/50">Ranked by profit from settled bets. Pending stakes do not change the profit ranking.</p>
-        <Select value={seasonId} onChange={event => onSeason(event.target.value)} className="mt-4" aria-label="Betting standings season">{seasons.map(season => <option key={season.id} value={season.id}>{season.name}</option>)}</Select>
-        <div className="mt-4 space-y-2">{standings.map((row, index) => <div key={row.user_id} className={cn("grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border p-3", row.user_id === userId ? "border-floodlight/40 bg-floodlight/10" : "border-white/10 bg-white/[0.03]")}><span className="grid h-9 w-9 place-items-center rounded-xl bg-perimeter-400/15 font-mono text-perimeter-400">#{index + 1}</span><div><div className="font-semibold">{row.username}{row.user_id === userId ? " · you" : ""}</div><div className="text-xs text-chalk/45">{row.won_bets}/{row.settled_bets} won · {row.total_bets} total</div></div><div className="text-right"><CoinAmount units={row.settled_profit_units} iconSize={16} className={cn("font-semibold", row.settled_profit_units >= 0 ? "text-turf-400" : "text-red-300")} /><div className="mt-1 text-[10px] uppercase text-chalk/40">profit</div></div></div>)}</div>
-      </Card>
-      <Card>
-        <h2 className="font-display text-3xl uppercase">League picks</h2>
-        <p className="mt-1 text-sm text-chalk/50">Your picks are always visible to you. Everyone else&apos;s selections appear after the betting lock.</p>
-        <Select value={gameId} onChange={event => onGame(event.target.value)} className="mt-4" aria-label="League bet game">{games.map(game => <option key={game.id} value={game.id}>{formatDateTime(game.game_date)}</option>)}</Select>
-        <div className="mt-4 space-y-3">
-          {!slips.length ? <EmptyState title="No league bets" text="Nobody has placed a bet for this game yet." /> : slips.map(slip => <PublicSlip key={slip.slip_id} slip={slip} own={slip.user_id === userId} />)}
+    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+      <div className="flex items-start gap-3 border-b border-league-gold/15 px-4 py-4 sm:px-5">
+        <ShieldCheck size={19} className="mt-0.5 shrink-0 text-league-gold" />
+        <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Available games</div><h1 className="mt-0.5 font-display text-2xl uppercase">Choose a match</h1><p className="mt-1 text-xs leading-relaxed text-chalk/40">Selections and stakes stay private until the result is final.</p></div>
+      </div>
+      <div className="divide-y divide-league-gold/18">
+        {games.map(game => {
+          const gameMarkets = allMarkets.filter(market => market.game_id === game.id && market.status !== "draft");
+          return <BetGameCard key={game.id} game={game} data={data} marketCount={gameMarkets.length} isOpen={bettingOpen(game, gameMarkets, lockMinutes, now)} onClick={() => onGame(game.id)} />;
+        })}
+      </div>
+    </section>
+  );
+}
+
+function BetGameCard({ game, data, marketCount, isOpen, onClick }: { game: Game; data: LeagueData; marketCount: number; isOpen: boolean; onClick: () => void }) {
+  const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
+  const score = calculateScore(data.events.filter(event => event.game_id === game.id), lineups, data.playerStats.filter(stat => stat.game_id === game.id));
+  const showScore = game.status === "live" || game.status === "final";
+  return (
+    <button type="button" onClick={onClick} className="group grid w-full gap-3 px-3 py-4 text-left transition hover:bg-league-gold/[.055] focus:outline-none focus-visible:bg-league-gold/[.075] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
+      <div className="min-w-0">
+        <div className="mb-2 inline-flex items-center gap-1.5 font-mono text-[9px] text-chalk/30"><CalendarDays size={11} /> {formatDateTime(game.game_date)}</div>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <BetTeam gameId={game.id} team="A" />
+          <span className="font-mono text-xl font-black">{showScore ? <>{score.A}<span className="px-1.5 text-chalk/25">–</span>{score.B}</> : <span className="font-display uppercase text-chalk/35">vs</span>}</span>
+          <BetTeam gameId={game.id} team="B" reverse />
         </div>
-      </Card>
+      </div>
+      <div className="flex items-center justify-between gap-4 border-t border-league-gold/18 pt-3 sm:min-w-44 sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right">
+        <div><div className={cn("text-[10px] font-black uppercase tracking-wider", isOpen ? "text-turf-400" : "text-chalk/35")}>{isOpen ? "Bets open" : "Betting closed"}</div><div className="mt-1 text-xs text-chalk/40">{marketCount} market{marketCount === 1 ? "" : "s"}</div></div>
+        <ChevronRight size={18} className="text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" />
+      </div>
+    </button>
+  );
+}
+
+function SelectedGameHeader({ game, data, marketCount, isOpen, onBack }: { game: Game; data: LeagueData; marketCount: number; isOpen: boolean; onBack: () => void }) {
+  const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
+  const score = calculateScore(data.events.filter(event => event.game_id === game.id), lineups, data.playerStats.filter(stat => stat.game_id === game.id));
+  const showScore = game.status === "live" || game.status === "final";
+  return (
+    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+      <div className="flex items-center justify-between border-b border-league-gold/15 px-4 py-2.5 sm:px-5">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-bold text-chalk/45 transition hover:text-league-gold"><ArrowLeft size={14} /> All betting games</button>
+        <span className={cn("rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wider", isOpen ? "border-turf-400/20 bg-turf-400/[.07] text-turf-100" : "border-white/[.07] bg-white/[.025] text-chalk/35")}>{isOpen ? "Open" : "Closed"}</span>
+      </div>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-4 sm:px-5">
+        <BetTeam gameId={game.id} team="A" large />
+        <div className="text-center"><div className="font-mono text-2xl font-black">{showScore ? <>{score.A}<span className="px-1.5 text-chalk/25">–</span>{score.B}</> : <span className="font-display uppercase text-chalk/35">vs</span>}</div><div className="mt-1 font-mono text-[9px] text-chalk/30">{formatDateTime(game.game_date)}</div><div className="mt-1 text-[9px] uppercase tracking-wider text-league-gold/60">{marketCount} markets</div></div>
+        <BetTeam gameId={game.id} team="B" reverse large />
+      </div>
+    </section>
+  );
+}
+
+function BetTeam({ gameId, team, reverse = false, large = false }: { gameId: string; team: "A" | "B"; reverse?: boolean; large?: boolean }) {
+  return <div className={cn("flex min-w-0 items-center gap-2", reverse && "flex-row-reverse text-right")}><TeamCrest gameId={gameId} team={team} className={large ? "h-12 w-10 shrink-0 sm:h-14 sm:w-11" : "h-9 w-8 shrink-0 sm:h-11 sm:w-9"} /><span className={cn("truncate font-bold", large ? "text-sm" : "text-xs")}>Team {team}</span></div>;
+}
+
+type BetHistoryFilter = "all" | "open" | "settled" | "cashed_out";
+
+function betMatchesFilter(slip: BetSlip, filter: BetHistoryFilter) {
+  if (filter === "all") return true;
+  if (filter === "open") return slip.status === "pending";
+  if (filter === "cashed_out") return slip.status === "cashed_out";
+  return slip.status === "won" || slip.status === "lost" || slip.status === "void";
+}
+
+function betStatusLabel(status: BetSlip["status"]) {
+  if (status === "pending") return "Open";
+  if (status === "cashed_out") return "Cashed out";
+  if (status === "void") return "Voided";
+  return status;
+}
+
+function BetHistory({ slips, games, markets, outcomes, allLegs, now, onCashOut }: { slips: BetSlip[]; games: Game[]; markets: BettingMarket[]; outcomes: BettingOutcome[]; allLegs: import("@/lib/types").BetLeg[]; now: number; onCashOut: (slip: BetSlip) => void }) {
+  const [filter, setFilter] = useState<BetHistoryFilter>("all");
+  if (!slips.length) return <EmptyState title="No bets yet" text="Your open and settled slips will appear here." />;
+
+  const orderedSlips = [...slips].sort((first, second) => new Date(second.placed_at).getTime() - new Date(first.placed_at).getTime());
+  const filteredSlips = orderedSlips.filter(slip => betMatchesFilter(slip, filter));
+  const filters: { id: BetHistoryFilter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: slips.length },
+    { id: "open", label: "Open", count: slips.filter(slip => betMatchesFilter(slip, "open")).length },
+    { id: "settled", label: "Settled", count: slips.filter(slip => betMatchesFilter(slip, "settled")).length },
+    { id: "cashed_out", label: "Cashed Out", count: slips.filter(slip => betMatchesFilter(slip, "cashed_out")).length }
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex overflow-x-auto rounded-[1.1rem] border border-league-gold/25 bg-[#171814] p-1" role="group" aria-label="Filter My Bets">
+        {filters.map(item => <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} className={cn("flex min-w-max flex-1 items-center justify-center gap-1.5 rounded-[.8rem] px-3 py-2.5 text-xs font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", filter === item.id ? "bg-league-gold/[.09] text-league-gold" : "text-chalk/40 hover:bg-white/[.025] hover:text-chalk")}><span>{item.label}</span><span className="rounded-full border border-white/[.06] bg-white/[.025] px-1.5 py-0.5 font-mono text-[9px] text-chalk/35">{item.count}</span></button>)}
+      </div>
+
+      {!filteredSlips.length ? <EmptyState title={`No ${filter === "cashed_out" ? "cashed-out" : filter} bets`} text="Bets matching this status will appear here." /> : filteredSlips.map(slip => {
+        const game = games.find(item => item.id === slip.game_id);
+        const legs = allLegs.filter(leg => leg.slip_id === slip.id);
+        const canCashOut = slip.status === "pending" && !!game && (game.status === "upcoming" || game.status === "draft") && now < new Date(game.game_date).getTime();
+        const statusTone = slip.status === "won" ? "text-turf-400 border-turf-400/25 bg-turf-400/[.07]" : slip.status === "lost" ? "text-red-300 border-red-400/25 bg-red-400/[.07]" : slip.status === "void" || slip.status === "cashed_out" ? "text-chalk/45 border-white/[.07] bg-white/[.025]" : "text-league-gold border-league-gold/25 bg-league-gold/[.07]";
+        const payout = slip.status === "pending" ? slip.potential_payout_units : slip.status === "cashed_out" ? slip.stake_units : (slip.settled_payout_units || 0);
+        const payoutLabel = slip.status === "pending" ? "Potential" : slip.status === "cashed_out" ? "Refunded" : "Paid";
+        return (
+          <section key={slip.id} className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-league-gold/10 px-4 py-3.5 sm:px-5">
+              <div><div className="flex items-center gap-2"><span className="rounded-full border border-white/[.07] bg-white/[.025] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-chalk/45">{slip.slip_type}</span><span className="text-[10px] text-chalk/30">{new Date(slip.placed_at).toLocaleString()}</span></div><h2 className="mt-2 font-display text-xl uppercase sm:text-2xl">{game ? formatDateTime(game.game_date) : "Game"}</h2></div>
+              <div className="text-right"><div className="mb-1 text-[8px] font-black uppercase tracking-widest text-chalk/25">Status</div><span className={cn("rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wider", statusTone)}>{betStatusLabel(slip.status)}</span></div>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="space-y-2">{legs.map(leg => {
+                const market = markets.find(item => item.id === leg.market_id);
+                const outcome = outcomes.find(item => item.id === leg.outcome_id);
+                return <div key={leg.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/[.06] bg-black/15 px-3 py-2.5 text-sm"><span className="min-w-0 truncate text-chalk/60">{market?.title}: <strong className="text-chalk/85">{outcome?.label}</strong></span><span className="flex shrink-0 items-center gap-2 font-mono text-league-gold">{Number(leg.accepted_odds).toFixed(2)} {leg.status === "won" ? <Check size={15} className="text-turf-400" /> : leg.status === "lost" ? <X size={15} className="text-red-300" /> : null}</span></div>;
+              })}</div>
+              <SlipNumbers stake={slip.stake_units} odds={Number(slip.accepted_odds)} payout={payout} payoutLabel={payoutLabel} />
+              {canCashOut ? <div className="mt-3 flex flex-col gap-3 rounded-xl border border-league-gold/15 bg-league-gold/[.045] p-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="text-sm font-semibold">Full-stake cash-out available</div><div className="mt-1 text-xs text-chalk/40">Available until scheduled kickoff.</div></div><button type="button" onClick={() => onCashOut(slip)} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-league-gold/25 bg-league-gold/[.08] px-3 py-2 text-sm font-bold text-league-gold transition hover:bg-league-gold/[.14]"><HandCoins size={17} /> Cash out</button></div> : null}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function rankBettingStandings(standings: BettingStanding[]) {
+  const ordered = [...standings].sort((first, second) => second.settled_profit_units - first.settled_profit_units || first.username.localeCompare(second.username));
+  let previousRank = 0;
+  return ordered.map((row, index) => {
+    const rank = index > 0 && row.settled_profit_units === ordered[index - 1].settled_profit_units ? previousRank : index + 1;
+    previousRank = rank;
+    return { ...row, rank };
+  });
+}
+
+function BetStandings({ userId, gameId, seasonId, games, seasons, standings, slips, loading, error, onGame, onSeason, onRetry }: { userId?: string; gameId: string; seasonId: string; games: Game[]; seasons: import("@/lib/types").Season[]; standings: BettingStanding[]; slips: PublicBetSlip[]; loading: boolean; error: string | null; onGame: (id: string) => void; onSeason: (id: string) => void; onRetry: () => void | Promise<void> }) {
+  if (loading) return <LoadingState label="Loading bet standings" cards={3} />;
+  if (error) return <ErrorState message={error} onRetry={onRetry} />;
+  const rankedStandings = rankBettingStandings(standings);
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-league-gold/15 p-4 sm:p-5">
+          <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Betting table</div><h2 className="mt-1 font-display text-3xl uppercase">Standings</h2><p className="mt-1 text-sm text-chalk/45">Ranked by settled profit · equal profit shares a rank</p></div>
+          <Select value={seasonId} onChange={event => onSeason(event.target.value)} className="w-full rounded-xl border-league-gold/15 py-2 text-sm sm:w-56" aria-label="Betting standings season">{seasons.map(season => <option key={season.id} value={season.id}>{season.name}</option>)}</Select>
+        </div>
+        {rankedStandings.length ? <ol className="divide-y divide-league-gold/18">{rankedStandings.map(row => <li key={row.user_id} className={cn("grid grid-cols-[2.4rem_1fr_auto] items-center gap-3 px-4 py-3.5 sm:px-5", row.user_id === userId && "bg-league-gold/[.055]")}><span className={cn("grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold", row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-white/[.035] text-chalk/35")}>#{row.rank}</span><div className="min-w-0"><div className="truncate font-semibold">{row.username}{row.user_id === userId ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</div><div className="mt-0.5 text-[10px] text-chalk/35">{row.won_bets}/{row.settled_bets} won · {row.total_bets} total</div></div><div className="text-right"><CoinAmount units={row.settled_profit_units} iconSize={15} className={cn("font-semibold", row.settled_profit_units >= 0 ? "text-turf-400" : "text-red-300")} /><div className="mt-1 text-[9px] uppercase tracking-wider text-chalk/30">profit</div></div></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No settled betting results in this season yet.</p>}
+      </section>
+
+      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+        <div className="border-b border-league-gold/15 p-4 sm:p-5"><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Selected match</div><h2 className="mt-1 font-display text-2xl uppercase">League picks</h2><p className="mt-1 text-xs text-chalk/40">Other users&apos; selections stay hidden until the final result.</p><Select value={gameId} onChange={event => onGame(event.target.value)} className="mt-3 rounded-xl border-league-gold/15 py-2 text-sm" aria-label="League bet game">{games.map(game => <option key={game.id} value={game.id}>{formatDateTime(game.game_date)}</option>)}</Select></div>
+        <div className="space-y-2 p-3 sm:p-4">{!slips.length ? <EmptyState title="No league bets" text="Nobody has placed a bet for this game yet." /> : slips.map(slip => <PublicSlip key={slip.slip_id} slip={slip} own={slip.user_id === userId} />)}</div>
+      </section>
     </div>
   );
 }
 
 function PublicSlip({ slip, own }: { slip: PublicBetSlip; own: boolean }) {
-  return <section className={cn("rounded-2xl border p-3", own ? "border-floodlight/40 bg-floodlight/[.07]" : "border-white/10 bg-black/20")}><div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{slip.username}{own ? " · you" : ""}</div><div className="mt-1 text-xs text-chalk/45">{new Date(slip.placed_at).toLocaleString()} · {slip.slip_type}</div></div><Pill>{slip.status}</Pill></div>{slip.picks_revealed ? <div className="mt-3 space-y-1.5">{slip.legs.map((leg, index) => <div key={`${slip.slip_id}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-3 py-2 text-sm"><span>{leg.market_title}: <strong>{leg.outcome_label}</strong></span><span className="font-mono text-floodlight">{Number(leg.accepted_odds).toFixed(2)}</span></div>)}</div> : <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-chalk/50"><EyeOff size={17} /> Picks reveal when betting locks.</div>}<SlipNumbers stake={slip.stake_units} odds={Number(slip.accepted_odds)} payout={slip.status === "pending" ? slip.potential_payout_units : (slip.settled_payout_units || 0)} payoutLabel={slip.status === "pending" ? "Potential" : "Paid"} /></section>;
+  if (!own && !slip.picks_revealed) return <section className="flex items-center justify-between gap-3 rounded-xl border border-white/[.06] bg-black/15 p-3"><div className="font-semibold">{slip.username}</div><div className="flex items-center gap-2 text-xs text-chalk/35"><EyeOff size={15} /> Hidden until final</div></section>;
+  return <section className={cn("rounded-xl border p-3", own ? "border-league-gold/25 bg-league-gold/[.05]" : "border-white/[.06] bg-black/15")}><div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{slip.username}{own ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</div><div className="mt-1 text-[10px] text-chalk/35">{new Date(slip.placed_at).toLocaleString()} · {slip.slip_type}</div></div><span className="rounded-full border border-white/[.07] bg-white/[.025] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-chalk/45">{slip.status}</span></div>{slip.picks_revealed ? <div className="mt-3 space-y-1.5">{slip.legs.map((leg, index) => <div key={`${slip.slip_id}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border border-white/[.055] bg-white/[.02] px-3 py-2 text-sm"><span className="min-w-0 truncate text-chalk/60">{leg.market_title}: <strong className="text-chalk/85">{leg.outcome_label}</strong></span><span className="shrink-0 font-mono text-league-gold">{Number(leg.accepted_odds).toFixed(2)}</span></div>)}</div> : <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/[.055] bg-white/[.02] px-3 py-3 text-sm text-chalk/40"><EyeOff size={16} /> Picks reveal after the final result.</div>}<SlipNumbers stake={slip.stake_units} odds={Number(slip.accepted_odds)} payout={slip.status === "pending" ? slip.potential_payout_units : (slip.settled_payout_units || 0)} payoutLabel={slip.status === "pending" ? "Potential" : "Paid"} /></section>;
 }
 
 function SlipNumbers({ stake, odds, payout, payoutLabel }: { stake: number; odds: number; payout: number; payoutLabel: string }) {
-  return <div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl bg-white/5 p-2"><div className="text-[10px] uppercase text-chalk/45">Stake</div><CoinAmount units={stake} iconSize={14} className="mt-1" /></div><div className="rounded-xl bg-white/5 p-2"><div className="text-[10px] uppercase text-chalk/45">Odds</div><div className="mt-1 font-mono">{odds.toFixed(2)}</div></div><div className="rounded-xl bg-white/5 p-2"><div className="text-[10px] uppercase text-chalk/45">{payoutLabel}</div><CoinAmount units={payout} iconSize={14} className="mt-1 text-floodlight" /></div></div>;
+  return <div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg border border-white/[.055] bg-white/[.02] p-2"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Stake</div><CoinAmount units={stake} iconSize={13} className="mt-1 text-xs sm:text-sm" /></div><div className="rounded-lg border border-white/[.055] bg-white/[.02] p-2"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Odds</div><div className="mt-1 font-mono text-sm">{odds.toFixed(2)}</div></div><div className="rounded-lg border border-white/[.055] bg-white/[.02] p-2"><div className="text-[9px] uppercase tracking-wider text-chalk/30">{payoutLabel}</div><CoinAmount units={payout} iconSize={13} className="mt-1 text-xs text-league-gold sm:text-sm" /></div></div>;
 }

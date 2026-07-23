@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { BettingStanding, PublicBetSlip } from "@/lib/types";
 
-export function useBettingSocial(gameId: string, seasonId: string, enabled: boolean) {
+export function useBettingSocial(gameId: string, seasonId: string, enabled: boolean, gameStatus?: string) {
   const [standings, setStandings] = useState<BettingStanding[]>([]);
   const [slips, setSlips] = useState<PublicBetSlip[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previousGameStatus = useRef(gameStatus);
 
   const load = useCallback(async () => {
     if (!enabled || !seasonId) return;
@@ -29,5 +30,10 @@ export function useBettingSocial(gameId: string, seasonId: string, enabled: bool
   }, [enabled, gameId, seasonId]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (previousGameStatus.current === gameStatus) return;
+    previousGameStatus.current = gameStatus;
+    void load();
+  }, [gameStatus, load]);
   return { standings, slips, loading, error, reload: load };
 }

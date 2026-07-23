@@ -24,7 +24,9 @@ const config: Config = {
           800: "#1e1d19"
         },
         chalk: "#f5f2e8",
-        floodlight: "#f7b733"
+        floodlight: "#f7b733",
+        "league-gold": "#DAA520",
+        "league-gold-dark": "#B8860B"
       },
       fontFamily: {
         display: ["Oswald", "Impact", "Arial Narrow", "sans-serif"],

@@ -6,7 +6,7 @@ import { useBettingData } from "@/hooks/useBettingData";
 import { bettingSelectionGroup, coinsFromUnits, quoteBuilderOdds } from "@/lib/betting";
 import { supabase } from "@/lib/supabase";
 import { BettingOutcome, Game, LeagueData } from "@/lib/types";
-import { BetSlipCard, BettingBalance, bettingCategoryOrder, MarketSection } from "./BettingMarketComponents";
+import { BetSlipDrawer, BettingBalance, bettingCategoryOrder, MarketSection } from "./BettingMarketComponents";
 import { EmptyState, ErrorState, LoadingState, Toast } from "./ui";
 
 export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData }) {
@@ -85,20 +85,18 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
   return (
     <div className="space-y-5">
       <Toast message={toast} onDone={() => setToast(null)} />
-      <BettingBalance balanceUnits={balanceUnits} lockAt={lockAt} isOpen={isOpen} compact />
+      <BettingBalance balanceUnits={balanceUnits} lockAt={lockAt} lockMinutes={Number(settings?.lock_minutes ?? 5)} isOpen={isOpen} compact />
 
       {!markets.length ? <EmptyState title="No bets available" text="Markets will appear here as soon as the confirmed lineups have been priced and approved by the admin." /> : (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-5">
-            {bettingCategoryOrder.map(category => {
-              const categoryMarkets = markets.filter(market => market.market_type === category.type);
-              if (!categoryMarkets.length) return null;
-              return <MarketSection key={category.type} label={category.label} markets={categoryMarkets} outcomes={outcomes} lineups={data.lineups.filter(lineup => lineup.game_id === game.id)} selected={selectedOutcomeIds} disabled={!isOpen} onToggle={toggleOutcome} />;
-            })}
-          </div>
-          <BetSlipCard markets={markets} outcomes={selectedOutcomes} odds={combinedOdds} stake={stake} potentialReturn={potentialReturn} balanceUnits={balanceUnits} disabled={!isOpen} placing={placing} onStake={setStake} onRemove={id => setSelectedOutcomeIds(current => current.filter(item => item !== id))} onPlace={placeBet} />
+        <div className="space-y-5">
+          {bettingCategoryOrder.map(category => {
+            const categoryMarkets = markets.filter(market => market.market_type === category.type);
+            if (!categoryMarkets.length) return null;
+            return <MarketSection key={category.type} label={category.label} icon={category.icon} markets={categoryMarkets} outcomes={outcomes} lineups={data.lineups.filter(lineup => lineup.game_id === game.id)} selected={selectedOutcomeIds} disabled={!isOpen} onToggle={toggleOutcome} />;
+          })}
         </div>
       )}
+      <BetSlipDrawer markets={markets} outcomes={selectedOutcomes} odds={combinedOdds} stake={stake} potentialReturn={potentialReturn} balanceUnits={balanceUnits} disabled={!isOpen} placing={placing} onStake={setStake} onRemove={id => setSelectedOutcomeIds(current => current.filter(item => item !== id))} onPlace={placeBet} />
     </div>
   );
 }

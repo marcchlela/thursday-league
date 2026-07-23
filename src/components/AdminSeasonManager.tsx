@@ -82,22 +82,22 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
     <div className="space-y-6">
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="flex items-center gap-3"><CalendarDays className="text-perimeter-400" /><h2 className="font-display text-3xl uppercase">Season format</h2></div><p className="mt-2 max-w-2xl text-sm text-chalk/55">Yearly mode automatically groups games into 2026, 2027, and later calendar years. Custom mode uses date ranges you create.</p></div>
+          <div><div className="flex items-center gap-3"><CalendarDays className="text-league-gold" /><h2 className="font-display text-3xl uppercase">Season format</h2></div><p className="mt-2 max-w-2xl text-sm text-chalk/55">Yearly mode automatically groups games into 2026, 2027, and later calendar years. Custom mode uses date ranges you create.</p></div>
           <Pill>{data.leagueSettings?.season_mode === "custom" ? "Custom" : "Yearly"}</Pill>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <button type="button" onClick={() => void activateYearly()} disabled={busy} className={`rounded-2xl border p-4 text-left transition ${data.leagueSettings?.season_mode !== "custom" ? "border-perimeter-400/50 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03] hover:border-perimeter-400/30"}`}>
-            <div className="flex items-center justify-between gap-2"><strong>Calendar year</strong>{data.leagueSettings?.season_mode !== "custom" ? <CheckCircle2 size={18} className="text-perimeter-400" /> : null}</div><p className="mt-1 text-sm text-chalk/50">January 1 to December 31. New years are created automatically.</p>
+          <button type="button" onClick={() => void activateYearly()} disabled={busy} className={`rounded-2xl border p-4 text-left transition ${data.leagueSettings?.season_mode !== "custom" ? "border-league-gold/45 bg-league-gold/[.08]" : "border-league-gold/15 bg-black/15 hover:border-league-gold/30"}`}>
+            <div className="flex items-center justify-between gap-2"><strong>Calendar year</strong>{data.leagueSettings?.season_mode !== "custom" ? <CheckCircle2 size={18} className="text-league-gold" /> : null}</div><p className="mt-1 text-sm text-chalk/50">January 1 to December 31. New years are created automatically.</p>
           </button>
-          <div className={`rounded-2xl border p-4 ${data.leagueSettings?.season_mode === "custom" ? "border-perimeter-400/50 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03]"}`}><div className="flex items-center justify-between gap-2"><strong>Custom dates</strong>{data.leagueSettings?.season_mode === "custom" ? <CheckCircle2 size={18} className="text-perimeter-400" /> : null}</div><p className="mt-1 text-sm text-chalk/50">Use named periods such as 2026/27 or Summer League.</p></div>
+          <div className={`rounded-2xl border p-4 ${data.leagueSettings?.season_mode === "custom" ? "border-league-gold/45 bg-league-gold/[.08]" : "border-league-gold/15 bg-black/15"}`}><div className="flex items-center justify-between gap-2"><strong>Custom dates</strong>{data.leagueSettings?.season_mode === "custom" ? <CheckCircle2 size={18} className="text-league-gold" /> : null}</div><p className="mt-1 text-sm text-chalk/50">Use named periods such as 2026/27 or Summer League.</p></div>
         </div>
-        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm"><span className="text-chalk/45">Current season:</span> <strong className="text-chalk">{current?.name || "Not selected"}</strong>{current ? <span className="ml-2 text-chalk/45">{formatSeasonRange(current)}</span> : null}</div>
-        {data.leagueSettings?.season_mode === "custom" && unassignedGames ? <div className="mt-3 rounded-2xl border border-floodlight/30 bg-floodlight/10 p-3 text-sm text-floodlight">{unassignedGames} game{unassignedGames === 1 ? " is" : "s are"} outside every custom season. Adjust a custom date range so seasonal totals include them.</div> : null}
+        <div className="mt-4 rounded-2xl border border-league-gold/15 bg-black/20 p-4 text-sm"><span className="text-chalk/45">Current season:</span> <strong className="text-chalk">{current?.name || "Not selected"}</strong>{current ? <span className="ml-2 text-chalk/45">{formatSeasonRange(current)}</span> : null}</div>
+        {data.leagueSettings?.season_mode === "custom" && unassignedGames ? <div className="mt-3 rounded-2xl border border-league-gold/30 bg-league-gold/[.07] p-3 text-sm text-league-gold">{unassignedGames} game{unassignedGames === 1 ? " is" : "s are"} outside every custom season. Adjust a custom date range so seasonal totals include them.</div> : null}
         {message ? <p className="mt-3 text-sm text-chalk/65" role="status">{message}</p> : null}
       </Card>
 
       <Card>
-        <div className="flex items-center gap-3"><Plus className="text-floodlight" /><h2 className="font-display text-3xl uppercase">Create custom season</h2></div>
+        <div className="flex items-center gap-3"><Plus className="text-league-gold" /><h2 className="font-display text-3xl uppercase">Create custom season</h2></div>
         <p className="mt-1 text-sm text-chalk/50">Creating one makes it current and switches the league to custom mode. Custom date ranges cannot overlap.</p>
         <form onSubmit={createCustom} className="mt-4 grid gap-3 lg:grid-cols-[1fr_180px_180px_auto]">
           <TextInput value={name} onChange={event => setName(event.target.value)} placeholder="Season name, e.g. 2026/27" maxLength={60} />
@@ -115,7 +115,7 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
             const selected = season.id === current?.id;
             const editing = editingId === season.id;
             return (
-              <div key={season.id} className={`rounded-2xl border p-4 ${selected ? "border-perimeter-400/40 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03]"}`}>
+              <div key={season.id} className={`rounded-2xl border p-4 ${selected ? "border-league-gold/40 bg-league-gold/[.08]" : "border-league-gold/15 bg-black/15"}`}>
                 {editing ? (
                   <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_auto]">
                     <TextInput value={editName} onChange={event => setEditName(event.target.value)} maxLength={60} aria-label="Season name" />
@@ -125,7 +125,7 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div><div className="flex items-center gap-2"><strong>{season.name}</strong><Pill>{season.format}</Pill>{selected ? <Pill className="text-perimeter-400">Current</Pill> : null}</div><p className="mt-1 text-sm text-chalk/45">{formatSeasonRange(season)} - {gameCount} game{gameCount === 1 ? "" : "s"}</p></div>
+                    <div><div className="flex items-center gap-2"><strong>{season.name}</strong><Pill>{season.format}</Pill>{selected ? <Pill className="text-league-gold">Current</Pill> : null}</div><p className="mt-1 text-sm text-chalk/45">{formatSeasonRange(season)} - {gameCount} game{gameCount === 1 ? "" : "s"}</p></div>
                     <div className="flex gap-2">{season.format === "custom" ? <SecondaryButton type="button" onClick={() => beginEdit(season)} className="inline-flex items-center gap-2"><Pencil size={15} /> Edit</SecondaryButton> : null}{season.format === "custom" && !selected ? <SecondaryButton type="button" disabled={busy} onClick={() => void activateCustom(season)}>Make current</SecondaryButton> : null}</div>
                   </div>
                 )}

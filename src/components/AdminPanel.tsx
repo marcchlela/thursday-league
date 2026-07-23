@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, GripVertical, Pencil, Trash2, X } from "lucide-react";
+import { BellRing, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Pencil, Trash2, UsersRound, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { calculateScore } from "@/lib/scoring";
 import { isCompetitionEligible } from "@/lib/playerEligibility";
@@ -12,7 +12,7 @@ import { AdminBettingManager } from "./AdminBettingManager";
 import { AdminNotificationHistory } from "./AdminNotificationHistory";
 import { AdminSeasonManager } from "./AdminSeasonManager";
 import { AdminStatsPanel } from "./AdminStatsPanel";
-import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TabList, TextInput, Toast } from "./ui";
+import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TextInput, Toast } from "./ui";
 
 type AdminTab = "games" | "roster" | "betting" | "seasons" | "notifications" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
@@ -120,7 +120,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <Toast message={toast} onDone={() => setToast(null)} />
       <ConfirmDialog
         open={!!confirmState}
@@ -134,20 +134,15 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
           await action?.();
         }}
       />
-      <div>
-        <h1 className="font-display text-5xl uppercase">Admin Control Room</h1>
-        <p className="mt-2 text-chalk/60">Manage roster, games, lineups, live events, final results, and Player of the Match.</p>
-      </div>
+      <header>
+        <div className="text-[10px] font-black uppercase tracking-[.2em] text-league-gold/65">League operations</div>
+        <h1 className="mt-1 font-display text-4xl uppercase sm:text-5xl">Admin Control Room</h1>
+        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-chalk/40">Manage games, players, seasons, betting, notifications, and controlled corrections.</p>
+      </header>
 
       <AdminStatsPanel data={data} />
 
-      <TabList
-        idPrefix="admin"
-        label="Admin sections"
-        tabs={[{ id: "games", label: "Games" }, { id: "roster", label: "Roster" }, { id: "betting", label: "Betting" }, { id: "seasons", label: "Seasons" }, { id: "notifications", label: "Notifications" }, { id: "audit", label: "Audit" }]}
-        active={activeTab}
-        onChange={id => setActiveTab(id as AdminTab)}
-      />
+      <AdminSectionTabs active={activeTab} onChange={setActiveTab} />
 
       {activeTab === "games" ? (
         <div id="admin-games-panel" role="tabpanel" aria-labelledby="admin-games-tab" className="space-y-6">
@@ -176,7 +171,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
               <option value="outfield">Outfield</option>
               <option value="goalkeeper">Goalkeeper</option>
             </Select>
-            <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-chalk/70"><input type="checkbox" checked={playerCompetitionEligible} onChange={event => setPlayerCompetitionEligible(event.target.checked)} className="accent-floodlight" /> Fantasy, stats & bets</label>
+            <label className="flex items-center gap-2 rounded-2xl border border-league-gold/15 bg-black/20 px-3 py-3 text-sm text-chalk/70"><input type="checkbox" checked={playerCompetitionEligible} onChange={event => setPlayerCompetitionEligible(event.target.checked)} className="accent-league-gold" /> Fantasy, stats & bets</label>
             <PrimaryButton>Add player</PrimaryButton>
           </form>
 
@@ -203,6 +198,44 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
           <AdminAuditHistory profiles={data.profiles} games={data.games} onCorrectGame={openGameControls} />
         </div>
       )}
+    </div>
+  );
+}
+
+const adminTabs: { id: AdminTab; label: string; icon: typeof Gamepad2 }[] = [
+  { id: "games", label: "Games", icon: Gamepad2 },
+  { id: "roster", label: "Roster", icon: UsersRound },
+  { id: "betting", label: "Betting", icon: Coins },
+  { id: "seasons", label: "Seasons", icon: CalendarRange },
+  { id: "notifications", label: "Notifications", icon: BellRing },
+  { id: "audit", label: "Audit", icon: History }
+];
+
+function AdminSectionTabs({ active, onChange }: { active: AdminTab; onChange: (tab: AdminTab) => void }) {
+  function onKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    let target = index;
+    if (event.key === "ArrowRight") target = (index + 1) % adminTabs.length;
+    else if (event.key === "ArrowLeft") target = (index - 1 + adminTabs.length) % adminTabs.length;
+    else if (event.key === "Home") target = 0;
+    else if (event.key === "End") target = adminTabs.length - 1;
+    else return;
+    event.preventDefault();
+    const next = adminTabs[target];
+    onChange(next.id);
+    document.getElementById(`admin-${next.id}-tab`)?.focus();
+  }
+
+  return (
+    <div className="grid grid-cols-3 gap-1 rounded-[1.2rem] border border-league-gold/25 bg-[#171814] p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)] sm:grid-cols-6" role="tablist" aria-label="Admin sections">
+      {adminTabs.map(tab => {
+        const Icon = tab.icon;
+        return (
+          <button key={tab.id} id={`admin-${tab.id}-tab`} type="button" role="tab" aria-selected={active === tab.id} aria-controls={`admin-${tab.id}-panel`} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} onKeyDown={event => onKeyDown(event, adminTabs.indexOf(tab))} className={cn("relative flex min-w-0 flex-col items-center gap-1 rounded-[.9rem] px-1 py-2.5 text-[10px] font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:text-xs", active === tab.id ? "bg-league-gold/[.1] text-league-gold" : "text-chalk/40 hover:bg-league-gold/[.04] hover:text-chalk")}>
+            <Icon size={16} />
+            <span className="truncate">{tab.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -237,8 +270,8 @@ function QuickStartChecklist({ data }: { data: LeagueData }) {
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-5">
         {steps.map(step => (
-          <div key={step.label} className={cn("rounded-2xl border p-3", step.done ? "border-perimeter-400/30 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03]")}>
-            <div className="text-sm font-bold">{step.done ? "Done" : "Next"}</div>
+          <div key={step.label} className={cn("rounded-2xl border p-3", step.done ? "border-turf-400/25 bg-turf-400/[.065]" : "border-league-gold/15 bg-black/15")}>
+            <div className={cn("text-sm font-bold", step.done ? "text-turf-400" : "text-league-gold")}>{step.done ? "Done" : "Next"}</div>
             <div className="mt-1 text-sm text-chalk/75">{step.label}</div>
             {step.detail ? <div className="mt-1 text-xs text-chalk/45">{step.detail}</div> : null}
           </div>
@@ -277,15 +310,15 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
 
   if (editing) {
     return (
-      <div className="rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-3">
+      <div className="rounded-2xl border border-league-gold/30 bg-league-gold/[.07] p-3">
         <div className="grid gap-2">
           <TextInput value={name} onChange={e => setName(e.target.value)} />
           <Select value={position} onChange={e => setPosition(e.target.value as PlayerPosition)}>
             <option value="outfield">Outfield</option>
             <option value="goalkeeper">Goalkeeper</option>
           </Select>
-          <label className="flex items-center gap-2 text-sm text-chalk/70"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="accent-floodlight" /> Active</label>
-          <label className="flex items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2 text-sm text-chalk/70"><input type="checkbox" checked={competitionEligible} onChange={event => setCompetitionEligible(event.target.checked)} className="mt-1 accent-floodlight" /><span><span className="block">Fantasy, stats & bets</span><span className="block text-xs text-chalk/40">Turn off for a reusable guest such as Anonymous.</span></span></label>
+          <label className="flex items-center gap-2 text-sm text-chalk/70"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="accent-league-gold" /> Active</label>
+          <label className="flex items-start gap-2 rounded-xl border border-league-gold/15 bg-black/20 p-2 text-sm text-chalk/70"><input type="checkbox" checked={competitionEligible} onChange={event => setCompetitionEligible(event.target.checked)} className="mt-1 accent-league-gold" /><span><span className="block">Fantasy, stats & bets</span><span className="block text-xs text-chalk/40">Turn off for a reusable guest such as Anonymous.</span></span></label>
           <div className="flex gap-2">
             <PrimaryButton type="button" onClick={save} className="flex-1">Save</PrimaryButton>
             <SecondaryButton type="button" onClick={() => setEditing(false)}>Cancel</SecondaryButton>
@@ -296,12 +329,12 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
   }
 
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+    <div className="flex items-center justify-between rounded-2xl border border-league-gold/15 bg-black/15 px-3 py-2">
       <button type="button" onClick={() => setEditing(true)} className="min-w-0 text-left">
         <div className="truncate font-semibold">{player.name}</div>
         <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position}{!isCompetitionEligible(player) ? " - guest/excluded" : player.archived_at ? " - archived" : player.active ? "" : " - inactive"}</div>
       </button>
-      {player.archived_at ? <button type="button" onClick={restore} className="rounded-xl border border-perimeter-400/30 px-3 py-1.5 text-xs font-bold text-perimeter-400">Restore</button> : <button type="button" onClick={() => onArchive(player.id)} className="rounded-xl p-2 text-chalk/45 hover:text-floodlight" aria-label={`Archive ${player.name}`}><Trash2 size={16} /></button>}
+      {player.archived_at ? <button type="button" onClick={restore} className="rounded-xl border border-turf-400/30 px-3 py-1.5 text-xs font-bold text-turf-400">Restore</button> : <button type="button" onClick={() => onArchive(player.id)} className="rounded-xl p-2 text-chalk/45 hover:text-league-gold" aria-label={`Archive ${player.name}`}><Trash2 size={16} /></button>}
     </div>
   );
 }
@@ -345,16 +378,16 @@ function GameSection({
   }, [forceOpen, game.id]);
 
   return (
-    <section id={`admin-game-${game.id}`} className="scroll-mt-24 overflow-hidden rounded-3xl border border-white/10 bg-black/20">
+    <section id={`admin-game-${game.id}`} className="scroll-mt-24 overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <button
         type="button"
         onClick={() => setOpen(value => !value)}
-        className="flex w-full flex-wrap items-center justify-between gap-3 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.06]"
+        className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-4 text-left transition hover:bg-league-gold/[.035]"
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Pill>{statusLabel(game.status)}</Pill>
-            <Pill className={lineupReady ? "border-perimeter-400/40 bg-perimeter-400/10 text-perimeter-400" : "border-floodlight/30 bg-floodlight/10 text-floodlight"}>
+            <Pill className={lineupReady ? "border-turf-400/30 bg-turf-400/[.07] text-turf-400" : "border-league-gold/30 bg-league-gold/[.07] text-league-gold"}>
               {lineupReady ? "Lineup ready" : "Lineup pending"}
             </Pill>
           </div>
@@ -700,7 +733,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
         )}
       </Card>
 
-      <Card className={!lineupReady ? "border-floodlight/30" : undefined}>
+      <Card className={!lineupReady ? "border-league-gold/40" : undefined}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h3 className="font-display text-3xl uppercase">Match Control</h3>
@@ -711,10 +744,10 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
           </div>
         </div>
 
-        {game.correction_open ? <div className="mt-4 rounded-2xl border border-floodlight/40 bg-floodlight/10 p-3 text-sm font-semibold text-floodlight">Correction mode is open{game.correction_reason ? `: ${game.correction_reason}` : "."} Review the result and finalize the game again when the corrections are complete.</div> : null}
+        {game.correction_open ? <div className="mt-4 rounded-2xl border border-league-gold/40 bg-league-gold/[.08] p-3 text-sm font-semibold text-league-gold">Correction mode is open{game.correction_reason ? `: ${game.correction_reason}` : "."} Review the result and finalize the game again when the corrections are complete.</div> : null}
 
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
-          <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
+          <section className={cn("rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4", !lineupReady && "opacity-60")}>
             <h4 className="font-display text-2xl uppercase">Events</h4>
             <form onSubmit={addEvent} className="mt-4 grid gap-3">
               <Select disabled={!lineupReady || game.status === "final"} value={eventType} onChange={e => setEventType(e.target.value as "goal" | "own_goal")}>
@@ -737,7 +770,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
 
             <div className="mt-4 space-y-2">
               {gameEvents.map(event => (
-                <div key={event.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm">
+                <div key={event.id} className="flex items-center justify-between rounded-2xl border border-league-gold/15 bg-black/20 p-3 text-sm">
                   <span>{event.minute != null ? `${event.minute}' - ` : ""}{event.event_type === "own_goal" ? "Own goal" : "Goal"}: {playerName(data.players, event.player_id)} {event.assist_player_id ? `- assist ${playerName(data.players, event.assist_player_id)}` : ""}</span>
                   {game.status !== "final" ? <button type="button" onClick={() => deleteEvent(event.id)} className="text-chalk/45 hover:text-red-300" aria-label="Delete event"><Trash2 size={16} /></button> : null}
                 </div>
@@ -745,7 +778,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
             </div>
           </section>
 
-          <section className={cn("rounded-3xl border border-white/10 bg-white/[0.03] p-4", !lineupReady && "opacity-60")}>
+          <section className={cn("rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4", !lineupReady && "opacity-60")}>
             <h4 className="font-display text-2xl uppercase">Player of the Match</h4>
             <div className="mt-4 flex gap-3">
               <Select disabled={!lineupReady || game.status === "final"} value={potm} onChange={e => setPotm(e.target.value)}>
@@ -756,7 +789,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
             </div>
           </section>
 
-          <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+          <section className="rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4">
             <h4 className="font-display text-2xl uppercase">Manual Player Stats</h4>
             <form onSubmit={saveManualStats} className="mt-4 grid gap-3">
               <Select value={manualStatPlayerId} onChange={e => selectStatsPlayer(e.target.value)}>
@@ -764,7 +797,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
                 {statsPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
               </Select>
               {manualStatPlayerId ? selectedManualStatLineup ? (
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-chalk/70">Team {selectedManualStatLineup.team}</div>
+                <div className="rounded-2xl border border-league-gold/15 bg-black/20 px-4 py-3 text-sm text-chalk/70">Team {selectedManualStatLineup.team}</div>
               ) : (
                 <Select value={manualStatTeam} onChange={e => setManualStatTeam(e.target.value as TeamCode)}>
                   <option value="A">Team A</option>
@@ -786,9 +819,9 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
 
             <div className="mt-4 space-y-2">
               {gamePlayerStats.map(stat => (
-                <div key={stat.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                <div key={stat.id} className="flex items-center justify-between gap-3 rounded-2xl border border-league-gold/15 bg-black/20 px-3 py-2 text-sm">
                   <span><span className="font-semibold">{playerName(data.players, stat.player_id)}</span> - Team {stat.team}, {stat.role === "goalkeeper" ? "GK" : "O"}, {stat.goals} G, {stat.assists} A, {stat.saves} S</span>
-                  <button type="button" onClick={() => selectStatsPlayer(stat.player_id)} className="rounded-lg p-1.5 text-chalk/50 hover:text-perimeter-400" aria-label={`Edit stats for ${playerName(data.players, stat.player_id)}`}>
+                  <button type="button" onClick={() => selectStatsPlayer(stat.player_id)} className="rounded-lg p-1.5 text-chalk/50 hover:text-league-gold" aria-label={`Edit stats for ${playerName(data.players, stat.player_id)}`}>
                     <Pencil size={15} />
                   </button>
                 </div>
@@ -822,14 +855,14 @@ function TeamDropZone({
     <div
       onDragOver={e => e.preventDefault()}
       onDrop={e => onDrop(e, team)}
-      className={cn("min-h-80 rounded-3xl border border-dashed border-white/15 bg-black/20 p-3", compact && "xl:order-none")}
+      className={cn("min-h-80 rounded-[1.2rem] border border-dashed border-league-gold/25 bg-black/20 p-3", compact && "xl:order-none")}
     >
       <div className="mb-3 flex items-center justify-between">
         <h4 className="font-display text-2xl uppercase">{title}</h4>
         <Pill>{players.length}</Pill>
       </div>
       <div className="space-y-2">
-        {players.length ? children : <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center text-sm text-chalk/45">Drop players here</div>}
+        {players.length ? children : <div className="rounded-2xl border border-league-gold/15 bg-black/15 p-4 text-center text-sm text-chalk/45">Drop players here</div>}
       </div>
     </div>
   );
@@ -838,14 +871,14 @@ function TeamDropZone({
 function LineupValidation({ issues }: { issues: string[] }) {
   if (!issues.length) {
     return (
-      <div className="mt-4 rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-3 text-sm font-semibold text-perimeter-400">
+      <div className="mt-4 rounded-2xl border border-turf-400/30 bg-turf-400/[.07] p-3 text-sm font-semibold text-turf-400">
         Lineup is valid: exactly 5 players per team, with 1 goalkeeper and 4 outfield players.
       </div>
     );
   }
 
   return (
-    <div className="mt-4 rounded-2xl border border-floodlight/30 bg-floodlight/10 p-3 text-sm text-floodlight">
+    <div className="mt-4 rounded-2xl border border-league-gold/30 bg-league-gold/[.07] p-3 text-sm text-league-gold">
       <div className="font-bold">Fix before saving:</div>
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {issues.map(issue => <li key={issue}>{issue}</li>)}
@@ -876,18 +909,18 @@ function SavedTeam({ title, players, lineups }: { title: string; players: Player
   })));
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h4 className="font-display text-2xl uppercase">{title}</h4>
         <Pill>{lineups.length}</Pill>
       </div>
       <div className="space-y-2">
         {sorted.length ? sorted.map(lineup => (
-          <div key={lineup.player_id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+          <div key={lineup.player_id} className="flex items-center justify-between rounded-2xl border border-league-gold/15 bg-black/20 px-3 py-2">
             <span className="font-semibold">{playerName(players, lineup.player_id)}</span>
-            <span className="rounded-xl bg-perimeter-400/15 px-2 py-1 text-xs font-black uppercase text-perimeter-400">{lineup.role === "goalkeeper" ? "GK" : "O"}</span>
+            <span className="rounded-xl bg-league-gold/[.1] px-2 py-1 text-xs font-black uppercase text-league-gold">{lineup.role === "goalkeeper" ? "GK" : "OUT"}</span>
           </div>
-        )) : <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-chalk/45">No players saved.</div>}
+        )) : <div className="rounded-2xl border border-league-gold/15 bg-black/20 p-4 text-sm text-chalk/45">No players saved.</div>}
       </div>
     </div>
   );
@@ -915,7 +948,7 @@ function LineupPlayerCard({
         e.dataTransfer.setData("text/plain", player.id);
         onDragStart(player.id);
       }}
-      className="rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+      className="rounded-2xl border border-league-gold/15 bg-black/20 p-3"
     >
       <div className="flex items-center gap-2">
         <GripVertical size={16} className="shrink-0 text-chalk/35" />
@@ -949,8 +982,8 @@ function MoveButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { act
       type="button"
       {...rest}
       className={cn(
-        "rounded-xl border border-white/10 px-2 py-2 text-xs font-bold transition hover:border-floodlight/50",
-        active ? "bg-floodlight text-ink-900" : "bg-black/20 text-chalk/60",
+        "rounded-xl border border-league-gold/15 px-2 py-2 text-xs font-bold transition hover:border-league-gold/50",
+        active ? "bg-league-gold text-[#171814]" : "bg-black/20 text-chalk/60",
         className
       )}
     />
@@ -964,8 +997,8 @@ function RoleButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { act
       type="button"
       {...rest}
       className={cn(
-        "rounded-xl border border-white/10 px-3 py-2 text-sm font-black transition hover:border-perimeter-400/60",
-        active ? "bg-perimeter-400 text-ink-900" : "bg-black/20 text-chalk/65",
+        "rounded-xl border border-league-gold/15 px-3 py-2 text-sm font-black transition hover:border-league-gold/60",
+        active ? "bg-league-gold text-[#171814]" : "bg-black/20 text-chalk/65",
         className
       )}
     />

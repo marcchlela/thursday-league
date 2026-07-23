@@ -1,20 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CalendarDays, ChevronRight, Crown, Trophy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { allTimeLeaderboard, weeklyLeaderboard } from "@/lib/scoring";
-import { currentSeason, formatDateTime, playerName } from "@/lib/utils";
-import { FantasyPick, LeagueData } from "@/lib/types";
+import { allTimeLeaderboard, calculateScore, weeklyLeaderboard } from "@/lib/scoring";
+import { currentSeason, formatDateTime } from "@/lib/utils";
+import { FantasyPick, Game, LeagueData } from "@/lib/types";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
-import { Card, EmptyState, Pill, Select, TabList } from "./ui";
+import { EmptyState, Pill, Select, TabList } from "./ui";
 import { PitchPicker } from "./PitchPicker";
 import { PlaySwitcher } from "./PlaySwitcher";
+import { TeamCrest } from "./TeamCrest";
 
 type FantasyTab = "set" | "standings" | "history";
 
-export function FantasyTabs({ data, reload }: { data: LeagueData; reload: () => void }) {
+export function FantasyTabs({ data, reload }: { data: LeagueData; reload: () => void | Promise<void> }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -29,9 +31,8 @@ export function FantasyTabs({ data, reload }: { data: LeagueData; reload: () => 
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
       <PlaySwitcher active="fantasy" />
-      <div><h1 className="font-display text-5xl uppercase">Fantasy</h1><p className="mt-2 text-chalk/60">Pick five, captain one, and chase the weekly top spot.</p></div>
       <TabList idPrefix="fantasy" label="Fantasy views" tabs={[{ id: "set", label: "Set Team" }, { id: "standings", label: "Standings" }, { id: "history", label: "History" }]} active={tab} onChange={setTab} />
       <div id={`fantasy-${tab}-panel`} role="tabpanel" aria-labelledby={`fantasy-${tab}-tab`}>
         {tab === "set" ? <SetTeam data={data} reload={reload} /> : null}
@@ -50,7 +51,7 @@ function activeFantasyGame(data: LeagueData) {
   return [...data.games].filter(game => game.status === "live" || game.status === "draft").sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime())[0];
 }
 
-function SetTeam({ data, reload }: { data: LeagueData; reload: () => void }) {
+function SetTeam({ data, reload }: { data: LeagueData; reload: () => void | Promise<void> }) {
   const { user } = useAuthProfile();
   const game = activeFantasyGame(data);
   const lineups = useMemo(() => game ? data.lineups.filter(lineup => lineup.game_id === game.id) : [], [data.lineups, game]);
@@ -61,35 +62,48 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void }) {
   if (!game || !user) return <EmptyState title="No fantasy game open" text="Once the admin sets a lineup, your pitch picker appears here." />;
 
   const locked = game.status === "live" || game.status === "final" || Date.now() >= new Date(game.game_date).getTime();
-  const lockState = game.status === "final"
-    ? { label: "Final", text: "This game is final. Picks are locked." }
-    : game.status === "live"
-      ? { label: "Live - locked", text: "The game is live. Picks can no longer be changed." }
-      : locked
-        ? { label: "Kickoff passed", text: "The scheduled start time has passed. Picks are locked even if the game has not been marked live yet." }
-        : { label: "Lineup set - open", text: `Editable until kickoff: ${formatDateTime(game.game_date)}` };
+  const statusLabel = locked ? "Picks locked" : initialPicks.length === 5 ? "Picks saved" : "Picks open";
 
   async function savePicks(draft: Omit<FantasyPick, "id" | "squad_id" | "created_at">[]) {
     const submittedPicks = draft.map(({ player_id, role, is_captain, slot_index }) => ({ player_id, role, is_captain, slot_index }));
     const { error } = await supabase.rpc("save_fantasy_squad", { target_game_id: game!.id, submitted_picks: submittedPicks });
     if (error) throw error;
-    reload();
+    await reload();
   }
 
   return (
     <div className="space-y-4">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><Pill className={locked ? "border-floodlight/40 bg-floodlight/20 text-floodlight" : "border-perimeter-400/40 bg-perimeter-400/10 text-perimeter-400"}>{lockState.label}</Pill><h2 className="mt-2 font-display text-3xl uppercase">Locks at kickoff</h2><p className="text-chalk/60">{lockState.text}</p></div>
-          <div className="font-mono text-2xl text-chalk/70">{initialPicks.length ? "Your picks are in" : "No picks yet"}</div>
-        </div>
-      </Card>
-      {lineups.length ? <PitchPicker players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the admin has not picked who's playing yet." />}
+      <FantasyGamePreview game={game} data={data} statusLabel={statusLabel} locked={locked} />
+      {lineups.length ? <PitchPicker players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the available players have not been confirmed yet." />}
     </div>
   );
 }
 
+function FantasyGamePreview({ game, data, statusLabel, locked }: { game: Game; data: LeagueData; statusLabel: string; locked: boolean }) {
+  const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
+  const score = calculateScore(data.events.filter(event => event.game_id === game.id), lineups, data.playerStats.filter(stat => stat.game_id === game.id));
+  const showScore = game.status === "live" || game.status === "final";
+
+  return (
+    <section className="relative grid min-h-[6.8rem] grid-cols-[1fr_auto_1fr] items-center gap-2 overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814] px-3 pb-3 pt-8 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:gap-5 sm:px-5" aria-label="Fantasy match">
+      <span className="absolute left-3 top-2.5 inline-flex items-center gap-1.5 font-mono text-[10px] text-chalk/40 sm:left-5"><CalendarDays size={12} /> {formatDateTime(game.game_date)}</span>
+      <Pill className={`absolute right-3 top-2 border px-2 py-0.5 text-[9px] sm:right-5 ${locked ? "border-white/10 bg-white/[.04] text-chalk/45" : "border-turf-400/25 bg-turf-400/[.08] text-turf-100"}`}>{statusLabel}</Pill>
+      <PreviewTeam gameId={game.id} team="A" />
+      <div className="text-center">
+        <div className="font-mono text-xl font-black tracking-tight sm:text-2xl">{showScore ? <>{score.A}<span className="px-1.5 text-chalk/25">–</span>{score.B}</> : <span className="font-display uppercase text-chalk/35">vs</span>}</div>
+        <div className="mx-auto mt-1 h-px w-6 bg-league-gold/55" />
+      </div>
+      <PreviewTeam gameId={game.id} team="B" reverse />
+    </section>
+  );
+}
+
+function PreviewTeam({ gameId, team, reverse = false }: { gameId: string; team: "A" | "B"; reverse?: boolean }) {
+  return <div className={`flex min-w-0 items-center gap-2 ${reverse ? "flex-row-reverse text-right" : ""}`}><TeamCrest gameId={gameId} team={team} className="h-11 w-9 shrink-0 sm:h-14 sm:w-11" /><span className="truncate text-xs font-bold sm:text-sm">Team {team}</span></div>;
+}
+
 function Standings({ data }: { data: LeagueData }) {
+  const { user } = useAuthProfile();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -101,9 +115,6 @@ function Standings({ data }: { data: LeagueData }) {
   const selectedSeason = data.seasons.find(season => season.id === seasonScope);
   const standingsGames = seasonScope === "all" ? data.games : data.games.filter(game => game.season_id === seasonScope);
   const board = allTimeLeaderboard({ ...data, games: standingsGames });
-  const currentGame = activeFantasyGame(data);
-  const pickedCount = currentGame ? data.squads.filter(squad => squad.game_id === currentGame.id).length : 0;
-  const notPicked = currentGame ? Math.max(data.profiles.length - pickedCount, 0) : 0;
 
   function chooseSeason(value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -113,20 +124,19 @@ function Standings({ data }: { data: LeagueData }) {
   }
 
   return (
-    <Card className="mx-auto max-w-3xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="font-display text-3xl uppercase">Points standings</h2><p className="text-sm text-chalk/55">{selectedSeason ? `${selectedSeason.name} season points.` : "All-time fantasy points across every season."}</p></div>
-        {currentGame?.status === "draft" ? <Pill className="border-floodlight/40 bg-floodlight/10 text-floodlight">{notPicked} have not picked yet</Pill> : null}
+    <section className="mx-auto max-w-3xl overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-league-gold/15 p-4 sm:p-5">
+        <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Fantasy table</div><h2 className="mt-1 font-display text-3xl uppercase">Standings</h2><p className="mt-1 text-sm text-chalk/45">{selectedSeason ? `${selectedSeason.name} season points` : "All-time fantasy points"}</p></div>
+        <Select value={seasonScope || "all"} onChange={event => chooseSeason(event.target.value)} className="w-full rounded-xl border-league-gold/15 py-2 text-sm sm:w-56" aria-label="Standings season">
+          {selectedCurrentSeason ? <option value={selectedCurrentSeason.id}>{selectedCurrentSeason.name} · current</option> : null}
+          <option value="all">All-time</option>
+          {data.seasons.filter(season => season.id !== selectedCurrentSeason?.id).map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
+        </Select>
       </div>
-      <Select value={seasonScope || "all"} onChange={event => chooseSeason(event.target.value)} className="mt-4" aria-label="Standings season">
-        {selectedCurrentSeason ? <option value={selectedCurrentSeason.id}>{selectedCurrentSeason.name} · current season</option> : null}
-        <option value="all">All-time</option>
-        {data.seasons.filter(season => season.id !== selectedCurrentSeason?.id).map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
-      </Select>
-      <div className="mt-5 space-y-2">
-        {board.map(row => <div key={row.userId} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-perimeter-400/15 font-mono text-perimeter-400">#{row.rank}</span><span className="font-semibold">{row.username}</span><span className="font-mono text-xl">{row.points}</span></div>)}
-      </div>
-    </Card>
+      <ol className="divide-y divide-league-gold/18">
+        {board.map(row => <li key={row.userId} className={`grid grid-cols-[2.4rem_1fr_auto] items-center gap-3 px-4 py-3.5 sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold ${row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-white/[.035] text-chalk/35"}`}>#{row.rank}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span></li>)}
+      </ol>
+    </section>
   );
 }
 
@@ -135,16 +145,13 @@ function History({ data }: { data: LeagueData }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const revealedGames = data.games.filter(game => game.status === "final" || game.status === "live" || new Date(game.game_date).getTime() <= Date.now()).sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
-  const selectedGameId = searchParams.get("game") || revealedGames[0]?.id || "";
+  const games = data.games.filter(game => game.status === "final").sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
+  const requestedGameId = searchParams.get("game");
+  const game = games.find(item => item.id === requestedGameId) || games[0];
 
-  if (!revealedGames.length) return <EmptyState title="No revealed squads yet" text="Fantasy squads become visible to the league once their game locks at kickoff." />;
+  if (!game) return <EmptyState title="No fantasy history yet" text="Completed matchweeks and their fantasy results will appear here." />;
 
-  const game = revealedGames.find(item => item.id === selectedGameId) || revealedGames[0];
   const board = weeklyLeaderboard({ ...data, game });
-  const userId = user?.id;
-  const myRow = userId ? board.find(row => row.userId === userId) : undefined;
-  const ordered = myRow ? [myRow, ...board.filter(row => row.userId !== userId)] : board;
 
   function chooseGame(gameId: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -154,17 +161,43 @@ function History({ data }: { data: LeagueData }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]">
-      <Card>
-        <h2 className="font-display text-3xl uppercase">Locked games</h2>
-        <p className="mt-1 text-sm text-chalk/50">Squads are private until kickoff.</p>
-        <div className="mt-4 space-y-2">{revealedGames.map(item => <button key={item.id} onClick={() => chooseGame(item.id)} className={`w-full rounded-2xl border p-3 text-left transition ${game.id === item.id ? "border-perimeter-400/60 bg-perimeter-400/10" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"}`}><div className="font-semibold">{formatDateTime(item.game_date)}</div><div className="text-sm text-chalk/50">{item.status === "final" ? `POTM: ${playerName(data.players, item.potm_player_id)}` : "In progress · squads revealed"}</div></button>)}</div>
-      </Card>
-      <Card>
-        <h2 className="font-display text-3xl uppercase">Weekly leaderboard</h2>
-        <p className="mt-1 text-sm text-chalk/50">Open any manager to see their squad.</p>
-        <div className="mt-4 space-y-2">{ordered.map(row => <Link href={`/fantasy/history/${game.id}/${row.userId}`} key={row.userId} className={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border p-3 text-left transition hover:border-perimeter-400/50 hover:bg-perimeter-400/10 ${row.userId === userId ? "border-floodlight/50 bg-floodlight/10" : "border-white/10 bg-white/[0.03]"}`}><span className="font-mono text-perimeter-400">#{row.rank}</span><span>{row.username}{row.userId === userId ? " · you" : ""}</span><span className="font-mono text-xl">{row.points}</span></Link>)}</div>
-      </Card>
+    <div className="space-y-4">
+      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+        <div className="border-b border-league-gold/15 px-4 py-3 sm:px-5"><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Matchweeks</div><h2 className="mt-0.5 font-display text-2xl uppercase">Fantasy history</h2></div>
+        <div className="divide-y divide-league-gold/18">
+          {games.map(item => {
+            const itemLineups = data.lineups.filter(lineup => lineup.game_id === item.id);
+            const score = calculateScore(data.events.filter(event => event.game_id === item.id), itemLineups, data.playerStats.filter(stat => stat.game_id === item.id));
+            const personalResult = user ? weeklyLeaderboard({ ...data, game: item }).find(row => row.userId === user.id) : undefined;
+            const selected = game.id === item.id;
+            return (
+              <button key={item.id} type="button" onClick={() => chooseGame(item.id)} aria-pressed={selected} className={`grid w-full gap-3 px-3 py-3.5 text-left transition sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5 ${selected ? "bg-league-gold/[.075]" : "hover:bg-white/[.025]"}`}>
+                <div className="min-w-0">
+                  <div className="mb-2 font-mono text-[9px] text-chalk/30">{formatDateTime(item.game_date)}</div>
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                    <HistoryTeam gameId={item.id} team="A" />
+                    <span className="font-mono text-lg font-black sm:text-xl">{score.A}<span className="px-1 text-chalk/25">–</span>{score.B}</span>
+                    <HistoryTeam gameId={item.id} team="B" reverse />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-league-gold/18 pt-2 sm:min-w-44 sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right">
+                  <div className="min-w-0"><div className="text-[9px] font-black uppercase tracking-wider text-chalk/30">Your points</div><div className="truncate text-sm font-bold">{personalResult ? `#${personalResult.rank} this week` : "No squad saved"}</div></div>
+                  <span className="shrink-0 font-mono text-lg font-bold text-league-gold">{personalResult ? `${personalResult.points} pts` : "—"}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+        <div className="flex items-center justify-between gap-3 border-b border-league-gold/15 px-4 py-3 sm:px-5"><div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Selected week</div><h2 className="mt-0.5 font-display text-2xl uppercase">Weekly leaderboard</h2></div><Trophy size={23} className="text-league-gold" /></div>
+        {board.length ? <ol className="divide-y divide-league-gold/18">{board.map(row => <li key={row.userId}><Link href={`/fantasy/history/${game.id}/${row.userId}`} className={`group grid grid-cols-[2.4rem_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-league-gold/[.075] focus:outline-none focus-visible:bg-league-gold/[.075] sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg ${row.rank === 1 ? "bg-league-gold text-[#171814]" : "bg-white/[.035] text-chalk/40"}`}>{row.rank === 1 ? <Crown size={15} /> : <span className="font-mono text-xs">#{row.rank}</span>}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span><ChevronRight size={16} className="text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" /></Link></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No squads were saved for this matchweek.</p>}
+      </section>
     </div>
   );
+}
+
+function HistoryTeam({ gameId, team, reverse = false }: { gameId: string; team: "A" | "B"; reverse?: boolean }) {
+  return <span className={`flex min-w-0 items-center gap-1.5 ${reverse ? "flex-row-reverse text-right" : ""}`}><TeamCrest gameId={gameId} team={team} className="h-8 w-7 shrink-0 sm:h-9 sm:w-8" /><span className="truncate text-[10px] font-bold sm:text-xs">Team {team}</span></span>;
 }
