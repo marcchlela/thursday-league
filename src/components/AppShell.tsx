@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Home, List, Shield, Trophy, Users, UserRound } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useCoinBalance } from "@/hooks/useCoinBalance";
 import { cn } from "@/lib/utils";
 import { CoinAmount, LeagueCoin } from "./LeagueCoin";
+import { LaunchScreen } from "./LaunchScreen";
 import { NotificationNudge } from "./NotificationOnboarding";
 import leagueLogo from "../../Thursday League logo (no bg).png";
 
@@ -25,14 +26,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuthProfile();
   const balanceUnits = useCoinBalance(user?.id);
   const isLogin = pathname === "/login";
+  const [launchReady, setLaunchReady] = useState(false);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timeout = window.setTimeout(() => setLaunchReady(true), reduceMotion ? 150 : 950);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     if (!loading && !user && !isLogin) router.replace("/login");
     if (!loading && user && isLogin) router.replace("/");
   }, [loading, user, isLogin, router]);
 
-  if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-ink-900 text-chalk" role="status" aria-label="Loading Thursday League"><div className="space-y-3 text-center"><div className="skeleton-shimmer mx-auto h-14 w-14 rounded-2xl border border-league-gold/25" /><div className="skeleton-shimmer h-4 w-40 rounded-full" /></div></div>;
+  if (loading || !launchReady) {
+    return <LaunchScreen />;
   }
 
   if (isLogin) return <>{children}</>;
@@ -65,11 +73,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Link href="/players" aria-current={pathname.startsWith("/players") ? "page" : undefined} className={cn("inline-flex h-10 items-center gap-1.5 rounded-xl border px-2 text-[11px] font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:h-11 sm:px-3 sm:text-sm", pathname.startsWith("/players") ? "border-league-gold/35 bg-league-gold/[.09] text-league-gold" : "border-league-gold/15 bg-[#171814] text-chalk/55 hover:border-league-gold/30 hover:text-chalk")}>
+            <Link href="/players" aria-current={pathname.startsWith("/players") ? "page" : undefined} className={cn("inline-flex h-10 items-center gap-1.5 rounded-xl border px-2 text-[11px] font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:h-11 sm:px-3 sm:text-sm", pathname.startsWith("/players") ? "border-league-gold/35 bg-league-gold/[.09] text-league-gold" : "border-league-gold/15 bg-ink-850 text-chalk/55 hover:border-league-gold/30 hover:text-chalk")}>
               <Users size={16} />
               <span>Players</span>
             </Link>
-            <Link href="/betting" aria-label={balanceUnits == null ? "Betting coin balance loading" : `${balanceUnits / 100} betting coins`} className="flex h-10 items-center gap-1.5 rounded-xl border border-league-gold/15 bg-[#171814] px-2 transition hover:border-league-gold/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:h-11 sm:gap-2 sm:px-2.5">
+            <Link href="/betting" aria-label={balanceUnits == null ? "Betting coin balance loading" : `${balanceUnits / 100} betting coins`} className="flex h-10 items-center gap-1.5 rounded-xl border border-league-gold/15 bg-ink-850 px-2 transition hover:border-league-gold/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:h-11 sm:gap-2 sm:px-2.5">
               {balanceUnits == null ? <><LeagueCoin size={19} /><span className="font-mono text-xs text-chalk/50">—</span></> : <CoinAmount units={balanceUnits} iconSize={19} className="text-xs font-bold sm:text-base" />}
             </Link>
           </div>

@@ -5,7 +5,7 @@ import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) {
-  return <section {...props} className={cn("rounded-[1.3rem] border border-league-gold/25 bg-[#171814] p-5 shadow-[0_9px_24px_rgba(0,0,0,.13)]", className)}>{children}</section>;
+  return <section {...props} className={cn("rounded-[1.3rem] border border-league-gold/25 bg-ink-850 p-5 shadow-[0_9px_24px_rgba(0,0,0,.13)]", className)}>{children}</section>;
 }
 
 export function Pill({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -23,7 +23,7 @@ export function Stat({ label, value }: { label: string; value: React.ReactNode }
 
 export function EmptyState({ title, text }: { title: string; text?: string }) {
   return (
-    <div className="rounded-[1.3rem] border border-dashed border-league-gold/20 bg-[#171814] p-8 text-center">
+    <div className="rounded-[1.3rem] border border-dashed border-league-gold/20 bg-ink-850 p-8 text-center">
       <h3 className="font-display text-2xl uppercase tracking-wide text-chalk">{title}</h3>
       {text ? <p className="mx-auto mt-2 max-w-md text-sm text-chalk/60">{text}</p> : null}
     </div>
@@ -53,8 +53,8 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 export function TabList({ idPrefix, label, tabs, active, onChange }: { idPrefix: string; label: string; tabs: { id: string; label: string }[]; active: string; onChange: (id: string) => void }) {
   return (
-    <div className="flex overflow-x-auto rounded-[1.15rem] border border-league-gold/25 bg-[#171814] p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)]" role="tablist" aria-label={label}>
-      {tabs.map(tab => <button key={tab.id} id={`${idPrefix}-${tab.id}-tab`} type="button" role="tab" aria-selected={active === tab.id} aria-controls={`${idPrefix}-${tab.id}-panel`} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} className={cn("relative min-w-28 flex-1 rounded-[.85rem] px-3 py-3 text-sm font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", active === tab.id ? "bg-league-gold/[.09] text-league-gold after:absolute after:inset-x-6 after:bottom-1 after:h-0.5 after:rounded-full after:bg-league-gold" : "text-chalk/45 hover:bg-white/[.035] hover:text-chalk")}>{tab.label}</button>)}
+    <div className="flex overflow-x-auto rounded-[1.15rem] border border-league-gold/25 bg-ink-850 p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)]" role="tablist" aria-label={label}>
+      {tabs.map(tab => <button key={tab.id} id={`${idPrefix}-${tab.id}-tab`} type="button" role="tab" aria-selected={active === tab.id} aria-controls={`${idPrefix}-${tab.id}-panel`} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} className={cn("relative min-w-28 flex-1 rounded-[.85rem] px-3 py-3 text-sm font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", active === tab.id ? "bg-league-gold/[.09] text-league-gold after:absolute after:inset-x-6 after:bottom-1 after:h-0.5 after:rounded-full after:bg-league-gold" : "text-chalk/45 hover:bg-chalk/[.035] hover:text-chalk")}>{tab.label}</button>)}
     </div>
   );
 }
@@ -65,7 +65,7 @@ export function PrimaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElemen
     <button
       {...rest}
       className={cn(
-        "rounded-2xl bg-league-gold px-4 py-2 font-bold text-[#171814] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+        "rounded-2xl bg-league-gold px-4 py-2 font-bold text-gold-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
     />
@@ -97,7 +97,7 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   const { className, children, ...rest } = props;
-  return <select {...rest} className={cn("w-full rounded-2xl border border-league-gold/15 bg-[#171814] px-4 py-3 text-chalk outline-none ring-league-gold transition focus:border-league-gold focus:ring-2", className)}>{children}</select>;
+  return <select {...rest} className={cn("w-full rounded-2xl border border-league-gold/15 bg-ink-850 px-4 py-3 text-chalk outline-none ring-league-gold transition focus:border-league-gold focus:ring-2", className)}>{children}</select>;
 }
 
 export function Toast({
@@ -122,7 +122,7 @@ export function Toast({
   if (!message) return null;
 
   return (
-    <div className="fixed bottom-5 left-1/2 z-[80] w-[min(calc(100vw-2rem),30rem)] -translate-x-1/2 overflow-hidden rounded-[1rem] border border-league-gold/30 bg-[#171814]/95 shadow-[0_16px_45px_rgba(0,0,0,.5)] backdrop-blur">
+    <div className="fixed bottom-5 left-1/2 z-[80] w-[min(calc(100vw-2rem),30rem)] -translate-x-1/2 overflow-hidden rounded-[1rem] border border-league-gold/30 bg-ink-850/95 shadow-[0_16px_45px_rgba(0,0,0,.5)] backdrop-blur">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <span className="text-sm font-semibold text-chalk">{message}</span>
         {actionLabel && onAction ? <button type="button" onClick={onAction} className="shrink-0 rounded-lg border border-league-gold/25 bg-league-gold/[.08] px-2.5 py-1.5 text-xs font-bold text-league-gold transition hover:bg-league-gold/[.14]">{actionLabel}</button> : null}
@@ -207,5 +207,5 @@ export function Modal({ open, title, onClose, children }: { open: boolean; title
   }, [onClose, open]);
 
   if (!open) return null;
-  return <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 px-4 backdrop-blur-[2px]" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-md rounded-[1.35rem] border border-league-gold/25 bg-[#171814] p-5 shadow-[0_18px_55px_rgba(0,0,0,.55)]"><span id={titleId} className="sr-only">{title}</span>{children}</div></div>;
+  return <div className="fixed inset-0 z-[70] grid place-items-center bg-black/75 px-4 backdrop-blur-[2px]" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-md rounded-[1.35rem] border border-league-gold/25 bg-ink-850 p-5 shadow-[0_18px_55px_rgba(0,0,0,.55)]"><span id={titleId} className="sr-only">{title}</span>{children}</div></div>;
 }

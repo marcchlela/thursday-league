@@ -68,7 +68,7 @@ export function AuthForm() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#11110f] text-chalk">
+    <div className="relative min-h-screen overflow-hidden bg-ink-900 text-chalk">
       <div className="pointer-events-none absolute -left-32 -top-32 h-80 w-80 rounded-full border-[52px] border-league-gold/[.035]" />
       <div className="pointer-events-none absolute bottom-0 right-[-8rem] h-[34rem] w-[34rem] rounded-full border border-league-gold/[.07]" />
       <div className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px bg-league-gold/[.07] lg:block" />
@@ -94,7 +94,7 @@ export function AuthForm() {
           </div>
         </section>
 
-        <form onSubmit={submit} className="rounded-[1.45rem] border border-league-gold/30 bg-[#171814] p-4 shadow-[0_16px_44px_rgba(0,0,0,.28)] sm:p-6 lg:p-7">
+        <form onSubmit={submit} className="rounded-[1.45rem] border border-league-gold/30 bg-ink-850 p-4 shadow-[0_16px_44px_rgba(0,0,0,.28)] sm:p-6 lg:p-7">
           <div className="grid grid-cols-2 rounded-[1rem] border border-league-gold/20 bg-black/20 p-1" role="group" aria-label="Account access">
             {(["login", "signup"] as const).map(item => (
               <button key={item} type="button" aria-pressed={mode === item} onClick={() => { setMode(item); setMessage(null); }} className={cn("rounded-[.75rem] px-3 py-2.5 text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", mode === item ? "bg-league-gold/[.11] text-league-gold" : "text-chalk/40 hover:text-chalk")}>{item === "login" ? "Log in" : "Sign up"}</button>
@@ -165,7 +165,7 @@ export function AuthForm() {
 
 function LoginFeature({ icon: Icon, label }: { icon: typeof Shirt; label: string }) {
   return (
-    <div className="rounded-[1rem] border border-league-gold/20 bg-[#171814] px-2 py-3 text-center shadow-[0_7px_18px_rgba(0,0,0,.12)]">
+    <div className="rounded-[1rem] border border-league-gold/20 bg-ink-850 px-2 py-3 text-center shadow-[0_7px_18px_rgba(0,0,0,.12)]">
       <Icon size={18} className="mx-auto text-league-gold" />
       <div className="mt-1.5 text-[9px] font-black uppercase tracking-[.12em] text-chalk/45 sm:text-[10px]">{label}</div>
     </div>

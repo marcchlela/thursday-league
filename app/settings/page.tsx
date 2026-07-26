@@ -2,16 +2,19 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, KeyRound, LogOut, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
+import { Bell, KeyRound, LogOut, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
+import { useWhatsNewStatus } from "@/hooks/useWhatsNew";
 import { supabase } from "@/lib/supabase";
 import { SettingsHeader, SettingsLinkRow, SettingsPanel } from "@/components/SettingsComponents";
+import { ThemeSelector } from "@/components/ThemeSelector";
 import { ConfirmDialog, LoadingState, Modal, SecondaryButton, TextInput, Toast } from "@/components/ui";
 
 type AccountAction = "signout" | "deactivate" | "delete";
 
 export default function SettingsPage() {
   const { profile, loading } = useAuthProfile();
+  const { hasUnreadRelease } = useWhatsNewStatus();
   const router = useRouter();
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -148,20 +151,31 @@ export default function SettingsPage() {
           <SettingsLinkRow href="/settings/profile" icon={UserRound} title="Edit profile" detail="Change your league display name and login username" />
           <SettingsLinkRow href="/settings/notifications" icon={Bell} title="Notifications" detail="Choose which push notifications and reminders you receive" tone="green" />
           <SettingsLinkRow href="/settings/wallet" icon={WalletCards} title="Wallet history" detail="Review coin grants, stakes, cash-outs, payouts, and corrections" />
+          <SettingsLinkRow
+            href="/settings/whats-new"
+            icon={Sparkles}
+            title="What’s New"
+            detail="See the latest Thursday League releases and changes"
+            badge={hasUnreadRelease ? <span className="rounded-full border border-league-gold/30 bg-league-gold/[.1] px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-league-gold">New update</span> : null}
+          />
         </div>
+      </SettingsPanel>
+
+      <SettingsPanel title="Appearance">
+        <ThemeSelector />
       </SettingsPanel>
 
       <SettingsPanel title="Security">
         <div className="divide-y divide-league-gold/10">
           <SettingsLinkRow href="/settings/password" icon={KeyRound} title="Update password" detail="Choose a new password for your account" />
           <button type="button" onClick={signOut} disabled={!!busy} className="group flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-league-gold/[.04] focus:outline-none focus-visible:bg-league-gold/[.06] disabled:opacity-50 sm:px-5">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.025] text-chalk/50"><LogOut size={19} /></span>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-chalk/[.07] bg-chalk/[.025] text-chalk/50"><LogOut size={19} /></span>
             <span className="min-w-0 flex-1"><span className="block font-semibold">Sign out</span><span className="mt-0.5 block text-xs text-chalk/35">Sign out of Thursday League on this device</span></span>
             <span className="text-xs font-bold text-chalk/30">{busy === "signout" ? "Signing out…" : "Sign out"}</span>
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2 border-t border-red-400/10 p-3 sm:p-4">
-          <button type="button" onClick={() => setDeactivateOpen(true)} disabled={!!busy} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[.08] bg-white/[.025] px-2 text-xs font-bold text-chalk/55 transition hover:border-league-gold/25 hover:text-chalk disabled:opacity-50 sm:text-sm">
+          <button type="button" onClick={() => setDeactivateOpen(true)} disabled={!!busy} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-chalk/[.08] bg-chalk/[.025] px-2 text-xs font-bold text-chalk/55 transition hover:border-league-gold/25 hover:text-chalk disabled:opacity-50 sm:text-sm">
             <UserX size={16} />
             Deactivate
           </button>

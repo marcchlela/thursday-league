@@ -145,15 +145,15 @@ export function NotificationSettings() {
   }
 
   if (detecting) {
-    return <section className="rounded-[1.35rem] border border-league-gold/25 bg-[#171814] p-5 shadow-[0_9px_24px_rgba(0,0,0,.13)]"><div className="skeleton-shimmer h-5 w-56 rounded-lg" /><div className="skeleton-shimmer mt-3 h-3 w-full max-w-md rounded" /></section>;
+    return <section className="rounded-[1.35rem] border border-league-gold/25 bg-ink-850 p-5 shadow-[0_9px_24px_rgba(0,0,0,.13)]"><div className="skeleton-shimmer h-5 w-56 rounded-lg" /><div className="skeleton-shimmer mt-3 h-3 w-full max-w-md rounded" /></section>;
   }
 
   return (
-    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <div className="p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex gap-3">
-          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${state.enabled ? "border-turf-400/20 bg-turf-400/[.045] text-turf-400" : "border-white/[.07] bg-white/[.025] text-chalk/40"}`}>
+          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${state.enabled ? "border-turf-400/20 bg-turf-400/[.045] text-turf-400" : "border-chalk/[.07] bg-chalk/[.025] text-chalk/40"}`}>
             {state.enabled ? <BellRing size={19} /> : <BellOff size={19} />}
           </span>
           <div>
@@ -161,7 +161,7 @@ export function NotificationSettings() {
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-chalk/42">Receive game announcements, lineup updates, Fantasy reminders, and final results on this device.</p>
           </div>
         </div>
-        <Pill className={state.enabled ? "border-turf-400/20 bg-turf-400/[.055] text-turf-400" : state.permission === "denied" ? "border-red-400/20 bg-red-400/[.055] text-red-300" : "border-white/[.07] bg-white/[.025] text-chalk/40"}>{state.enabled ? "Enabled" : state.permission === "denied" ? "Blocked" : "Disabled"}</Pill>
+        <Pill className={state.enabled ? "border-turf-400/20 bg-turf-400/[.055] text-turf-400" : state.permission === "denied" ? "border-red-400/20 bg-red-400/[.055] text-red-300" : "border-chalk/[.07] bg-chalk/[.025] text-chalk/40"}>{state.enabled ? "Enabled" : state.permission === "denied" ? "Blocked" : "Disabled"}</Pill>
       </div>
 
       <div className="mt-5">
@@ -220,10 +220,10 @@ export function NotificationSettings() {
 
 function PreferenceToggle({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-[rgba(218,165,32,.22)] bg-white/[.018] p-3.5 transition hover:border-league-gold/35">
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-league-gold/[.22] bg-chalk/[.018] p-3.5 transition hover:border-league-gold/35">
       <span><span className="block text-sm font-semibold text-chalk">{label}</span><span className="mt-1 block text-xs text-chalk/35">{detail}</span></span>
       <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="peer sr-only" />
-      <span className="relative h-7 w-12 shrink-0 rounded-full border border-[rgba(218,165,32,.22)] bg-white/[.09] transition peer-checked:border-turf-400/30 peer-checked:bg-turf-500 peer-focus-visible:ring-2 peer-focus-visible:ring-league-gold after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-chalk after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
+      <span className="relative h-7 w-12 shrink-0 rounded-full border border-league-gold/[.22] bg-chalk/[.09] transition peer-checked:border-turf-400/30 peer-checked:bg-turf-500 peer-focus-visible:ring-2 peer-focus-visible:ring-league-gold after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-chalk after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
     </label>
   );
 }

@@ -85,9 +85,9 @@ function FantasyGamePreview({ game, data, statusLabel, locked }: { game: Game; d
   const showScore = game.status === "live" || game.status === "final";
 
   return (
-    <section className="relative grid min-h-[6.8rem] grid-cols-[1fr_auto_1fr] items-center gap-2 overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814] px-3 pb-3 pt-8 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:gap-5 sm:px-5" aria-label="Fantasy match">
+    <section className="relative grid min-h-[6.8rem] grid-cols-[1fr_auto_1fr] items-center gap-2 overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-ink-850 px-3 pb-3 pt-8 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:gap-5 sm:px-5" aria-label="Fantasy match">
       <span className="absolute left-3 top-2.5 inline-flex items-center gap-1.5 font-mono text-[10px] text-chalk/40 sm:left-5"><CalendarDays size={12} /> {formatDateTime(game.game_date)}</span>
-      <Pill className={`absolute right-3 top-2 border px-2 py-0.5 text-[9px] sm:right-5 ${locked ? "border-white/10 bg-white/[.04] text-chalk/45" : "border-turf-400/25 bg-turf-400/[.08] text-turf-100"}`}>{statusLabel}</Pill>
+      <Pill className={`absolute right-3 top-2 border px-2 py-0.5 text-[9px] sm:right-5 ${locked ? "border-chalk/10 bg-chalk/[.04] text-chalk/45" : "border-turf-400/25 bg-turf-400/[.08] text-turf-100"}`}>{statusLabel}</Pill>
       <PreviewTeam gameId={game.id} team="A" />
       <div className="text-center">
         <div className="font-mono text-xl font-black tracking-tight sm:text-2xl">{showScore ? <>{score.A}<span className="px-1.5 text-chalk/25">–</span>{score.B}</> : <span className="font-display uppercase text-chalk/35">vs</span>}</div>
@@ -124,7 +124,7 @@ function Standings({ data }: { data: LeagueData }) {
   }
 
   return (
-    <section className="mx-auto max-w-3xl overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+    <section className="mx-auto max-w-3xl overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-league-gold/15 p-4 sm:p-5">
         <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Fantasy table</div><h2 className="mt-1 font-display text-3xl uppercase">Standings</h2><p className="mt-1 text-sm text-chalk/45">{selectedSeason ? `${selectedSeason.name} season points` : "All-time fantasy points"}</p></div>
         <Select value={seasonScope || "all"} onChange={event => chooseSeason(event.target.value)} className="w-full rounded-xl border-league-gold/15 py-2 text-sm sm:w-56" aria-label="Standings season">
@@ -134,7 +134,7 @@ function Standings({ data }: { data: LeagueData }) {
         </Select>
       </div>
       <ol className="gold-dividers divide-y">
-        {board.map(row => <li key={row.userId} className={`grid grid-cols-[2.4rem_1fr_auto] items-center gap-3 px-4 py-3.5 sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold ${row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-white/[.035] text-chalk/35"}`}>#{row.rank}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span></li>)}
+        {board.map(row => <li key={row.userId} className={`grid grid-cols-[2.4rem_1fr_auto] items-center gap-3 px-4 py-3.5 sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold ${row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-chalk/[.035] text-chalk/35"}`}>#{row.rank}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span></li>)}
       </ol>
     </section>
   );
@@ -162,7 +162,7 @@ function History({ data }: { data: LeagueData }) {
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="border-b border-league-gold/15 px-4 py-3 sm:px-5"><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Matchweeks</div><h2 className="mt-0.5 font-display text-2xl uppercase">Fantasy history</h2></div>
         <div className="gold-dividers divide-y">
           {games.map(item => {
@@ -171,7 +171,7 @@ function History({ data }: { data: LeagueData }) {
             const personalResult = user ? weeklyLeaderboard({ ...data, game: item }).find(row => row.userId === user.id) : undefined;
             const selected = game.id === item.id;
             return (
-              <button key={item.id} type="button" onClick={() => chooseGame(item.id)} aria-pressed={selected} className={`grid w-full gap-3 px-3 py-3.5 text-left transition sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5 ${selected ? "bg-league-gold/[.075]" : "hover:bg-white/[.025]"}`}>
+              <button key={item.id} type="button" onClick={() => chooseGame(item.id)} aria-pressed={selected} className={`grid w-full gap-3 px-3 py-3.5 text-left transition sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5 ${selected ? "bg-league-gold/[.075]" : "hover:bg-chalk/[.025]"}`}>
                 <div className="min-w-0">
                   <div className="mb-2 font-mono text-[9px] text-chalk/30">{formatDateTime(item.game_date)}</div>
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -180,7 +180,7 @@ function History({ data }: { data: LeagueData }) {
                     <HistoryTeam gameId={item.id} team="B" reverse />
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3 border-t border-[rgba(218,165,32,.22)] pt-2 sm:min-w-44 sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right">
+                <div className="flex items-center justify-between gap-3 border-t border-league-gold/[.22] pt-2 sm:min-w-44 sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right">
                   <div className="min-w-0"><div className="text-[9px] font-black uppercase tracking-wider text-chalk/30">Your points</div><div className="truncate text-sm font-bold">{personalResult ? `#${personalResult.rank} this week` : "No squad saved"}</div></div>
                   <span className="shrink-0 font-mono text-lg font-bold text-league-gold">{personalResult ? `${personalResult.points} pts` : "—"}</span>
                 </div>
@@ -190,9 +190,9 @@ function History({ data }: { data: LeagueData }) {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="flex items-center justify-between gap-3 border-b border-league-gold/15 px-4 py-3 sm:px-5"><div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Selected week</div><h2 className="mt-0.5 font-display text-2xl uppercase">Weekly leaderboard</h2></div><Trophy size={23} className="text-league-gold" /></div>
-        {board.length ? <ol className="gold-dividers divide-y">{board.map(row => <li key={row.userId}><Link href={`/fantasy/history/${game.id}/${row.userId}`} className={`group grid grid-cols-[2.4rem_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-league-gold/[.075] focus:outline-none focus-visible:bg-league-gold/[.075] sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg ${row.rank === 1 ? "bg-league-gold text-[#171814]" : "bg-white/[.035] text-chalk/40"}`}>{row.rank === 1 ? <Crown size={15} /> : <span className="font-mono text-xs">#{row.rank}</span>}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span><ChevronRight size={16} className="text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" /></Link></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No squads were saved for this matchweek.</p>}
+        {board.length ? <ol className="gold-dividers divide-y">{board.map(row => <li key={row.userId}><Link href={`/fantasy/history/${game.id}/${row.userId}`} className={`group grid grid-cols-[2.4rem_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-league-gold/[.075] focus:outline-none focus-visible:bg-league-gold/[.075] sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg ${row.rank === 1 ? "bg-league-gold text-gold-ink" : "bg-chalk/[.035] text-chalk/40"}`}>{row.rank === 1 ? <Crown size={15} /> : <span className="font-mono text-xs">#{row.rank}</span>}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span><ChevronRight size={16} className="text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" /></Link></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No squads were saved for this matchweek.</p>}
       </section>
     </div>
   );

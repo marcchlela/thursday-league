@@ -136,14 +136,14 @@ export default function ProfilePage() {
         </div>
         <Link
           href="/settings"
-          className="inline-flex h-11 items-center gap-2 rounded-xl border border-league-gold/25 bg-[#171814] px-3.5 text-sm font-bold text-chalk/65 shadow-[0_7px_20px_rgba(0,0,0,.13)] transition hover:border-league-gold/40 hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"
+          className="inline-flex h-11 items-center gap-2 rounded-xl border border-league-gold/25 bg-ink-850 px-3.5 text-sm font-bold text-chalk/65 shadow-[0_7px_20px_rgba(0,0,0,.13)] transition hover:border-league-gold/40 hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"
         >
           <Settings size={17} />
           <span className="hidden sm:inline">Settings</span>
         </Link>
       </header>
 
-      <section className="flex min-h-[7.5rem] items-center gap-4 rounded-[1.35rem] border border-league-gold/25 bg-[#171814] px-4 py-4 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:px-5">
+      <section className="flex min-h-[7.5rem] items-center gap-4 rounded-[1.35rem] border border-league-gold/25 bg-ink-850 px-4 py-4 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:px-5">
         <input
           ref={avatarInput}
           type="file"
@@ -242,7 +242,7 @@ function ProfileMetric({
   gold?: boolean;
 }) {
   return (
-    <section className="min-w-0 rounded-[1.3rem] border border-league-gold/25 bg-[#171814] p-3.5 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:p-5">
+    <section className="min-w-0 rounded-[1.3rem] border border-league-gold/25 bg-ink-850 p-3.5 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:p-5">
       <div className="flex items-center gap-2.5">
         <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl border", gold ? "border-league-gold/20 bg-league-gold/[.055]" : "border-turf-400/20 bg-turf-400/[.045] text-turf-400")}>
           {icon}
@@ -273,12 +273,12 @@ function ProfileSkeleton() {
         <div><div className="skeleton-shimmer h-3 w-20 rounded" /><div className="skeleton-shimmer mt-2 h-10 w-32 rounded-lg" /></div>
         <div className="skeleton-shimmer h-11 w-11 rounded-xl sm:w-28" />
       </div>
-      <div className="flex min-h-[7.5rem] items-center gap-4 rounded-[1.35rem] border border-league-gold/20 bg-[#171814] px-4 py-4 sm:px-5">
+      <div className="flex min-h-[7.5rem] items-center gap-4 rounded-[1.35rem] border border-league-gold/20 bg-ink-850 px-4 py-4 sm:px-5">
         <div className="skeleton-shimmer h-[5.25rem] w-[5.25rem] shrink-0 rounded-[1.2rem] sm:h-24 sm:w-24" />
         <div className="min-w-0 flex-1"><div className="skeleton-shimmer h-3 w-20 rounded" /><div className="skeleton-shimmer mt-3 h-8 w-44 max-w-full rounded-lg" /><div className="skeleton-shimmer mt-3 h-3 w-28 rounded" /></div>
       </div>
       <div className="grid grid-cols-2 gap-3 md:gap-4">
-        {[0, 1].map(item => <div key={item} className="min-h-[13.5rem] rounded-[1.3rem] border border-league-gold/20 bg-[#171814] p-4"><div className="skeleton-shimmer h-10 w-28 max-w-full rounded-xl" /><div className="skeleton-shimmer mt-6 h-9 w-24 max-w-full rounded-lg" /><div className="skeleton-shimmer mt-7 h-8 w-16 rounded-lg" /></div>)}
+        {[0, 1].map(item => <div key={item} className="min-h-[13.5rem] rounded-[1.3rem] border border-league-gold/20 bg-ink-850 p-4"><div className="skeleton-shimmer h-10 w-28 max-w-full rounded-xl" /><div className="skeleton-shimmer mt-6 h-9 w-24 max-w-full rounded-lg" /><div className="skeleton-shimmer mt-7 h-8 w-16 rounded-lg" /></div>)}
       </div>
     </div>
   );
