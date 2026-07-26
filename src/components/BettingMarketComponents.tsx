@@ -17,6 +17,7 @@ export const bettingCategoryOrder: { type: BettingMarketType; label: string; ico
   { type: "player_goals", label: "Player goals", icon: FaFutbol },
   { type: "player_assists", label: "Player assists", icon: GiSoccerKick },
   { type: "goalkeeper_saves", label: "Goalkeeper saves", icon: GiGoalKeeper },
+  { type: "team_saves", label: "Team saves", icon: GiGoalKeeper },
   { type: "own_goal", label: "Own goal", icon: TbArrowsExchange }
 ];
 
@@ -53,7 +54,7 @@ export function BettingBalance({ balanceUnits, lockAt, lockMinutes = 5, isOpen, 
 
 export function MarketSection({ label, icon: Icon, markets, outcomes, lineups = [], selected, disabled, onToggle }: { label: string; icon: IconType; markets: BettingMarket[]; outcomes: BettingOutcome[]; lineups?: GameLineup[]; selected: string[]; disabled: boolean; onToggle: (outcome: BettingOutcome) => void }) {
   const [open, setOpen] = useState(true);
-  const playerMarkets = markets.some(market => market.subject_player_id);
+  const splitByTeam = markets.some(market => market.subject_player_id || market.subject_team);
 
   return (
     <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
@@ -61,7 +62,7 @@ export function MarketSection({ label, icon: Icon, markets, outcomes, lineups = 
         <span className="flex min-w-0 items-center gap-2.5"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-league-gold/15 bg-league-gold/[.06] text-league-gold"><Icon size={18} /></span><span className="truncate font-display text-xl uppercase sm:text-2xl">{label}</span><span className="rounded-full border border-white/[.07] bg-white/[.025] px-2 py-0.5 font-mono text-[10px] text-chalk/35">{markets.length}</span></span>
         <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-chalk/35">{open ? "Hide" : "Show"}<ChevronDown size={17} className={cn("transition", open && "rotate-180")} /></span>
       </button>
-      {open ? playerMarkets ? (
+      {open ? splitByTeam ? (
         <div className="grid gap-3 border-t border-league-gold/10 p-3 sm:p-4 md:grid-cols-2">
           <TeamMarkets team="A" markets={markets} outcomes={outcomes} lineups={lineups} selected={selected} disabled={disabled} onToggle={onToggle} />
           <TeamMarkets team="B" markets={markets} outcomes={outcomes} lineups={lineups} selected={selected} disabled={disabled} onToggle={onToggle} />
@@ -76,6 +77,7 @@ export function MarketSection({ label, icon: Icon, markets, outcomes, lineups = 
 }
 
 function TeamMarkets({ team, markets, outcomes, lineups, selected, disabled, onToggle }: { team: TeamCode; markets: BettingMarket[]; outcomes: BettingOutcome[]; lineups: GameLineup[]; selected: string[]; disabled: boolean; onToggle: (outcome: BettingOutcome) => void }) {
+  const teamTotalMarkets = markets.filter(market => market.subject_team === team);
   const playerIds = [...new Set(markets.filter(market => lineups.some(lineup => lineup.team === team && lineup.player_id === market.subject_player_id)).map(market => market.subject_player_id).filter(Boolean))] as string[];
   playerIds.sort((first, second) => {
     const firstLineup = lineups.find(lineup => lineup.player_id === first);
@@ -88,11 +90,12 @@ function TeamMarkets({ team, markets, outcomes, lineups, selected, disabled, onT
     <section className={cn("rounded-[1rem] border p-2.5", team === "A" ? "border-turf-400/20 bg-turf-400/[.025]" : "border-league-gold/20 bg-league-gold/[.025]")}>
       <div className={cn("mb-2.5 border-b pb-2 text-center text-[10px] font-black uppercase tracking-[.2em]", team === "A" ? "border-turf-400/10 text-turf-100/70" : "border-league-gold/10 text-league-gold/75")}>Team {team}</div>
       <div className="space-y-3">
+        {teamTotalMarkets.length ? <MarketGroup title={`Team ${team} total saves`} markets={teamTotalMarkets} outcomes={outcomes} selected={selected} disabled={disabled} onToggle={onToggle} /> : null}
         {playerIds.map(playerId => {
           const playerMarkets = markets.filter(market => market.subject_player_id === playerId).sort((first, second) => Number(first.line || 0) - Number(second.line || 0));
           return <MarketGroup key={playerId} title={playerMarkets[0]?.title || "Player"} markets={playerMarkets} outcomes={outcomes} selected={selected} disabled={disabled} onToggle={onToggle} />;
         })}
-        {!playerIds.length ? <p className="py-4 text-center text-sm text-chalk/40">No markets for Team {team}.</p> : null}
+        {!playerIds.length && !teamTotalMarkets.length ? <p className="py-4 text-center text-sm text-chalk/40">No markets for Team {team}.</p> : null}
       </div>
     </section>
   );

@@ -35,13 +35,16 @@ describe("calculatePlayerBreakdown", () => {
     expect(result.lines.at(-1)).toBe("captain x2 = 18");
   });
 
-  it("awards goalkeeper save points only to the goalkeeper role", () => {
+  it("awards save points to the player who made the saves", () => {
     const result = calculatePlayerBreakdown({ game, player: players[1], lineups, events, playerStats });
     expect(result.lines).toContain("3 saves = 3");
+    const rotatingStats: GamePlayerStat[] = [{ id: "stat-a", game_id: game.id, player_id: "player-a", team: "A", role: "outfield", goals: 0, assists: 0, saves: 2 }];
+    const rotatingResult = calculatePlayerBreakdown({ game, player: players[0], lineups, events, playerStats: rotatingStats });
+    expect(rotatingResult.lines).toContain("2 saves = 2");
   });
 
   it("gives an excluded guest zero fantasy points", () => {
-    const guest = { ...players[0], competition_eligible: false };
+    const guest = { ...players[0], player_type: "guest" as const, fantasy_eligible: false, individual_betting_eligible: false };
     const pick: FantasyPick = { id: "pick-guest", squad_id: "squad-1", player_id: guest.id, role: "outfield", is_captain: true, slot_index: 1 };
     const result = calculatePlayerBreakdown({ game, player: guest, pick, lineups, events, playerStats });
     expect(result.points).toBe(0);
@@ -57,11 +60,11 @@ describe("careerStats", () => {
     expect(result.ownGoals).toBe(0);
   });
 
-  it("excludes a guest from career totals without deleting match records", () => {
-    const guest = { ...players[0], competition_eligible: false };
+  it("keeps guest career totals while fantasy eligibility stays disabled", () => {
+    const guest = { ...players[0], player_type: "guest" as const, fantasy_eligible: false, individual_betting_eligible: false };
     expect(careerStats({ player: guest, games: [game], lineups, events, playerStats })).toEqual({
-      appearances: 0,
-      goals: 0,
+      appearances: 1,
+      goals: 1,
       assists: 0,
       ownGoals: 0,
       cleanSheets: 0,

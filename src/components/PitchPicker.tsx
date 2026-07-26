@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Crown, Pencil, Plus, X } from "lucide-react";
 import { GameLineup, FantasyPick, Player, PlayerPosition } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { isCompetitionEligible } from "@/lib/playerEligibility";
+import { isFantasyEligible } from "@/lib/playerEligibility";
 import { Modal, PrimaryButton, SecondaryButton, Toast } from "./ui";
 
 const outfieldSlots = [
@@ -50,9 +50,14 @@ export function PitchPicker({
   locked: boolean;
   onSave: (picks: DraftPick[]) => Promise<void>;
 }) {
-  const eligiblePlayerIds = new Set(players.filter(isCompetitionEligible).map(player => player.id));
-  const hasGk = [...lineups, ...extraPlayers].some(player => eligiblePlayerIds.has(player.player_id) && player.role === "goalkeeper");
-  const slots = hasGk ? [...outfieldSlots, gkSlot] : noGkSlots;
+  const eligiblePlayerIds = new Set(players.filter(isFantasyEligible).map(player => player.id));
+  const eligibleGoalkeeperIds = new Set(
+    [...lineups, ...extraPlayers]
+      .filter(player => eligiblePlayerIds.has(player.player_id) && player.role === "goalkeeper")
+      .map(player => player.player_id)
+  );
+  const requiresGoalkeeper = eligibleGoalkeeperIds.size >= 2;
+  const slots = requiresGoalkeeper ? [...outfieldSlots, gkSlot] : noGkSlots;
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [editing, setEditing] = useState(initialPicks.length !== 5 && !locked);
   const [saving, setSaving] = useState(false);
@@ -75,7 +80,7 @@ export function PitchPicker({
         .filter(extra => !lineups.some(lineup => lineup.player_id === extra.player_id))
         .map(extra => ({ player_id: extra.player_id, role: extra.role, team: null, player: players.find(player => player.id === extra.player_id) }))
     ]
-      .filter(item => item.player && isCompetitionEligible(item.player))
+      .filter(item => item.player && isFantasyEligible(item.player))
       .sort((first, second) => first.player!.name.localeCompare(second.player!.name));
   }, [extraPlayers, lineups, players]);
 
@@ -83,7 +88,7 @@ export function PitchPicker({
   const selectingCaptain = editing && draft.length === 5 && !captainExists;
 
   function slotRole(index: number): PlayerPosition {
-    return hasGk && index === 4 ? "goalkeeper" : "outfield";
+    return requiresGoalkeeper && index === 4 ? "goalkeeper" : "outfield";
   }
 
   function pickForSlot(index: number) {
@@ -106,7 +111,9 @@ export function PitchPicker({
 
   function choosePlayer(playerId: string) {
     if (selectedSlot == null || locked || !editing) return;
-    const role = slotRole(selectedSlot);
+    const selectedPlayer = pool.find(item => item.player_id === playerId);
+    if (!selectedPlayer) return;
+    const role = selectedPlayer.role;
     setDraft(current => {
       const replacedPick = current.find(pick => pick.slot_index === selectedSlot);
       const withoutSlotOrPlayer = current.filter(pick => pick.slot_index !== selectedSlot && pick.player_id !== playerId);
@@ -133,8 +140,7 @@ export function PitchPicker({
   async function save() {
     setMessage(null);
     if (draft.length !== 5) return setMessage("Pick all 5 slots first.");
-    if (hasGk && draft.filter(pick => pick.role === "goalkeeper").length !== 1) return setMessage("You need 1 goalkeeper.");
-    if (!hasGk && draft.some(pick => pick.role === "goalkeeper")) return setMessage("This week uses 5 outfield picks.");
+    if (requiresGoalkeeper && draft.filter(pick => pick.role === "goalkeeper").length !== 1) return setMessage("You need 1 goalkeeper.");
     if (!captainExists) return setMessage("Choose a captain before saving.");
 
     setSaving(true);
@@ -150,14 +156,18 @@ export function PitchPicker({
     }
   }
 
-  const candidates = selectedSlot == null ? [] : pool.filter(item => item.role === slotRole(selectedSlot));
+  const candidates = selectedSlot == null
+    ? []
+    : requiresGoalkeeper
+      ? pool.filter(item => item.role === slotRole(selectedSlot))
+      : pool;
 
   return (
     <div className="mx-auto max-w-3xl">
       <Toast message={toast} onDone={() => setToast(null)} />
       <Modal open={selectedSlot != null && !selectingCaptain} title="Choose a player" onClose={() => setSelectedSlot(null)}>
         <div className="flex items-start justify-between gap-4">
-          <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Slot {selectedSlot == null ? "" : selectedSlot + 1}</div><h2 className="mt-1 font-display text-3xl uppercase">Choose a player</h2><p className="mt-1 text-sm text-chalk/45">{selectedSlot != null && slotRole(selectedSlot) === "goalkeeper" ? "Goalkeepers available for this match" : "Outfield players available for this match"}</p></div>
+          <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Slot {selectedSlot == null ? "" : selectedSlot + 1}</div><h2 className="mt-1 font-display text-3xl uppercase">Choose a player</h2><p className="mt-1 text-sm text-chalk/45">{requiresGoalkeeper && selectedSlot != null && slotRole(selectedSlot) === "goalkeeper" ? "Goalkeepers available for this match" : requiresGoalkeeper ? "Outfield players available for this match" : "All eligible lineup players are available"}</p></div>
           <button type="button" onClick={() => setSelectedSlot(null)} aria-label="Close player selection" className="rounded-xl border border-white/[.07] p-2 text-chalk/40 transition hover:bg-white/[.04] hover:text-chalk"><X size={17} /></button>
         </div>
         <div className="mt-5 max-h-[55vh] space-y-2 overflow-y-auto pr-1">
@@ -178,7 +188,7 @@ export function PitchPicker({
         <div className="absolute left-1/2 top-3 h-16 w-36 -translate-x-1/2 rounded-b-2xl border-x border-b border-chalk/45 md:h-20 md:w-44" />
         <div className="absolute bottom-3 left-1/2 h-16 w-36 -translate-x-1/2 rounded-t-2xl border-x border-t border-chalk/45 md:h-20 md:w-44" />
 
-        <div className="absolute left-5 top-5 z-10 rounded-full border border-white/10 bg-ink-900/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-chalk/60 backdrop-blur">{hasGk ? "4 outfield · 1 goalkeeper" : "5 outfield"}</div>
+        <div className="absolute left-5 top-5 z-10 rounded-full border border-white/10 bg-ink-900/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-chalk/60 backdrop-blur">{requiresGoalkeeper ? "4 outfield · 1 goalkeeper" : "5 flexible picks"}</div>
         {!editing && !locked ? <button type="button" onClick={() => { setMessage(null); setEditing(true); }} className="absolute right-5 top-5 z-40 inline-flex items-center gap-1.5 rounded-full border border-league-gold/25 bg-ink-900/85 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-league-gold backdrop-blur transition hover:bg-league-gold/10"><Pencil size={12} /> Edit picks</button> : null}
 
         {selectingCaptain ? <><div className="absolute inset-0 z-20 bg-[#07130c]/75 backdrop-blur-[1px]" /><div className="pointer-events-none absolute inset-x-4 top-[43%] z-40 -translate-y-1/2 text-center"><div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-league-gold text-[#171814]"><Crown size={19} /></div><h3 className="mt-3 font-display text-3xl uppercase text-chalk sm:text-4xl">Select your captain</h3><p className="mt-1 text-xs text-chalk/55">Tap one of your five players</p></div></> : null}
@@ -186,14 +196,14 @@ export function PitchPicker({
         {slots.map((slot, index) => {
           const player = playerForSlot(index);
           const pick = pickForSlot(index);
-          const role = slotRole(index);
+          const role = pick?.role || slotRole(index);
           return (
             <button
               type="button"
               key={index}
               disabled={locked || !editing}
               onClick={() => openSlot(index)}
-              aria-label={player ? `${player.name}${pick?.is_captain ? ", captain" : ""}` : `Choose ${role} for slot ${index + 1}`}
+              aria-label={player ? `${player.name}${pick?.is_captain ? ", captain" : ""}` : `Choose ${requiresGoalkeeper ? role : "player"} for slot ${index + 1}`}
               className={cn("group absolute z-10 w-[5.8rem] -translate-x-1/2 -translate-y-1/2 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:w-28", selectingCaptain && "z-50 hover:-translate-y-[54%] hover:scale-105", editing && !selectingCaptain && "hover:-translate-y-[54%]", !player && "opacity-60 hover:opacity-100")}
               style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
             >
@@ -203,7 +213,7 @@ export function PitchPicker({
                 {pick?.is_captain ? <span className="absolute -right-1 top-0 grid h-7 w-7 place-items-center rounded-full border-2 border-[#0b3e22] bg-league-gold text-[#171814] shadow-lg"><Crown size={14} /></span> : null}
                 {editing && player && !selectingCaptain ? <span role="button" tabIndex={0} aria-label={`Remove ${player.name}`} onClick={event => { event.stopPropagation(); removeSlot(index); }} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); removeSlot(index); } }} className="absolute -left-1 top-0 grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-ink-900/90 text-chalk/55 transition hover:text-chalk"><X size={12} /></span> : null}
               </span>
-              <span className={cn("mx-auto -mt-1 block max-w-full truncate rounded-lg border px-2 py-1 text-[10px] font-bold shadow-lg backdrop-blur sm:text-xs", player ? "border-white/10 bg-ink-900/90 text-chalk" : "border-dashed border-white/15 bg-black/35 text-chalk/55")}>{player?.name || (role === "goalkeeper" ? "Pick GK" : "Pick player")}</span>
+              <span className={cn("mx-auto -mt-1 block max-w-full truncate rounded-lg border px-2 py-1 text-[10px] font-bold shadow-lg backdrop-blur sm:text-xs", player ? "border-white/10 bg-ink-900/90 text-chalk" : "border-dashed border-white/15 bg-black/35 text-chalk/55")}>{player?.name || (requiresGoalkeeper && role === "goalkeeper" ? "Pick GK" : "Pick player")}</span>
             </button>
           );
         })}

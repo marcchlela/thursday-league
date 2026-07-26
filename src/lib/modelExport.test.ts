@@ -16,7 +16,7 @@ describe("model data export", () => {
       profiles: [{ id: "user-secret", username: "private-username", is_admin: false }],
       players: [
         { id: "player-a", name: "Secret Player A", default_position: "outfield", active: true },
-        { id: "player-b", name: "Secret Player B", default_position: "goalkeeper", active: true, competition_eligible: false }
+        { id: "player-b", name: "Secret Player B", default_position: "goalkeeper", active: true, player_type: "guest", fantasy_eligible: false, individual_betting_eligible: false }
       ],
       games: [finalGame("game-snapshot", "2026-06-01T19:00:00Z"), finalGame("game-legacy", "2026-05-01T19:00:00Z")],
       lineups: [

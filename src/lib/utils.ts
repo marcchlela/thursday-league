@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Game, MatchEvent, GameLineup, GamePlayerStat, LeagueData, Player } from "./types";
+import { Game, MatchEvent, GameLineup, GamePlayerStat, GoalkeeperMode, LeagueData, Player, TeamCode } from "./types";
 import { calculateScore } from "./scoring";
 
 export const cn = clsx;
@@ -38,6 +38,22 @@ export function sortLineupsByRole(players: Player[], lineups: GameLineup[]) {
     if (a.role !== b.role) return a.role === "goalkeeper" ? -1 : 1;
     return playerName(players, a.player_id).localeCompare(playerName(players, b.player_id));
   });
+}
+
+export function goalkeeperMode(game: Game, team: TeamCode): GoalkeeperMode {
+  return (team === "A" ? game.team_a_goalkeeper_mode : game.team_b_goalkeeper_mode) || "fixed";
+}
+
+export function teamLineupIsReady(game: Game, lineups: GameLineup[], team: TeamCode) {
+  const teamLineup = lineups.filter(lineup => lineup.team === team);
+  const goalkeeperCount = teamLineup.filter(lineup => lineup.role === "goalkeeper").length;
+  return teamLineup.length === 5
+    && teamLineup.every(lineup => lineup.slot_index != null)
+    && (goalkeeperMode(game, team) === "fixed" ? goalkeeperCount === 1 : goalkeeperCount === 0);
+}
+
+export function gameLineupIsReady(game: Game, lineups: GameLineup[]) {
+  return teamLineupIsReady(game, lineups, "A") && teamLineupIsReady(game, lineups, "B");
 }
 
 export function statusLabel(status: string) {

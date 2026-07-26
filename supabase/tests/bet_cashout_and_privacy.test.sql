@@ -79,7 +79,12 @@ begin
     where request_id = '76000000-0000-4000-8000-000000000001'
       and status = 'cashed_out' and settled_payout_units = stake_units
   ) then raise exception 'Cash-out did not preserve the refunded slip'; end if;
-  if (select balance_units from public.betting_wallets where user_id = '70000000-0000-4000-8000-000000000002') <> 10000 then
+  if (
+    select balance_units
+    from public.betting_wallets
+    where user_id = '70000000-0000-4000-8000-000000000002'
+      and season_id = (select season_id from public.games where id = '72000000-0000-4000-8000-000000000001')
+  ) <> 10000 then
     raise exception 'Cash-out did not return the full stake';
   end if;
   if (select count(*) from public.coin_ledger where entry_type = 'cashout' and slip_id = (select id from public.bet_slips where request_id = '76000000-0000-4000-8000-000000000001')) <> 1 then

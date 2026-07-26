@@ -8,7 +8,7 @@ import { GiGoalKeeper, GiSoccerKick } from "react-icons/gi";
 import { MdOutlineReplay } from "react-icons/md";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { careerStats } from "@/lib/scoring";
-import { isCompetitionEligible } from "@/lib/playerEligibility";
+import { isGuestPlayer } from "@/lib/playerEligibility";
 import { LeagueData, Player } from "@/lib/types";
 import { cn, currentSeason } from "@/lib/utils";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
@@ -37,7 +37,7 @@ export default function PlayersPage() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const roster = data.players
-    .filter(player => player.active && !player.archived_at && isCompetitionEligible(player))
+    .filter(player => player.active && !player.archived_at)
     .sort((first, second) => first.name.localeCompare(second.name));
   const normalizedQuery = query.trim().toLowerCase();
   const visiblePlayers = roster.filter(player => player.name.toLowerCase().includes(normalizedQuery));
@@ -69,7 +69,7 @@ export default function PlayersPage() {
         ) : (
           <div className="space-y-4">
             <SeasonScopeSelect data={data} value={seasonScope} onChange={setSeasonScope} />
-            <PlayerStatBoards players={roster} data={data} seasonScope={seasonScope} />
+            <PlayerStatBoards players={data.players} data={data} seasonScope={seasonScope} />
           </div>
         )}
       </div>
@@ -88,6 +88,7 @@ function PlayerCircle({ player }: { player: Player }) {
         <PlayerAvatar name={player.name} className="h-10 w-10 text-base transition group-hover:scale-105 sm:h-14 sm:w-14 sm:text-xl" />
         <span className="mt-1.5 w-full truncate px-1 text-[10px] font-bold sm:mt-2 sm:text-xs">{player.name}</span>
         <span className="mt-0.5 text-[7px] font-black uppercase tracking-[.15em] text-league-gold/60 sm:text-[9px]">{player.default_position === "goalkeeper" ? "GK" : "OUT"}</span>
+        {isGuestPlayer(player) ? <span className="mt-0.5 text-[7px] font-black uppercase tracking-[.12em] text-chalk/30 sm:text-[8px]">Guest</span> : null}
       </span>
     </Link>
   );
@@ -103,7 +104,7 @@ function PlayerStatBoards({ players, data, seasonScope }: { players: Player[]; d
     stats: careerStats({ player, games, lineups: data.lineups, events: data.events, playerStats: data.playerStats })
   }));
 
-  if (!rows.length) return <EmptyState title="No eligible players" text="Guest players are intentionally excluded from official statistics." />;
+  if (!rows.length) return <EmptyState title="No players" text="Player statistics will appear after a completed match." />;
 
   return (
     <div className="grid items-start gap-4 md:grid-cols-2">

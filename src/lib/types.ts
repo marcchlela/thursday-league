@@ -1,5 +1,7 @@
 export type PlayerPosition = "goalkeeper" | "outfield";
+export type PlayerType = "regular" | "guest";
 export type TeamCode = "A" | "B";
+export type GoalkeeperMode = "fixed" | "rotating";
 export type GameStatus = "upcoming" | "draft" | "live" | "final";
 export type EventKind = "goal" | "own_goal";
 
@@ -19,6 +21,10 @@ export type Player = {
   name: string;
   default_position: PlayerPosition;
   active: boolean;
+  player_type?: PlayerType;
+  fantasy_eligible?: boolean;
+  individual_betting_eligible?: boolean;
+  /** @deprecated Compatibility field for app versions before the eligibility split. */
   competition_eligible?: boolean;
   archived_at?: string | null;
   created_at?: string;
@@ -33,6 +39,8 @@ export type Game = {
   finalized_at?: string | null;
   correction_open?: boolean;
   correction_reason?: string | null;
+  team_a_goalkeeper_mode?: GoalkeeperMode;
+  team_b_goalkeeper_mode?: GoalkeeperMode;
   season_id?: string | null;
   created_at?: string;
 };
@@ -82,6 +90,7 @@ export type GamePlayerStat = {
   goals: number;
   assists: number;
   saves: number;
+  own_goals?: number;
   created_at?: string;
   updated_at?: string;
 };
@@ -134,6 +143,7 @@ export type BettingMarketType =
   | "player_goals"
   | "player_assists"
   | "goalkeeper_saves"
+  | "team_saves"
   | "own_goal";
 
 export type BettingMarketStatus = "draft" | "open" | "suspended" | "locked" | "settled" | "void";
@@ -167,6 +177,7 @@ export type BettingMarket = {
   market_type: BettingMarketType;
   title: string;
   subject_player_id: string | null;
+  subject_team?: TeamCode | null;
   line: number | null;
   status: BettingMarketStatus;
   invalidated: boolean;
@@ -228,7 +239,7 @@ export type CoinLedgerEntry = {
   id: string;
   wallet_id: string;
   slip_id: string | null;
-  entry_type: "initial_grant" | "stake" | "cashout" | "payout" | "settlement_correction";
+  entry_type: "initial_grant" | "stake" | "cashout" | "payout" | "settlement_correction" | "admin_adjustment";
   amount_units: number;
   balance_after_units: number;
   metadata: Record<string, unknown>;

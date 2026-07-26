@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Cpu, Download, Eye, LockKeyhole, PauseCircle, Pencil, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, CircleDollarSign, Cpu, Download, Eye, LockKeyhole, PauseCircle, Pencil, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
 import { useBettingData } from "@/hooks/useBettingData";
 import { BETTING_MODEL_VERSION, formatCoins, generatePlayerLineupMarkets } from "@/lib/betting";
 import { buildModelExport, downloadModelExport } from "@/lib/modelExport";
@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { BettingMarket, BettingOutcome, LeagueData } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 import { bettingCategoryOrder } from "./BettingMarketComponents";
-import { Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Pill, PrimaryButton, SecondaryButton, Select, Toast } from "./ui";
+import { Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Pill, PrimaryButton, SecondaryButton, Select, TextArea, TextInput, Toast } from "./ui";
 
 export function AdminBettingManager({ data }: { data: LeagueData }) {
   const betting = useBettingData();
@@ -21,6 +21,13 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
   const [manageOpen, setManageOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [walletUserId, setWalletUserId] = useState("");
+  const [walletSeasonId, setWalletSeasonId] = useState("");
+  const [walletDirection, setWalletDirection] = useState<"credit" | "debit">("credit");
+  const [walletAmount, setWalletAmount] = useState("");
+  const [walletReason, setWalletReason] = useState("");
+  const [walletConfirmOpen, setWalletConfirmOpen] = useState(false);
+  const [walletRequestId, setWalletRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -32,6 +39,12 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
     const preferred = eligibleGames.find(game => game.status === "draft" || game.status === "upcoming") || eligibleGames[0];
     setGameId(preferred?.id || "");
   }, [eligibleGames, gameId]);
+
+  useEffect(() => {
+    if (!walletUserId && data.profiles.length) setWalletUserId(data.profiles[0].id);
+    const preferredSeason = data.leagueSettings?.current_season_id || data.seasons[0]?.id || "";
+    if (!walletSeasonId && preferredSeason) setWalletSeasonId(preferredSeason);
+  }, [data.leagueSettings?.current_season_id, data.profiles, data.seasons, walletSeasonId, walletUserId]);
 
   if (betting.loading) return <LoadingState label="Loading betting control" cards={3} />;
   if (betting.error) return <ErrorState message={`${betting.error} Apply the virtual betting migration in Supabase first.`} onRetry={betting.reload} />;
@@ -52,6 +65,50 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
   const resultVersions = betting.data.resultVersions.filter(version => version.game_id === gameId);
   const settlementRuns = betting.data.settlementRuns.filter(runItem => runItem.game_id === gameId);
   const predictions = run?.input_snapshot?.predictions as Record<string, number> | undefined;
+  const selectedWalletProfile = data.profiles.find(profile => profile.id === walletUserId);
+  const selectedWalletSeason = data.seasons.find(season => season.id === walletSeasonId);
+  const selectedWallet = betting.data.wallets.find(wallet => wallet.user_id === walletUserId && wallet.season_id === walletSeasonId);
+  const selectedWalletBalance = Number(selectedWallet?.balance_units ?? betting.data.settings?.starting_balance_units ?? 10000);
+
+  function walletAdjustmentUnits() {
+    const cleanAmount = walletAmount.trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(cleanAmount)) return null;
+    const units = Math.round(Number(cleanAmount) * 100);
+    if (!Number.isSafeInteger(units) || units <= 0) return null;
+    return walletDirection === "credit" ? units : -units;
+  }
+
+  function requestWalletAdjustment() {
+    const units = walletAdjustmentUnits();
+    if (!walletUserId || !walletSeasonId) return setToast("Choose a user and season.");
+    if (units === null) return setToast("Enter a positive coin amount with no more than two decimal places.");
+    if (walletReason.trim().length < 5) return setToast("Enter a clear reason of at least five characters.");
+    if (selectedWalletBalance + units < 0) return setToast("This adjustment would make the wallet balance negative.");
+    setWalletRequestId(crypto.randomUUID());
+    setWalletConfirmOpen(true);
+  }
+
+  async function adjustWallet() {
+    const units = walletAdjustmentUnits();
+    if (units === null || !walletRequestId) return;
+    setBusy(true);
+    const { data: result, error } = await supabase.rpc("admin_adjust_betting_wallet", {
+      target_user_id: walletUserId,
+      target_season_id: walletSeasonId,
+      adjustment_units: units,
+      adjustment_reason: walletReason.trim(),
+      request_id: walletRequestId
+    });
+    setBusy(false);
+    setWalletConfirmOpen(false);
+    setWalletRequestId(null);
+    if (error) return setToast(error.message);
+    const nextBalance = Number((result as { balance_units?: number } | null)?.balance_units ?? selectedWalletBalance + units);
+    setWalletAmount("");
+    setWalletReason("");
+    setToast(`${selectedWalletProfile?.username || "User"} wallet adjusted. New balance: ${formatCoins(nextBalance)} coins.`);
+    await betting.reload();
+  }
 
   async function generate() {
     if (!game) return;
@@ -128,6 +185,16 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
       <Toast message={toast} onDone={() => setToast(null)} />
       <ConfirmDialog open={approveOpen} title="Approve and open these markets?" text={`You are approving ${markets.length} markets generated from the confirmed player lineups. Users can place bets immediately and every accepted price becomes immutable. Betting locks automatically ${settings?.lock_minutes ?? 5} minutes before kick-off.`} confirmLabel="Approve markets" confirmTone="primary" cancelLabel="Keep reviewing" onCancel={() => setApproveOpen(false)} onConfirm={() => setStatus("open")} />
       <ConfirmDialog open={deleteOpen} title="Delete all markets for this game?" text="This removes the generated set so you can create it again. It is allowed only when nobody has placed a bet." confirmLabel="Delete markets" onCancel={() => setDeleteOpen(false)} onConfirm={deleteMarkets} />
+      <ConfirmDialog
+        open={walletConfirmOpen}
+        title={`${walletDirection === "credit" ? "Add" : "Remove"} ${formatCoins(Math.abs(walletAdjustmentUnits() || 0))} coins?`}
+        text={`${selectedWalletProfile?.username || "This user"} currently has ${formatCoins(selectedWalletBalance)} coins for ${selectedWalletSeason?.name || "the selected season"}. The new balance will be ${formatCoins(selectedWalletBalance + (walletAdjustmentUnits() || 0))}. Reason: ${walletReason.trim()} This creates permanent ledger and audit entries.`}
+        confirmLabel={busy ? "Applying..." : "Confirm adjustment"}
+        confirmTone="primary"
+        cancelLabel="Cancel"
+        onCancel={() => { if (!busy) { setWalletConfirmOpen(false); setWalletRequestId(null); } }}
+        onConfirm={adjustWallet}
+      />
       <Modal open={manageOpen} title="Manage betting markets" onClose={() => setManageOpen(false)}>
         <h2 className="font-display text-3xl uppercase">Manage markets</h2>
         <p className="mt-2 text-sm text-chalk/60">Choose what to do with this game&apos;s markets. Accepted bets always keep their original odds.</p>
@@ -147,6 +214,31 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
           {status ? <MarketStatus status={status} /> : null}
         </div>
         <label className="mt-5 block max-w-xl"><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/50">Game</span><Select value={gameId} onChange={event => setGameId(event.target.value)}>{eligibleGames.map(item => <option key={item.id} value={item.id}>{formatDateTime(item.game_date)} — {item.status}</option>)}</Select></label>
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-league-gold"><CircleDollarSign size={18} /><span className="text-xs font-bold uppercase tracking-[.2em]">Controlled correction</span></div>
+            <h3 className="mt-2 font-display text-3xl uppercase">Adjust wallet</h3>
+            <p className="mt-1 max-w-2xl text-sm text-chalk/55">Correct a virtual-coin balance without rewriting its history. A reason, ledger entry, and admin audit entry are always required.</p>
+          </div>
+          <div className="rounded-xl border border-league-gold/20 bg-league-gold/[.055] px-4 py-2 text-right">
+            <div className="text-[9px] font-black uppercase tracking-wider text-chalk/40">Current balance</div>
+            <div className="font-mono text-xl font-black text-league-gold">{formatCoins(selectedWalletBalance)} coins</div>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <label><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-chalk/45">User</span><Select value={walletUserId} onChange={event => setWalletUserId(event.target.value)}>{data.profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.username}</option>)}</Select></label>
+          <label><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-chalk/45">Season</span><Select value={walletSeasonId} onChange={event => setWalletSeasonId(event.target.value)}>{data.seasons.map(season => <option key={season.id} value={season.id}>{season.name}</option>)}</Select></label>
+          <label><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-chalk/45">Adjustment</span><Select value={walletDirection} onChange={event => setWalletDirection(event.target.value as "credit" | "debit")}><option value="credit">Add coins</option><option value="debit">Remove coins</option></Select></label>
+          <label><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-chalk/45">Amount in coins</span><TextInput type="number" min="0.01" step="0.01" inputMode="decimal" value={walletAmount} onChange={event => setWalletAmount(event.target.value)} placeholder="10" /></label>
+        </div>
+        <label className="mt-3 block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-chalk/45">Mandatory reason</span><TextArea rows={3} maxLength={500} value={walletReason} onChange={event => setWalletReason(event.target.value)} placeholder="Explain why this balance needs to be corrected…" /></label>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-chalk/40">{selectedWallet ? "Existing seasonal wallet selected." : "The seasonal wallet will be initialized before applying this correction."}</p>
+          <PrimaryButton type="button" disabled={busy || !walletUserId || !walletSeasonId} onClick={requestWalletAdjustment}>Review adjustment</PrimaryButton>
+        </div>
       </Card>
 
       {game ? <div className="grid gap-3 md:grid-cols-4">

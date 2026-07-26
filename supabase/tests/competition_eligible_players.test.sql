@@ -4,6 +4,10 @@ insert into auth.users(id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-000000000001', 'admin@example.test', '{"username":"admin"}'),
   ('00000000-0000-4000-8000-000000000002', 'member@example.test', '{"username":"member"}');
 
+update public.profiles
+set is_admin = true
+where id = '00000000-0000-4000-8000-000000000001';
+
 insert into public.players(id, name, default_position) values
   ('10000000-0000-4000-8000-000000000001', 'Anonymous', 'outfield'),
   ('10000000-0000-4000-8000-000000000002', 'Player 2', 'goalkeeper'),
@@ -75,7 +79,7 @@ begin
     raise exception 'Expected guest individual market rejection';
   exception when others then
     if sqlerrm = 'Expected guest individual market rejection' then raise; end if;
-    if position('Individual betting markets cannot use guest players' in sqlerrm) = 0 then raise; end if;
+    if position('not eligible for individual betting markets' in sqlerrm) = 0 then raise; end if;
   end;
 end;
 $$;

@@ -11,7 +11,7 @@ import {
   TeamCode,
   WeeklyFantasyResult
 } from "./types";
-import { isCompetitionEligible } from "./playerEligibility";
+import { isFantasyEligible } from "./playerEligibility";
 
 export const SAVES_PER_FANTASY_POINT = 1;
 
@@ -36,7 +36,10 @@ export function calculateScore(events: MatchEvent[], lineups: GameLineup[], play
     const team = eventScoringTeam(event, lineups);
     if (team) score[team] += 1;
   }
-  for (const stat of playerStats) score[stat.team] += stat.goals;
+  for (const stat of playerStats) {
+    score[stat.team] += stat.goals;
+    score[otherTeam(stat.team)] += stat.own_goals || 0;
+  }
   return score;
 }
 
@@ -55,7 +58,7 @@ export function calculatePlayerBreakdown(args: {
   playerStats?: GamePlayerStat[];
 }): PlayerBreakdown {
   const { game, player, pick, lineups, events, playerStats = [] } = args;
-  if (!isCompetitionEligible(player)) {
+  if (!isFantasyEligible(player)) {
     const lineup = lineups.find(item => item.game_id === game.id && item.player_id === player.id);
     return {
       playerId: player.id,
@@ -77,7 +80,7 @@ export function calculatePlayerBreakdown(args: {
   const score = calculateScore(gameEvents, gameLineups, gamePlayerStats);
   const goals = gameEvents.filter(e => e.event_type === "goal" && e.player_id === player.id).length + (manualStat?.goals || 0);
   const assists = gameEvents.filter(e => e.event_type === "goal" && e.assist_player_id === player.id).length + (manualStat?.assists || 0);
-  const ownGoals = gameEvents.filter(e => e.event_type === "own_goal" && e.player_id === player.id).length;
+  const ownGoals = gameEvents.filter(e => e.event_type === "own_goal" && e.player_id === player.id).length + (manualStat?.own_goals || 0);
   const lines: string[] = [];
   let points = 0;
 
@@ -104,8 +107,7 @@ export function calculatePlayerBreakdown(args: {
     lines.push("hat-trick bonus = 3");
   }
 
-  const playerRole = pick?.role || lineup?.role || manualStat?.role;
-  const savePoints = playerRole === "goalkeeper" ? Math.floor(saves / SAVES_PER_FANTASY_POINT) : 0;
+  const savePoints = Math.floor(saves / SAVES_PER_FANTASY_POINT);
   if (savePoints) {
     points += savePoints;
     lines.push(`${saves} saves = ${savePoints}`);
@@ -246,9 +248,6 @@ export function careerStats(args: {
   events: MatchEvent[];
   playerStats: GamePlayerStat[];
 }) {
-  if (!isCompetitionEligible(args.player)) {
-    return { appearances: 0, goals: 0, assists: 0, ownGoals: 0, cleanSheets: 0, saves: 0 };
-  }
   const finalOrLiveGames = args.games.filter(g => g.status === "final" || g.status === "live");
   const gameIds = new Set(finalOrLiveGames.map(g => g.id));
   const playerLineups = args.lineups.filter(l => l.player_id === args.player.id && gameIds.has(l.game_id));
@@ -269,7 +268,7 @@ export function careerStats(args: {
     appearances: new Set([...playerLineups.map(lineup => lineup.game_id), ...playerStatRows.map(stat => stat.game_id)]).size,
     goals: playerEvents.filter(e => e.event_type === "goal" && e.player_id === args.player.id).length + playerStatRows.reduce((total, stat) => total + stat.goals, 0),
     assists: playerEvents.filter(e => e.event_type === "goal" && e.assist_player_id === args.player.id).length + playerStatRows.reduce((total, stat) => total + stat.assists, 0),
-    ownGoals: playerEvents.filter(e => e.event_type === "own_goal" && e.player_id === args.player.id).length,
+    ownGoals: playerEvents.filter(e => e.event_type === "own_goal" && e.player_id === args.player.id).length + playerStatRows.reduce((total, stat) => total + (stat.own_goals || 0), 0),
     cleanSheets,
     saves: playerStatRows.reduce((total, stat) => total + stat.saves, 0)
   };

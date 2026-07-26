@@ -9,9 +9,9 @@ import { GiGoalKeeper, GiSoccerKick } from "react-icons/gi";
 import { MdOutlineReplay } from "react-icons/md";
 import type { IconType } from "react-icons";
 import { calculatePlayerBreakdown, calculateScore } from "@/lib/scoring";
-import { isCompetitionEligible } from "@/lib/playerEligibility";
+import { isFantasyEligible } from "@/lib/playerEligibility";
 import { Game, GameLineup, LeagueData, TeamCode } from "@/lib/types";
-import { cn, playerName } from "@/lib/utils";
+import { cn, gameLineupIsReady, goalkeeperMode, playerName } from "@/lib/utils";
 import { TeamCrest } from "./TeamCrest";
 import { GameBettingPanel } from "./GameBettingPanel";
 
@@ -32,15 +32,6 @@ function matchDate(value: string) {
 
 function matchTime(value: string) {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Beirut" }).format(new Date(value));
-}
-
-function lineupReady(lineups: GameLineup[]) {
-  return (["A", "B"] as const).every(team => {
-    const teamLineup = lineups.filter(lineup => lineup.team === team);
-    return teamLineup.length === 5
-      && teamLineup.filter(lineup => lineup.role === "goalkeeper").length === 1
-      && teamLineup.every(lineup => lineup.slot_index != null);
-  });
 }
 
 export function GameMatchHub({ game, data, initialTab }: { game: Game; data: LeagueData; initialTab?: MatchDetailTab }) {
@@ -65,7 +56,7 @@ function MatchHero({ game, data, lineups }: { game: Game; data: LeagueData; line
   const events = data.events.filter(event => event.game_id === game.id);
   const playerStats = data.playerStats.filter(stat => stat.game_id === game.id);
   const score = calculateScore(events, lineups, playerStats);
-  const ready = lineupReady(lineups);
+  const ready = gameLineupIsReady(game, lineups);
   const showScore = game.status === "live" || game.status === "final";
 
   return (
@@ -150,7 +141,7 @@ function SparseMatchStats({ game, data }: { game: Game; data: LeagueData }) {
   const ids = [...new Set([...lineups.map(lineup => lineup.player_id), ...manual.map(stat => stat.player_id)])];
   const rows = ids.map(id => {
     const player = data.players.find(item => item.id === id);
-    if (!player || !isCompetitionEligible(player)) return null;
+    if (!player) return null;
     const lineup = lineups.find(item => item.player_id === id);
     const stat = manual.find(item => item.player_id === id);
     const role = lineup?.role || stat?.role || "outfield";
@@ -161,8 +152,8 @@ function SparseMatchStats({ game, data }: { game: Game; data: LeagueData }) {
       role,
       goals: events.filter(event => event.event_type === "goal" && event.player_id === id).length + (stat?.goals || 0),
       assists: events.filter(event => event.event_type === "goal" && event.assist_player_id === id).length + (stat?.assists || 0),
-      saves: role === "goalkeeper" ? stat?.saves || 0 : 0,
-      ownGoals: events.filter(event => event.event_type === "own_goal" && event.player_id === id).length
+      saves: stat?.saves || 0,
+      ownGoals: events.filter(event => event.event_type === "own_goal" && event.player_id === id).length + (stat?.own_goals || 0)
     };
     return row.goals || row.assists || row.saves || row.ownGoals ? row : null;
   }).filter(Boolean) as SparseStatRow[];
@@ -187,7 +178,7 @@ function TeamStats({ game, team, rows }: { game: Game; team: TeamCode; rows: Spa
     <section className="overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <div className="flex items-center gap-2 border-b border-league-gold/15 p-3 md:p-4"><TeamCrest gameId={game.id} team={team} className="h-10 w-9" /><div><div className="text-[10px] font-black uppercase tracking-widest text-chalk/35">Match stats</div><h2 className="font-display text-lg uppercase md:text-2xl">Team {team}</h2></div></div>
       <div className="space-y-2 p-2.5 md:p-3">
-        {ordered.map(row => <Link key={row.id} href={`/players/${row.id}`} className="block rounded-xl border border-white/[.06] bg-black/20 p-2.5 transition hover:border-league-gold/30 hover:bg-league-gold/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"><div className="truncate text-xs font-bold sm:text-sm">{row.name}</div><div className="mt-2 flex flex-wrap gap-1.5">{row.goals > 0 ? <StatChip icon={FaFutbol} value={row.goals} label="goals" /> : null}{row.assists > 0 ? <StatChip icon={GiSoccerKick} value={row.assists} label="assists" /> : null}{row.role === "goalkeeper" && row.saves > 0 ? <StatChip icon={GiGoalKeeper} value={row.saves} label="saves" /> : null}{row.ownGoals > 0 ? <StatChip icon={MdOutlineReplay} value={row.ownGoals} label="own goals" warning /> : null}</div></Link>)}
+        {ordered.map(row => <Link key={row.id} href={`/players/${row.id}`} className="block rounded-xl border border-white/[.06] bg-black/20 p-2.5 transition hover:border-league-gold/30 hover:bg-league-gold/[.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"><div className="truncate text-xs font-bold sm:text-sm">{row.name}</div><div className="mt-2 flex flex-wrap gap-1.5">{row.goals > 0 ? <StatChip icon={FaFutbol} value={row.goals} label="goals" /> : null}{row.assists > 0 ? <StatChip icon={GiSoccerKick} value={row.assists} label="assists" /> : null}{row.saves > 0 ? <StatChip icon={GiGoalKeeper} value={row.saves} label="saves" /> : null}{row.ownGoals > 0 ? <StatChip icon={MdOutlineReplay} value={row.ownGoals} label="own goals" warning /> : null}</div></Link>)}
         {!ordered.length ? <p className="px-1 py-8 text-center text-xs leading-relaxed text-chalk/35">No positive stats recorded for Team {team} yet.</p> : null}
       </div>
     </section>
@@ -213,8 +204,8 @@ function MatchPitch({ game, data, lineups }: { game: Game; data: LeagueData; lin
 
       <PitchTeamLabel game={game} team="A" />
       <PitchTeamLabel game={game} team="B" />
-      <FormationHalf team="A" data={data} lineups={lineups.filter(lineup => lineup.team === "A")} />
-      <FormationHalf team="B" data={data} lineups={lineups.filter(lineup => lineup.team === "B")} />
+      <FormationHalf team="A" mode={goalkeeperMode(game, "A")} data={data} lineups={lineups.filter(lineup => lineup.team === "A")} />
+      <FormationHalf team="B" mode={goalkeeperMode(game, "B")} data={data} lineups={lineups.filter(lineup => lineup.team === "B")} />
     </section>
   );
 }
@@ -223,15 +214,15 @@ function PitchTeamLabel({ game, team }: { game: Game; team: TeamCode }) {
   return <div className={cn("absolute z-20 flex items-center gap-2 rounded-xl border border-white/10 bg-ink-900/75 px-2 py-1.5 backdrop-blur", team === "A" ? "left-5 top-5" : "bottom-5 right-5 flex-row-reverse")}><TeamCrest gameId={game.id} team={team} className="h-8 w-7" /><span className="text-[10px] font-black uppercase tracking-widest">Team {team}</span></div>;
 }
 
-function FormationHalf({ team, data, lineups }: { team: TeamCode; data: LeagueData; lineups: GameLineup[] }) {
+function FormationHalf({ team, mode, data, lineups }: { team: TeamCode; mode: "fixed" | "rotating"; data: LeagueData; lineups: GameLineup[] }) {
   const ordered = [...lineups].sort((first, second) => (first.slot_index ?? 99) - (second.slot_index ?? 99));
   const keeper = ordered.find(lineup => lineup.role === "goalkeeper");
   const outfield = ordered.filter(lineup => lineup.role !== "goalkeeper");
-  const slots = [keeper, ...outfield.slice(0, 2), ...outfield.slice(2, 4)];
+  const slots = mode === "fixed" ? [keeper, ...outfield.slice(0, 2), ...outfield.slice(2, 4)] : ordered;
   const positions = team === "A"
     ? ["top-[7%] left-1/2", "top-[22%] left-[28%]", "top-[22%] left-[72%]", "top-[39%] left-[28%]", "top-[39%] left-[72%]"]
     : ["bottom-[7%] left-1/2", "bottom-[22%] left-[28%]", "bottom-[22%] left-[72%]", "bottom-[39%] left-[28%]", "bottom-[39%] left-[72%]"];
-  return <>{slots.map((lineup, index) => <div key={lineup?.id || `${team}-${index}`} className={cn("absolute z-10 -translate-x-1/2", positions[index])}><PitchPlayer playerId={lineup?.player_id} name={lineup ? playerName(data.players, lineup.player_id) : "TBD"} role={index === 0 ? "goalkeeper" : "outfield"} team={team} pending={!lineup} /></div>)}</>;
+  return <>{slots.map((lineup, index) => <div key={lineup?.id || `${team}-${index}`} className={cn("absolute z-10 -translate-x-1/2", positions[index])}><PitchPlayer playerId={lineup?.player_id} name={lineup ? playerName(data.players, lineup.player_id) : "TBD"} role={mode === "fixed" && index === 0 ? "goalkeeper" : "outfield"} team={team} pending={!lineup} /></div>)}</>;
 }
 
 function PitchPlayer({ playerId, name, role, team, pending }: { playerId?: string; name: string; role: "goalkeeper" | "outfield"; team: TeamCode; pending: boolean }) {
@@ -269,7 +260,7 @@ function MatchFantasy({ game, data }: { game: Game; data: LeagueData }) {
     );
   }
 
-  const eligibleIds = new Set(data.players.filter(isCompetitionEligible).map(player => player.id));
+  const eligibleIds = new Set(data.players.filter(isFantasyEligible).map(player => player.id));
   const ids = [...new Set([...data.lineups.filter(lineup => lineup.game_id === game.id).map(lineup => lineup.player_id), ...data.playerStats.filter(stat => stat.game_id === game.id).map(stat => stat.player_id)])].filter(id => eligibleIds.has(id));
   const rows = ids.map(id => {
     const player = data.players.find(item => item.id === id)!;

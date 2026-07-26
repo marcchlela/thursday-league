@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { BellRing, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Pencil, Trash2, UsersRound, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Trash2, UsersRound, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import { calculateScore } from "@/lib/scoring";
-import { isCompetitionEligible } from "@/lib/playerEligibility";
-import { cn, formatDateTime, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
-import { Game, LeagueData, Player, PlayerPosition, TeamCode } from "@/lib/types";
+import { isFantasyEligible, isGuestPlayer, isIndividualBettingEligible } from "@/lib/playerEligibility";
+import { cn, formatDateTime, gameLineupIsReady, goalkeeperMode, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
+import { Game, GoalkeeperMode, LeagueData, Player, PlayerPosition, PlayerType, TeamCode } from "@/lib/types";
+import { AdminMatchStatsGrid } from "./AdminMatchStatsGrid";
 import { AdminAuditHistory } from "./AdminAuditHistory";
 import { AdminBettingManager } from "./AdminBettingManager";
 import { AdminNotificationHistory } from "./AdminNotificationHistory";
@@ -18,7 +20,6 @@ type AdminTab = "games" | "roster" | "betting" | "seasons" | "notifications" | "
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
 type PushSendResult = { total: number; sent: number; failed: number; removed: number };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
-type ManualStatType = "goals" | "assists" | "saves";
 type ConfirmState = {
   title: string;
   text?: string;
@@ -53,14 +54,36 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   const [focusGameId, setFocusGameId] = useState<string | null>(null);
   const [playerNameInput, setPlayerNameInput] = useState("");
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>("outfield");
-  const [playerCompetitionEligible, setPlayerCompetitionEligible] = useState(true);
+  const [newPlayerType, setNewPlayerType] = useState<PlayerType>("regular");
+  const [newPlayerFantasyEligible, setNewPlayerFantasyEligible] = useState(true);
+  const [newPlayerBettingEligible, setNewPlayerBettingEligible] = useState(true);
   const [gameDate, setGameDate] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [dirtyStatGameIds, setDirtyStatGameIds] = useState<Set<string>>(() => new Set());
   const games = useMemo(
     () => [...data.games].sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()),
     [data.games]
   );
+  const hasUnsavedStats = dirtyStatGameIds.size > 0;
+
+  useUnsavedChangesWarning(hasUnsavedStats);
+
+  const setGameStatsDirty = useCallback((gameId: string, dirty: boolean) => {
+    setDirtyStatGameIds(current => {
+      const next = new Set(current);
+      if (dirty) next.add(gameId);
+      else next.delete(gameId);
+      return next;
+    });
+  }, []);
+
+  function changeAdminTab(nextTab: AdminTab) {
+    if (nextTab === activeTab) return;
+    if (hasUnsavedStats && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    setDirtyStatGameIds(new Set());
+    setActiveTab(nextTab);
+  }
 
   function notify(message: string) {
     setToast(message);
@@ -78,10 +101,18 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   async function addPlayer(e: React.FormEvent) {
     e.preventDefault();
     if (!playerNameInput.trim()) return;
-    const { error } = await supabase.from("players").insert({ name: playerNameInput.trim(), default_position: playerPosition, competition_eligible: playerCompetitionEligible });
+    const { error } = await supabase.from("players").insert({
+      name: playerNameInput.trim(),
+      default_position: playerPosition,
+      player_type: newPlayerType,
+      fantasy_eligible: newPlayerFantasyEligible,
+      individual_betting_eligible: newPlayerBettingEligible
+    });
     if (error) return notify(error.message);
     setPlayerNameInput("");
-    setPlayerCompetitionEligible(true);
+    setNewPlayerType("regular");
+    setNewPlayerFantasyEligible(true);
+    setNewPlayerBettingEligible(true);
     notify("Player added.");
     reload();
   }
@@ -142,22 +173,27 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 
       <AdminStatsPanel data={data} />
 
-      <AdminSectionTabs active={activeTab} onChange={setActiveTab} />
+      <AdminSectionTabs active={activeTab} onChange={changeAdminTab} />
 
       {activeTab === "games" ? (
         <div id="admin-games-panel" role="tabpanel" aria-labelledby="admin-games-tab" className="space-y-6">
           <QuickStartChecklist data={data} />
-          <Card>
-            <h2 className="font-display text-3xl uppercase">Create Game</h2>
-            <form onSubmit={createGame} className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <TextInput type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
-              <PrimaryButton>Create</PrimaryButton>
-            </form>
+          <Card className="overflow-hidden p-0">
+            <div className="grid md:grid-cols-[.72fr_1.28fr]">
+              <div className="flex items-center gap-3 border-b border-league-gold/15 bg-league-gold/[.035] p-4 md:border-b-0 md:border-r sm:p-5">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-league-gold/20 bg-league-gold/[.07] text-league-gold"><CalendarPlus size={21} /></span>
+                <div><div className="text-[9px] font-black uppercase tracking-[.18em] text-league-gold/65">Schedule</div><h2 className="font-display text-3xl uppercase">Create Game</h2></div>
+              </div>
+              <form onSubmit={createGame} className="grid min-w-0 gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
+                <TextInput className="min-w-0 w-full" type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
+                <PrimaryButton className="w-full whitespace-nowrap sm:w-auto">Create game</PrimaryButton>
+              </form>
+            </div>
           </Card>
 
           <div className="space-y-4">
             {games.map((game, index) => (
-              <GameSection key={game.id} game={game} data={data} reload={reload} defaultOpen={index === 0} forceOpen={focusGameId === game.id} notify={notify} requestConfirm={requestConfirm} />
+              <GameSection key={game.id} game={game} data={data} reload={reload} defaultOpen={index === 0} forceOpen={focusGameId === game.id} statsDirty={dirtyStatGameIds.has(game.id)} onStatsDirtyChange={setGameStatsDirty} notify={notify} requestConfirm={requestConfirm} />
             ))}
           </div>
           {!games.length ? <EmptyState title="No games yet" text="Create the first Thursday game to start setting lineups." /> : null}
@@ -165,14 +201,26 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       ) : activeTab === "roster" ? (
         <Card id="admin-roster-panel" role="tabpanel" aria-labelledby="admin-roster-tab">
           <h2 className="font-display text-3xl uppercase">Roster</h2>
-          <form onSubmit={addPlayer} className="mt-4 grid gap-3 md:grid-cols-[1fr_180px_auto_auto] md:items-center">
+          <form onSubmit={addPlayer} className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_150px_140px_auto] lg:items-center">
             <TextInput value={playerNameInput} onChange={e => setPlayerNameInput(e.target.value)} placeholder="Player name" />
             <Select value={playerPosition} onChange={e => setPlayerPosition(e.target.value as PlayerPosition)}>
               <option value="outfield">Outfield</option>
               <option value="goalkeeper">Goalkeeper</option>
             </Select>
-            <label className="flex items-center gap-2 rounded-2xl border border-league-gold/15 bg-black/20 px-3 py-3 text-sm text-chalk/70"><input type="checkbox" checked={playerCompetitionEligible} onChange={event => setPlayerCompetitionEligible(event.target.checked)} className="accent-league-gold" /> Fantasy, stats & bets</label>
+            <Select value={newPlayerType} onChange={event => {
+              const type = event.target.value as PlayerType;
+              setNewPlayerType(type);
+              setNewPlayerFantasyEligible(type === "regular");
+              setNewPlayerBettingEligible(type === "regular");
+            }}>
+              <option value="regular">Regular player</option>
+              <option value="guest">Guest player</option>
+            </Select>
             <PrimaryButton>Add player</PrimaryButton>
+            <div className="grid gap-2 sm:grid-cols-2 lg:col-span-4">
+              <EligibilityToggle checked={newPlayerFantasyEligible} onChange={setNewPlayerFantasyEligible} title="Fantasy eligible" detail="Can be selected and earn Fantasy points." />
+              <EligibilityToggle checked={newPlayerBettingEligible} onChange={setNewPlayerBettingEligible} title="Individual betting eligible" detail="Can receive personal goals, assists and saves markets." />
+            </div>
           </form>
 
           <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -286,18 +334,23 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
   const [name, setName] = useState(player.name);
   const [position, setPosition] = useState<PlayerPosition>(player.default_position);
   const [active, setActive] = useState(player.active);
-  const [competitionEligible, setCompetitionEligible] = useState(isCompetitionEligible(player));
+  const [playerType, setPlayerType] = useState<PlayerType>(isGuestPlayer(player) ? "guest" : "regular");
+  const [fantasyEligible, setFantasyEligible] = useState(isFantasyEligible(player));
+  const [bettingEligible, setBettingEligible] = useState(isIndividualBettingEligible(player));
 
   async function save() {
-    const eligibilityChanged = competitionEligible !== isCompetitionEligible(player);
-    const { error } = await supabase.from("players").update({ name: name.trim(), default_position: position, active }).eq("id", player.id);
+    const { error } = await supabase.rpc("admin_update_player_settings", {
+      target_player_id: player.id,
+      new_name: name.trim(),
+      new_position: position,
+      new_active: active,
+      new_player_type: playerType,
+      new_fantasy_eligibility: fantasyEligible,
+      new_betting_eligibility: bettingEligible
+    });
     if (error) return notify(error.message);
-    if (eligibilityChanged) {
-      const { error: eligibilityError } = await supabase.rpc("admin_set_player_competition_eligibility", { target_player_id: player.id, new_eligibility: competitionEligible });
-      if (eligibilityError) return notify(eligibilityError.message);
-    }
     setEditing(false);
-    notify(!competitionEligible && eligibilityChanged ? "Player saved as a guest. Any affected upcoming betting markets were suspended for review." : "Player saved.");
+    notify("Player settings saved. Affected upcoming betting markets were suspended when required.");
     reload();
   }
 
@@ -317,8 +370,20 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
             <option value="outfield">Outfield</option>
             <option value="goalkeeper">Goalkeeper</option>
           </Select>
+          <Select value={playerType} onChange={event => {
+            const type = event.target.value as PlayerType;
+            setPlayerType(type);
+            if (type === "guest") {
+              setFantasyEligible(false);
+              setBettingEligible(false);
+            }
+          }}>
+            <option value="regular">Regular player</option>
+            <option value="guest">Guest player</option>
+          </Select>
           <label className="flex items-center gap-2 text-sm text-chalk/70"><input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="accent-league-gold" /> Active</label>
-          <label className="flex items-start gap-2 rounded-xl border border-league-gold/15 bg-black/20 p-2 text-sm text-chalk/70"><input type="checkbox" checked={competitionEligible} onChange={event => setCompetitionEligible(event.target.checked)} className="mt-1 accent-league-gold" /><span><span className="block">Fantasy, stats & bets</span><span className="block text-xs text-chalk/40">Turn off for a reusable guest such as Anonymous.</span></span></label>
+          <EligibilityToggle checked={fantasyEligible} onChange={setFantasyEligible} title="Fantasy eligible" detail="Can be selected and earn Fantasy points." />
+          <EligibilityToggle checked={bettingEligible} onChange={setBettingEligible} title="Individual betting eligible" detail="Can receive personal betting markets." />
           <div className="flex gap-2">
             <PrimaryButton type="button" onClick={save} className="flex-1">Save</PrimaryButton>
             <SecondaryButton type="button" onClick={() => setEditing(false)}>Cancel</SecondaryButton>
@@ -332,10 +397,20 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
     <div className="flex items-center justify-between rounded-2xl border border-league-gold/15 bg-black/15 px-3 py-2">
       <button type="button" onClick={() => setEditing(true)} className="min-w-0 text-left">
         <div className="truncate font-semibold">{player.name}</div>
-        <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position}{!isCompetitionEligible(player) ? " - guest/excluded" : player.archived_at ? " - archived" : player.active ? "" : " - inactive"}</div>
+        <div className="text-xs uppercase tracking-wider text-chalk/45">{player.default_position} · {isGuestPlayer(player) ? "guest" : "regular"}{player.archived_at ? " · archived" : player.active ? "" : " · inactive"}</div>
+        <div className="mt-0.5 text-[9px] text-chalk/30">Fantasy {isFantasyEligible(player) ? "on" : "off"} · Individual bets {isIndividualBettingEligible(player) ? "on" : "off"}</div>
       </button>
       {player.archived_at ? <button type="button" onClick={restore} className="rounded-xl border border-turf-400/30 px-3 py-1.5 text-xs font-bold text-turf-400">Restore</button> : <button type="button" onClick={() => onArchive(player.id)} className="rounded-xl p-2 text-chalk/45 hover:text-league-gold" aria-label={`Archive ${player.name}`}><Trash2 size={16} /></button>}
     </div>
+  );
+}
+
+function EligibilityToggle({ checked, onChange, title, detail }: { checked: boolean; onChange: (checked: boolean) => void; title: string; detail: string }) {
+  return (
+    <label className="flex items-start gap-2 rounded-xl border border-league-gold/15 bg-black/20 p-2.5 text-sm text-chalk/70">
+      <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="mt-1 accent-league-gold" />
+      <span><span className="block font-semibold">{title}</span><span className="block text-xs leading-relaxed text-chalk/40">{detail}</span></span>
+    </label>
   );
 }
 
@@ -351,6 +426,8 @@ function GameSection({
   reload,
   defaultOpen,
   forceOpen,
+  statsDirty,
+  onStatsDirtyChange,
   notify,
   requestConfirm
 }: {
@@ -359,6 +436,8 @@ function GameSection({
   reload: () => void;
   defaultOpen: boolean;
   forceOpen: boolean;
+  statsDirty: boolean;
+  onStatsDirtyChange: (gameId: string, dirty: boolean) => void;
   notify: (message: string) => void;
   requestConfirm: (state: NonNullable<ConfirmState>) => void;
 }) {
@@ -367,9 +446,7 @@ function GameSection({
   const events = data.events.filter(event => event.game_id === game.id);
   const playerStats = data.playerStats.filter(stat => stat.game_id === game.id);
   const score = calculateScore(events, lineups, playerStats);
-  const savedTeamA = lineups.filter(lineup => lineup.team === "A");
-  const savedTeamB = lineups.filter(lineup => lineup.team === "B");
-  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.every(lineup => lineup.slot_index != null) && savedTeamB.every(lineup => lineup.slot_index != null) && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length === 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length === 1;
+  const lineupReady = gameLineupIsReady(game, lineups);
 
   useEffect(() => {
     if (!forceOpen) return;
@@ -377,11 +454,19 @@ function GameSection({
     window.setTimeout(() => document.getElementById(`admin-game-${game.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }, [forceOpen, game.id]);
 
+  function toggleOpen() {
+    if (open && statsDirty) {
+      if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+      onStatsDirtyChange(game.id, false);
+    }
+    setOpen(value => !value);
+  }
+
   return (
     <section id={`admin-game-${game.id}`} className="scroll-mt-24 overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <button
         type="button"
-        onClick={() => setOpen(value => !value)}
+        onClick={toggleOpen}
         className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-4 text-left transition hover:bg-league-gold/[.035]"
       >
         <div className="min-w-0">
@@ -400,34 +485,34 @@ function GameSection({
       </button>
       {open ? (
         <div className="space-y-6 p-4 md:p-5">
-          <GameManager game={game} data={data} reload={reload} notify={notify} requestConfirm={requestConfirm} />
+          <GameManager game={game} data={data} reload={reload} onStatsDirtyChange={onStatsDirtyChange} notify={notify} requestConfirm={requestConfirm} />
         </div>
       ) : null}
     </section>
   );
 }
 
-function GameManager({ game, data, reload, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; notify: (message: string) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
+function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; onStatsDirtyChange: (gameId: string, dirty: boolean) => void; notify: (message: string) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
   const currentLineup = useMemo(() => data.lineups.filter(l => l.game_id === game.id), [data.lineups, game.id]);
   const gameEvents = data.events.filter(e => e.game_id === game.id);
   const gamePlayerStats = data.playerStats.filter(stat => stat.game_id === game.id);
   const score = calculateScore(gameEvents, currentLineup, gamePlayerStats);
+  const savedTeamAGoalkeeperMode = goalkeeperMode(game, "A");
+  const savedTeamBGoalkeeperMode = goalkeeperMode(game, "B");
   const [lineupDraft, setLineupDraft] = useState<LineupDraft>({});
   const [lineupOpen, setLineupOpen] = useState(currentLineup.length === 0);
   const [dragPlayerId, setDragPlayerId] = useState<string | null>(null);
-  const [eventType, setEventType] = useState<"goal" | "own_goal">("goal");
-  const [eventPlayerId, setEventPlayerId] = useState(currentLineup[0]?.player_id || "");
-  const [assistPlayerId, setAssistPlayerId] = useState("");
-  const [minute, setMinute] = useState("");
+  const [teamAGoalkeeperMode, setTeamAGoalkeeperMode] = useState<GoalkeeperMode>(savedTeamAGoalkeeperMode);
+  const [teamBGoalkeeperMode, setTeamBGoalkeeperMode] = useState<GoalkeeperMode>(savedTeamBGoalkeeperMode);
   const [potm, setPotm] = useState(game.potm_player_id || "");
   const [dateEdit, setDateEdit] = useState(toLocalDatetimeInput(game.game_date));
-  const [manualStatPlayerId, setManualStatPlayerId] = useState("");
-  const [manualStatTeam, setManualStatTeam] = useState<TeamCode>("A");
-  const [manualStatRole, setManualStatRole] = useState<PlayerPosition>("outfield");
-  const [manualStatType, setManualStatType] = useState<ManualStatType>("goals");
-  const [manualStatValue, setManualStatValue] = useState("0");
   const [correctionReason, setCorrectionReason] = useState("");
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [statsDirty, setStatsDirty] = useState(false);
+  const handleStatsDirtyChange = useCallback((dirty: boolean) => {
+    setStatsDirty(dirty);
+    onStatsDirtyChange(game.id, dirty);
+  }, [game.id, onStatsDirtyChange]);
 
   useEffect(() => {
     const draft: LineupDraft = {};
@@ -439,11 +524,11 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
       };
     }
     setLineupDraft(draft);
-    setEventPlayerId(currentLineup[0]?.player_id || "");
-    setAssistPlayerId("");
+    setTeamAGoalkeeperMode(savedTeamAGoalkeeperMode);
+    setTeamBGoalkeeperMode(savedTeamBGoalkeeperMode);
     setPotm(game.potm_player_id || "");
     setDateEdit(toLocalDatetimeInput(game.game_date));
-  }, [game.id, game.game_date, game.potm_player_id, data.players, currentLineup]);
+  }, [game.id, game.game_date, game.potm_player_id, savedTeamAGoalkeeperMode, savedTeamBGoalkeeperMode, data.players, currentLineup]);
 
   const rosterPlayers = useMemo(
     () => data.players.filter(player => (player.active && !player.archived_at) || lineupDraft[player.id]?.team),
@@ -453,28 +538,26 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   const availablePlayers = useMemo(() => rosterPlayers.filter(p => !lineupDraft[p.id]?.team), [rosterPlayers, lineupDraft]);
   const teamAPlayers = useMemo(() => selectedPlayers.filter(p => lineupDraft[p.id]?.team === "A"), [selectedPlayers, lineupDraft]);
   const teamBPlayers = useMemo(() => selectedPlayers.filter(p => lineupDraft[p.id]?.team === "B"), [selectedPlayers, lineupDraft]);
-  const eventPlayers = useMemo(() => data.players.filter(player => currentLineup.some(lineup => lineup.player_id === player.id)), [data.players, currentLineup]);
-  const selectedManualStatLineup = currentLineup.find(lineup => lineup.player_id === manualStatPlayerId);
-  const statsPlayers = data.players;
+  const lineupPlayers = useMemo(() => data.players.filter(player => currentLineup.some(lineup => lineup.player_id === player.id)), [data.players, currentLineup]);
   const teamAGoalkeepers = teamAPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
   const teamBGoalkeepers = teamBPlayers.filter(player => draftValue(player).role === "goalkeeper").length;
   const lineupIssues = [
     teamAPlayers.length !== 5 ? `Team A needs exactly 5 players (${teamAPlayers.length}/5).` : null,
     teamBPlayers.length !== 5 ? `Team B needs exactly 5 players (${teamBPlayers.length}/5).` : null,
-    teamAGoalkeepers !== 1 ? `Team A needs exactly one goalkeeper (${teamAGoalkeepers}/1).` : null,
-    teamBGoalkeepers !== 1 ? `Team B needs exactly one goalkeeper (${teamBGoalkeepers}/1).` : null
+    teamAGoalkeeperMode === "fixed" && teamAGoalkeepers !== 1 ? `Team A fixed mode needs exactly one goalkeeper (${teamAGoalkeepers}/1).` : null,
+    teamAGoalkeeperMode === "rotating" && teamAGoalkeepers !== 0 ? "Team A rotating mode uses five outfield players." : null,
+    teamBGoalkeeperMode === "fixed" && teamBGoalkeepers !== 1 ? `Team B fixed mode needs exactly one goalkeeper (${teamBGoalkeepers}/1).` : null,
+    teamBGoalkeeperMode === "rotating" && teamBGoalkeepers !== 0 ? "Team B rotating mode uses five outfield players." : null
   ].filter(Boolean) as string[];
   const lineupCanSave = lineupIssues.length === 0;
   const draftReady = lineupCanSave;
-  const savedTeamA = currentLineup.filter(lineup => lineup.team === "A");
-  const savedTeamB = currentLineup.filter(lineup => lineup.team === "B");
-  const lineupReady = savedTeamA.length === 5 && savedTeamB.length === 5 && savedTeamA.every(lineup => lineup.slot_index != null) && savedTeamB.every(lineup => lineup.slot_index != null) && savedTeamA.filter(lineup => lineup.role === "goalkeeper").length === 1 && savedTeamB.filter(lineup => lineup.role === "goalkeeper").length === 1;
+  const lineupReady = gameLineupIsReady(game, currentLineup);
   const canFinalize = lineupReady;
   const matchControlText = lineupReady
-    ? "Lineups are ready. You can start the game, log events, and set POTM."
+    ? "Lineups are ready. You can enter the result, set POTM, and control the match status."
     : draftReady
       ? "Save this lineup before starting the game or entering events."
-      : "Save exactly 5 players on each team, including one goalkeeper, before starting the game or entering events.";
+      : "Save exactly 5 players on each team using either fixed or rotating goalkeeper mode.";
 
   function draftValue(player: Player) {
     return lineupDraft[player.id] || { team: null, role: player.default_position };
@@ -483,11 +566,12 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   function movePlayer(playerId: string, team: TeamCode | null) {
     const player = data.players.find(p => p.id === playerId);
     if (!player) return;
+    const targetMode = team === "A" ? teamAGoalkeeperMode : team === "B" ? teamBGoalkeeperMode : null;
     setLineupDraft(draft => ({
       ...draft,
       [playerId]: {
         team,
-        role: draft[playerId]?.role || player.default_position
+        role: targetMode === "rotating" ? "outfield" : draft[playerId]?.role || player.default_position
       }
     }));
   }
@@ -495,6 +579,17 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   function setRole(player: Player, role: PlayerPosition) {
     const value = draftValue(player);
     setLineupDraft(draft => ({ ...draft, [player.id]: { ...value, role } }));
+  }
+
+  function setGoalkeeperMode(team: TeamCode, mode: GoalkeeperMode) {
+    if (team === "A") setTeamAGoalkeeperMode(mode);
+    else setTeamBGoalkeeperMode(mode);
+    if (mode === "rotating") {
+      setLineupDraft(draft => Object.fromEntries(Object.entries(draft).map(([playerId, value]) => [
+        playerId,
+        value.team === team ? { ...value, role: "outfield" as PlayerPosition } : value
+      ])));
+    }
   }
 
   function handleDrop(e: React.DragEvent, team: TeamCode | null) {
@@ -517,7 +612,12 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
       return teamPlayers.map((player, slot_index) => ({ player_id: player.id, team, role: draftValue(player).role, slot_index }));
     });
     const firstPublication = !lineupReady;
-    const { error } = await supabase.rpc("save_game_lineup", { target_game_id: game.id, submitted_lineup: rows });
+    const { error } = await supabase.rpc("save_game_lineup_v2", {
+      target_game_id: game.id,
+      submitted_lineup: rows,
+      team_a_mode: teamAGoalkeeperMode,
+      team_b_mode: teamBGoalkeeperMode
+    });
     if (error) return notify(error.message);
     setLineupOpen(false);
     if (firstPublication) {
@@ -535,7 +635,7 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
 
   async function updateStatus(status: Game["status"]) {
     if ((status === "live" || status === "final") && !lineupReady) {
-      notify("Set and save exactly 5 players per team, including one goalkeeper, before changing the game status.");
+      notify("Set and save exactly 5 players per team with a valid goalkeeper mode before changing the game status.");
       return;
     }
     if (status === "final" && !canFinalize) {
@@ -560,8 +660,10 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
   function requestFinalization() {
     const warnings = [
       !game.potm_player_id ? "POTM is not set." : null,
-      gameEvents.length === 0 && gamePlayerStats.every(stat => stat.goals === 0) ? "No goals or own goals are recorded." : null,
-      potm !== (game.potm_player_id || "") ? "The current POTM selection has not been saved." : null
+      score.A === 0 && score.B === 0 ? "The score is 0–0; confirm that no goals or own goals are missing." : null,
+      gamePlayerStats.every(stat => stat.saves === 0) ? "No saves are recorded; confirm that zero is correct." : null,
+      potm !== (game.potm_player_id || "") ? "The current POTM selection has not been saved." : null,
+      statsDirty ? "The statistics grid has unsaved changes." : null
     ].filter(Boolean);
     requestConfirm({
       title: "Finalize this game?",
@@ -588,81 +690,11 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
     reload();
   }
 
-  async function addEvent(e: React.FormEvent) {
-    e.preventDefault();
-    if (!lineupReady || !eventPlayerId) return;
-    const { error } = await supabase.from("events").insert({
-      game_id: game.id,
-      event_type: eventType,
-      player_id: eventPlayerId,
-      assist_player_id: eventType === "goal" && assistPlayerId ? assistPlayerId : null,
-      minute: minute ? Number(minute) : null
-    });
-    if (error) return notify(error.message);
-    setMinute("");
-    setAssistPlayerId("");
-    notify("Event added.");
-    reload();
-  }
-
-  async function deleteEvent(id: string) {
-    requestConfirm({
-      title: "Delete event?",
-      text: "This removes the goal or own goal from this game.",
-      confirmLabel: "Delete event",
-      onConfirm: async () => {
-        const { error } = await supabase.from("events").delete().eq("id", id);
-        if (error) return notify(error.message);
-        notify("Event deleted.");
-        reload();
-      }
-    });
-  }
-
   async function savePotm() {
     if (!lineupReady) return;
     const { error } = await supabase.from("games").update({ potm_player_id: potm || null }).eq("id", game.id);
     if (error) return notify(error.message);
     notify("POTM saved.");
-    reload();
-  }
-
-  function selectStatsPlayer(playerId: string) {
-    const player = data.players.find(item => item.id === playerId);
-    const existing = gamePlayerStats.find(stat => stat.player_id === playerId);
-    const lineup = currentLineup.find(item => item.player_id === playerId);
-    setManualStatPlayerId(playerId);
-    setManualStatTeam(lineup?.team || existing?.team || "A");
-    setManualStatRole(existing?.role || player?.default_position || "outfield");
-    setManualStatValue(String(existing?.[manualStatType] || 0));
-  }
-
-  function selectStatType(statType: ManualStatType) {
-    setManualStatType(statType);
-    const existing = gamePlayerStats.find(stat => stat.player_id === manualStatPlayerId);
-    setManualStatValue(String(existing?.[statType] || 0));
-  }
-
-  async function saveManualStats(e: React.FormEvent) {
-    e.preventDefault();
-    if (!manualStatPlayerId) return notify("Choose a player first.");
-    const value = Number(manualStatValue);
-    if (!Number.isInteger(value) || value < 0) return notify("Stat value must be a whole number of 0 or more.");
-    const existing = gamePlayerStats.find(stat => stat.player_id === manualStatPlayerId);
-    const team = selectedManualStatLineup?.team || manualStatTeam;
-
-    const { error } = await supabase.from("game_player_stats").upsert({
-      game_id: game.id,
-      player_id: manualStatPlayerId,
-      team,
-      role: manualStatRole,
-      goals: existing?.goals || 0,
-      assists: existing?.assists || 0,
-      saves: existing?.saves || 0,
-      [manualStatType]: value
-    }, { onConflict: "game_id,player_id" });
-    if (error) return notify(error.message);
-    notify("Player stats saved.");
     reload();
   }
 
@@ -713,10 +745,14 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
 
         {lineupOpen ? (
           <>
-            <LineupValidation issues={lineupIssues} />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <GoalkeeperModeControl team="A" value={teamAGoalkeeperMode} onChange={mode => setGoalkeeperMode("A", mode)} />
+              <GoalkeeperModeControl team="B" value={teamBGoalkeeperMode} onChange={mode => setGoalkeeperMode("B", mode)} />
+            </div>
+            <LineupValidation issues={lineupIssues} teamAMode={teamAGoalkeeperMode} teamBMode={teamBGoalkeeperMode} />
             <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_.9fr_1fr]">
               <TeamDropZone title="Team A" team="A" players={teamAPlayers} lineupDraft={lineupDraft} onDrop={handleDrop}>
-                {teamAPlayers.map(player => <LineupPlayerCard key={player.id} player={player} value={draftValue(player)} onDragStart={setDragPlayerId} onMove={movePlayer} onRole={setRole} />)}
+                {teamAPlayers.map(player => <LineupPlayerCard key={player.id} player={player} value={draftValue(player)} goalkeeperMode={teamAGoalkeeperMode} onDragStart={setDragPlayerId} onMove={movePlayer} onRole={setRole} />)}
               </TeamDropZone>
 
               <TeamDropZone title="Available" team={null} players={availablePlayers} lineupDraft={lineupDraft} onDrop={handleDrop} compact>
@@ -724,12 +760,12 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
               </TeamDropZone>
 
               <TeamDropZone title="Team B" team="B" players={teamBPlayers} lineupDraft={lineupDraft} onDrop={handleDrop}>
-                {teamBPlayers.map(player => <LineupPlayerCard key={player.id} player={player} value={draftValue(player)} onDragStart={setDragPlayerId} onMove={movePlayer} onRole={setRole} />)}
+                {teamBPlayers.map(player => <LineupPlayerCard key={player.id} player={player} value={draftValue(player)} goalkeeperMode={teamBGoalkeeperMode} onDragStart={setDragPlayerId} onMove={movePlayer} onRole={setRole} />)}
               </TeamDropZone>
             </div>
           </>
         ) : (
-          <SavedLineupSummary players={data.players} lineups={currentLineup} />
+          <SavedLineupSummary game={game} players={data.players} lineups={currentLineup} />
         )}
       </Card>
 
@@ -740,95 +776,33 @@ function GameManager({ game, data, reload, notify, requestConfirm }: { game: Gam
             <p className="text-sm text-chalk/55">{matchControlText}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {game.status === "final" ? <SecondaryButton type="button" onClick={() => setReopenDialogOpen(true)}>Reopen for correction</SecondaryButton> : <><SecondaryButton type="button" onClick={() => updateStatus("upcoming")}>Upcoming</SecondaryButton><SecondaryButton type="button" onClick={() => updateStatus("draft")}>Draft</SecondaryButton><PrimaryButton type="button" disabled={!lineupReady} onClick={() => updateStatus("live")}>Mark live</PrimaryButton><SecondaryButton type="button" disabled={!canFinalize} onClick={requestFinalization}>Finalize &amp; settle</SecondaryButton></>}
+            {game.status === "final" ? <SecondaryButton type="button" onClick={() => setReopenDialogOpen(true)}>Reopen for correction</SecondaryButton> : <><SecondaryButton type="button" onClick={() => updateStatus("upcoming")}>Upcoming</SecondaryButton><SecondaryButton type="button" onClick={() => updateStatus("draft")}>Draft</SecondaryButton><PrimaryButton type="button" disabled={!lineupReady} onClick={() => updateStatus("live")}>Mark live</PrimaryButton><SecondaryButton type="button" disabled={!canFinalize || statsDirty} onClick={requestFinalization}>Finalize &amp; settle</SecondaryButton></>}
           </div>
         </div>
 
         {game.correction_open ? <div className="mt-4 rounded-2xl border border-league-gold/40 bg-league-gold/[.08] p-3 text-sm font-semibold text-league-gold">Correction mode is open{game.correction_reason ? `: ${game.correction_reason}` : "."} Review the result and finalize the game again when the corrections are complete.</div> : null}
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <div className="mt-5 grid gap-4 md:grid-cols-[1fr_1.15fr]">
           <section className={cn("rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4", !lineupReady && "opacity-60")}>
-            <h4 className="font-display text-2xl uppercase">Events</h4>
-            <form onSubmit={addEvent} className="mt-4 grid gap-3">
-              <Select disabled={!lineupReady || game.status === "final"} value={eventType} onChange={e => setEventType(e.target.value as "goal" | "own_goal")}>
-                <option value="goal">Goal</option>
-                <option value="own_goal">Own goal</option>
-              </Select>
-              <Select disabled={!lineupReady || game.status === "final"} value={eventPlayerId} onChange={e => setEventPlayerId(e.target.value)}>
-                <option value="">Select player</option>
-                {eventPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
-              </Select>
-              {eventType === "goal" ? (
-                <Select disabled={!lineupReady || game.status === "final"} value={assistPlayerId} onChange={e => setAssistPlayerId(e.target.value)}>
-                  <option value="">No assist</option>
-                  {eventPlayers.filter(player => player.id !== eventPlayerId && currentLineup.find(lineup => lineup.player_id === player.id)?.team === currentLineup.find(lineup => lineup.player_id === eventPlayerId)?.team).map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
-                </Select>
-              ) : null}
-              <TextInput disabled={!lineupReady || game.status === "final"} type="number" min="0" max="200" value={minute} onChange={e => setMinute(e.target.value)} placeholder="Minute optional" />
-              <PrimaryButton disabled={!lineupReady || game.status === "final"}>Add event</PrimaryButton>
-            </form>
-
-            <div className="mt-4 space-y-2">
-              {gameEvents.map(event => (
-                <div key={event.id} className="flex items-center justify-between rounded-2xl border border-league-gold/15 bg-black/20 p-3 text-sm">
-                  <span>{event.minute != null ? `${event.minute}' - ` : ""}{event.event_type === "own_goal" ? "Own goal" : "Goal"}: {playerName(data.players, event.player_id)} {event.assist_player_id ? `- assist ${playerName(data.players, event.assist_player_id)}` : ""}</span>
-                  {game.status !== "final" ? <button type="button" onClick={() => deleteEvent(event.id)} className="text-chalk/45 hover:text-red-300" aria-label="Delete event"><Trash2 size={16} /></button> : null}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className={cn("rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4", !lineupReady && "opacity-60")}>
-            <h4 className="font-display text-2xl uppercase">Player of the Match</h4>
-            <div className="mt-4 flex gap-3">
+            <div className="text-[9px] font-black uppercase tracking-[.17em] text-league-gold/60">Match award</div>
+            <h4 className="mt-1 font-display text-2xl uppercase">Player of the Match</h4>
+            <div className="mt-4 flex gap-2">
               <Select disabled={!lineupReady || game.status === "final"} value={potm} onChange={e => setPotm(e.target.value)}>
-                <option value="">No POTM</option>
-                {eventPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
+                <option value="">No POTM selected</option>
+                {lineupPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
               </Select>
-              <SecondaryButton type="button" disabled={!lineupReady || game.status === "final"} onClick={savePotm}>Save</SecondaryButton>
+              <SecondaryButton className="whitespace-nowrap" type="button" disabled={!lineupReady || game.status === "final"} onClick={savePotm}>Save POTM</SecondaryButton>
             </div>
           </section>
-
-          <section className="rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4">
-            <h4 className="font-display text-2xl uppercase">Manual Player Stats</h4>
-            <form onSubmit={saveManualStats} className="mt-4 grid gap-3">
-              <Select value={manualStatPlayerId} onChange={e => selectStatsPlayer(e.target.value)}>
-                <option value="">Select player</option>
-                {statsPlayers.map(player => <option key={player.id} value={player.id}>{player.name}</option>)}
-              </Select>
-              {manualStatPlayerId ? selectedManualStatLineup ? (
-                <div className="rounded-2xl border border-league-gold/15 bg-black/20 px-4 py-3 text-sm text-chalk/70">Team {selectedManualStatLineup.team}</div>
-              ) : (
-                <Select value={manualStatTeam} onChange={e => setManualStatTeam(e.target.value as TeamCode)}>
-                  <option value="A">Team A</option>
-                  <option value="B">Team B</option>
-                </Select>
-              ) : null}
-              <Select value={manualStatType} onChange={e => selectStatType(e.target.value as ManualStatType)}>
-                <option value="goals">Goals</option>
-                <option value="assists">Assists</option>
-                <option value="saves">Saves</option>
-              </Select>
-              <Select value={manualStatRole} onChange={e => setManualStatRole(e.target.value as PlayerPosition)}>
-                <option value="outfield">Outfield</option>
-                <option value="goalkeeper">Goalkeeper</option>
-              </Select>
-              <TextInput type="number" min="0" step="1" value={manualStatValue} onChange={e => setManualStatValue(e.target.value)} placeholder="Stat value" />
-              <PrimaryButton disabled={game.status === "final"}>Save stats</PrimaryButton>
-            </form>
-
-            <div className="mt-4 space-y-2">
-              {gamePlayerStats.map(stat => (
-                <div key={stat.id} className="flex items-center justify-between gap-3 rounded-2xl border border-league-gold/15 bg-black/20 px-3 py-2 text-sm">
-                  <span><span className="font-semibold">{playerName(data.players, stat.player_id)}</span> - Team {stat.team}, {stat.role === "goalkeeper" ? "GK" : "O"}, {stat.goals} G, {stat.assists} A, {stat.saves} S</span>
-                  <button type="button" onClick={() => selectStatsPlayer(stat.player_id)} className="rounded-lg p-1.5 text-chalk/50 hover:text-league-gold" aria-label={`Edit stats for ${playerName(data.players, stat.player_id)}`}>
-                    <Pencil size={15} />
-                  </button>
-                </div>
-              ))}
-              {!gamePlayerStats.length ? <p className="text-sm text-chalk/55">No manual stats recorded.</p> : null}
-            </div>
+          <section className="grid grid-cols-3 overflow-hidden rounded-[1.2rem] border border-league-gold/18 bg-black/15">
+            <ResultSummary value={score.A} label="Team A" />
+            <ResultSummary value={`${score.A}–${score.B}`} label="Current score" emphasized />
+            <ResultSummary value={score.B} label="Team B" />
           </section>
+        </div>
+
+        <div className="mt-4">
+          <AdminMatchStatsGrid game={game} data={data} lineups={currentLineup} disabled={!lineupReady || game.status === "final"} onSaved={reload} onDirtyChange={handleStatsDirtyChange} notify={notify} />
         </div>
       </Card>
     </div>
@@ -868,11 +842,22 @@ function TeamDropZone({
   );
 }
 
-function LineupValidation({ issues }: { issues: string[] }) {
+function GoalkeeperModeControl({ team, value, onChange }: { team: TeamCode; value: GoalkeeperMode; onChange: (mode: GoalkeeperMode) => void }) {
+  return (
+    <div className="rounded-[1rem] border border-league-gold/18 bg-black/15 p-3">
+      <div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold">Team {team} goalkeeper</span><span className="text-[9px] uppercase tracking-wider text-chalk/30">{value === "fixed" ? "1 GK + 4 OUT" : "5 OUT"}</span></div>
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/25 p-1">
+        {(["fixed", "rotating"] as GoalkeeperMode[]).map(mode => <button key={mode} type="button" aria-pressed={value === mode} onClick={() => onChange(mode)} className={cn("rounded-lg px-3 py-2 text-xs font-bold capitalize transition", value === mode ? "bg-league-gold text-[#171814]" : "text-chalk/45 hover:bg-white/[.035] hover:text-chalk")}>{mode}</button>)}
+      </div>
+    </div>
+  );
+}
+
+function LineupValidation({ issues, teamAMode, teamBMode }: { issues: string[]; teamAMode: GoalkeeperMode; teamBMode: GoalkeeperMode }) {
   if (!issues.length) {
     return (
       <div className="mt-4 rounded-2xl border border-turf-400/30 bg-turf-400/[.07] p-3 text-sm font-semibold text-turf-400">
-        Lineup is valid: exactly 5 players per team, with 1 goalkeeper and 4 outfield players.
+        Lineup is valid: Team A is {teamAMode} and Team B is {teamBMode}, with exactly five players each.
       </div>
     );
   }
@@ -887,19 +872,19 @@ function LineupValidation({ issues }: { issues: string[] }) {
   );
 }
 
-function SavedLineupSummary({ players, lineups }: { players: Player[]; lineups: { player_id: string; team: TeamCode; role: PlayerPosition }[] }) {
+function SavedLineupSummary({ game, players, lineups }: { game: Game; players: Player[]; lineups: { player_id: string; team: TeamCode; role: PlayerPosition }[] }) {
   const teamA = lineups.filter(lineup => lineup.team === "A");
   const teamB = lineups.filter(lineup => lineup.team === "B");
 
   return (
     <div className="mt-5 grid gap-4 md:grid-cols-2">
-      <SavedTeam title="Team A" players={players} lineups={teamA} />
-      <SavedTeam title="Team B" players={players} lineups={teamB} />
+      <SavedTeam title="Team A" mode={goalkeeperMode(game, "A")} players={players} lineups={teamA} />
+      <SavedTeam title="Team B" mode={goalkeeperMode(game, "B")} players={players} lineups={teamB} />
     </div>
   );
 }
 
-function SavedTeam({ title, players, lineups }: { title: string; players: Player[]; lineups: { player_id: string; role: PlayerPosition }[] }) {
+function SavedTeam({ title, mode, players, lineups }: { title: string; mode: GoalkeeperMode; players: Player[]; lineups: { player_id: string; role: PlayerPosition }[] }) {
   const sorted = sortLineupsByRole(players, lineups.map((lineup, index) => ({
     id: `${lineup.player_id}-${index}`,
     game_id: "",
@@ -911,8 +896,8 @@ function SavedTeam({ title, players, lineups }: { title: string; players: Player
   return (
     <div className="rounded-[1.2rem] border border-league-gold/18 bg-black/15 p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h4 className="font-display text-2xl uppercase">{title}</h4>
-        <Pill>{lineups.length}</Pill>
+        <div><h4 className="font-display text-2xl uppercase">{title}</h4><div className="text-[9px] font-black uppercase tracking-wider text-league-gold/55">{mode} goalkeeper</div></div>
+        <Pill>{lineups.length}/5</Pill>
       </div>
       <div className="space-y-2">
         {sorted.length ? sorted.map(lineup => (
@@ -932,6 +917,7 @@ function LineupPlayerCard({
   onDragStart,
   onMove,
   onRole,
+  goalkeeperMode: mode,
   compact
 }: {
   player: Player;
@@ -939,6 +925,7 @@ function LineupPlayerCard({
   onDragStart: (id: string) => void;
   onMove: (playerId: string, team: TeamCode | null) => void;
   onRole: (player: Player, role: PlayerPosition) => void;
+  goalkeeperMode?: GoalkeeperMode;
   compact?: boolean;
 }) {
   return (
@@ -962,10 +949,12 @@ function LineupPlayerCard({
           </button>
         ) : null}
       </div>
-      <div className={cn("mt-3 grid gap-2", compact ? "grid-cols-2" : "grid-cols-2")}>
-        <RoleButton active={value.role === "outfield"} onClick={() => onRole(player, "outfield")}>O</RoleButton>
-        <RoleButton active={value.role === "goalkeeper"} onClick={() => onRole(player, "goalkeeper")}>GK</RoleButton>
-      </div>
+      {mode === "rotating" ? <div className="mt-3 rounded-xl border border-turf-400/15 bg-turf-400/[.045] px-3 py-2 text-center text-[10px] font-black uppercase tracking-wider text-turf-100/70">Outfield · rotating keeper</div> : (
+        <div className={cn("mt-3 grid grid-cols-2 gap-2", compact && "opacity-80")}>
+          <RoleButton active={value.role === "outfield"} onClick={() => onRole(player, "outfield")}>OUT</RoleButton>
+          <RoleButton active={value.role === "goalkeeper"} onClick={() => onRole(player, "goalkeeper")}>GK</RoleButton>
+        </div>
+      )}
       <div className="mt-2 grid grid-cols-3 gap-2">
         <MoveButton active={value.team === "A"} onClick={() => onMove(player.id, "A")}>Team A</MoveButton>
         <MoveButton active={value.team === "B"} onClick={() => onMove(player.id, "B")}>Team B</MoveButton>
@@ -973,6 +962,10 @@ function LineupPlayerCard({
       </div>
     </div>
   );
+}
+
+function ResultSummary({ value, label, emphasized = false }: { value: number | string; label: string; emphasized?: boolean }) {
+  return <div className={cn("grid min-h-28 place-items-center border-r border-league-gold/12 p-3 text-center last:border-r-0", emphasized && "bg-league-gold/[.045]")}><div><div className={cn("font-mono font-black", emphasized ? "text-3xl text-league-gold" : "text-2xl")}>{value}</div><div className="mt-1 text-[8px] font-black uppercase tracking-wider text-chalk/30">{label}</div></div></div>;
 }
 
 function MoveButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
