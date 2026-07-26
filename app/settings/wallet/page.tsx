@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Gift, HandCoins, RefreshCw, Ticket, Trophy } from "lucide-react";
+import { CircleDollarSign, Gift, HandCoins, RefreshCw, Ticket, Trophy } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useLeagueData } from "@/hooks/useLeagueData";
@@ -109,6 +109,7 @@ function WalletEntry({ entry, gameDate }: { entry: CoinLedgerEntry; gameDate?: s
   const content = transactionContent(entry.entry_type);
   const Icon = content.icon;
   const positive = Number(entry.amount_units) > 0;
+  const reason = typeof entry.metadata?.reason === "string" ? entry.metadata.reason : null;
 
   return (
     <li className="flex items-center gap-3 px-4 py-4 sm:px-5">
@@ -123,6 +124,7 @@ function WalletEntry({ entry, gameDate }: { entry: CoinLedgerEntry; gameDate?: s
         <div className="mt-0.5 truncate text-[10px] text-chalk/32">
           {gameDate ? `${formatDateTime(gameDate)} · ` : ""}{new Date(entry.created_at).toLocaleString()}
         </div>
+        {reason ? <div className="mt-1 text-xs text-chalk/45">{reason}</div> : null}
       </div>
       <div className="shrink-0 text-right">
         <CoinAmount units={Number(entry.amount_units)} iconSize={14} className={cn("font-semibold", positive ? "text-turf-400" : "text-red-300")} />
@@ -137,6 +139,7 @@ function transactionContent(entryType: CoinLedgerEntry["entry_type"]): { title: 
   if (entryType === "stake") return { title: "Bet placed", icon: Ticket };
   if (entryType === "cashout") return { title: "Bet cashed out", icon: HandCoins };
   if (entryType === "payout") return { title: "Bet payout", icon: Trophy };
+  if (entryType === "admin_adjustment") return { title: "Admin balance adjustment", icon: CircleDollarSign };
   return { title: "Settlement correction", icon: RefreshCw };
 }
 

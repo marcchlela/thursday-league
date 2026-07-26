@@ -305,6 +305,15 @@ def actual_market_outcome(market: Dict[str, Any], game: Dict[str, Any]) -> Optio
         return "yes" if game["own_goal_count"] > 0 else "no"
     if market_type == "total_goals":
         value = game["score_a"] + game["score_b"]
+    elif market_type == "team_saves":
+        subject_team = market.get("subject_team")
+        if subject_team not in ("A", "B"):
+            return None
+        value = sum(
+            player.get("saves", 0)
+            for player in game["player_totals"].values()
+            if player.get("team") == subject_team
+        )
     elif market_type in ("player_goals", "player_assists", "goalkeeper_saves"):
         player = game["player_totals"].get(market.get("subject_player_id"))
         if not player or not player["model_eligible"] or (market_type == "goalkeeper_saves" and player["role"] != "goalkeeper"):

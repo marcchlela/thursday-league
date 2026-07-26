@@ -1,3 +1,4 @@
+-- Controlled display-name update.
 create or replace function public.update_own_username(new_username text)
 returns void
 language plpgsql

@@ -1,5 +1,5 @@
 import { calculateScore } from "./scoring";
-import { isCompetitionEligible } from "./playerEligibility";
+import { isIndividualBettingEligible, isModelEligible } from "./playerEligibility";
 import { BettingData, LeagueData } from "./types";
 
 export const MODEL_EXPORT_SCHEMA_VERSION = 2;
@@ -33,7 +33,7 @@ function modelSafePlayerTotals(
 ) {
   const guestCounts = { A: 0, B: 0 };
   return Object.fromEntries(Object.entries(totals).map(([playerId, total]) => {
-    const eligible = isCompetitionEligible(league.players.find(player => player.id === playerId));
+    const eligible = isModelEligible(league.players.find(player => player.id === playerId));
     if (eligible) return [playerId, { ...total, model_eligible: true } satisfies ModelExportPlayerTotal];
     guestCounts[total.team] += 1;
     return [`guest:${gameId}:${total.team}:${guestCounts[total.team]}`, { ...total, model_eligible: false } satisfies ModelExportPlayerTotal];
@@ -75,7 +75,7 @@ export function buildModelExport(league: LeagueData, betting: BettingData) {
           goals: events.filter(event => event.event_type === "goal" && event.player_id === lineup.player_id).length + (manual?.goals || 0),
           assists: events.filter(event => event.event_type === "goal" && event.assist_player_id === lineup.player_id).length + (manual?.assists || 0),
           saves: manual?.saves || 0,
-          own_goals: events.filter(event => event.event_type === "own_goal" && event.player_id === lineup.player_id).length
+          own_goals: events.filter(event => event.event_type === "own_goal" && event.player_id === lineup.player_id).length + (manual?.own_goals || 0)
         }];
       }));
       return {
@@ -86,13 +86,13 @@ export function buildModelExport(league: LeagueData, betting: BettingData) {
         result_source: "legacy_aggregate" as const,
         score_a: score.A,
         score_b: score.B,
-        own_goal_count: events.filter(event => event.event_type === "own_goal").length,
+        own_goal_count: events.filter(event => event.event_type === "own_goal").length + manualStats.reduce((total, stat) => total + (stat.own_goals || 0), 0),
         player_totals: modelSafePlayerTotals(game.id, playerTotals, league)
       };
     });
 
   const finalGameIds = new Set(games.map(game => game.game_id));
-  const eligiblePlayerIds = new Set(league.players.filter(isCompetitionEligible).map(player => player.id));
+  const eligiblePlayerIds = new Set(league.players.filter(isIndividualBettingEligible).map(player => player.id));
   const markets = betting.markets
     .filter(market => finalGameIds.has(market.game_id) && (!market.subject_player_id || eligiblePlayerIds.has(market.subject_player_id)))
     .map(market => ({
@@ -100,6 +100,7 @@ export function buildModelExport(league: LeagueData, betting: BettingData) {
       market_key: market.market_key,
       market_type: market.market_type,
       subject_player_id: market.subject_player_id,
+      subject_team: market.subject_team || null,
       line: market.line,
       generation_run_id: market.generation_run_id,
       outcomes: betting.outcomes.filter(outcome => outcome.market_id === market.id).map(outcome => ({

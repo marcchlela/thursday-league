@@ -9,7 +9,7 @@ import { GiGoalKeeper, GiSoccerKick } from "react-icons/gi";
 import { MdOutlineReplay } from "react-icons/md";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { calculatePlayerBreakdown, calculateScore, careerStats, otherTeam } from "@/lib/scoring";
-import { isCompetitionEligible } from "@/lib/playerEligibility";
+import { isFantasyEligible, isGuestPlayer, isIndividualBettingEligible } from "@/lib/playerEligibility";
 import { Game, LeagueData, Player, TeamCode } from "@/lib/types";
 import { cn, currentSeason, formatDateTime } from "@/lib/utils";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
@@ -31,8 +31,10 @@ export default function PlayerDetailPage() {
   const scopedGames = seasonId ? data.games.filter(game => game.season_id === seasonId) : data.games;
   const stats = careerStats({ player, games: scopedGames, lineups: data.lineups, events: data.events, playerStats: data.playerStats });
   const appearances = playerAppearances(player, scopedGames, data);
-  const eligible = isCompetitionEligible(player);
-  const fantasyPoints = eligible
+  const fantasyEligible = isFantasyEligible(player);
+  const bettingEligible = isIndividualBettingEligible(player);
+  const guest = isGuestPlayer(player);
+  const fantasyPoints = fantasyEligible
     ? appearances.reduce((total, performance) => total + performance.fantasyPoints, 0)
     : 0;
   const potmAwards = appearances.filter(performance => performance.potm).length;
@@ -60,15 +62,16 @@ export default function PlayerDetailPage() {
             <h1 className="mt-1 truncate font-display text-4xl uppercase sm:text-5xl">{player.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-league-gold/20 bg-league-gold/[.055] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-league-gold">{player.default_position === "goalkeeper" ? "Goalkeeper" : "Outfield"}</span>
-              <span className={cn("rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider", eligible ? "border-turf-400/20 bg-turf-400/[.055] text-turf-400" : "border-white/[.07] bg-white/[.025] text-chalk/40")}>{eligible ? player.archived_at ? "Archived" : player.active ? "Active roster" : "Inactive" : "Guest player"}</span>
+              {guest ? <span className="rounded-full border border-white/10 bg-white/[.035] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-chalk/40">Guest player</span> : null}
+              <span className={cn("rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider", player.active && !player.archived_at ? "border-turf-400/20 bg-turf-400/[.055] text-turf-400" : "border-white/[.07] bg-white/[.025] text-chalk/40")}>{player.archived_at ? "Archived" : player.active ? "Active roster" : "Inactive"}</span>
             </div>
           </div>
         </div>
       </section>
 
-      {!eligible ? (
+      {guest || !fantasyEligible || !bettingEligible ? (
         <section className="rounded-[1.2rem] border border-league-gold/20 bg-league-gold/[.04] p-4 text-sm leading-relaxed text-chalk/50">
-          This is a reusable guest player. Match appearances remain visible, but the player is excluded from official league statistics, Fantasy scoring, betting markets, and model history.
+          Match appearances and official statistics remain visible. {fantasyEligible ? "Fantasy selection is enabled." : "The player is excluded from Fantasy selection and scoring."} {bettingEligible ? "Individual betting markets are enabled." : "Individual betting markets are disabled."}
         </section>
       ) : null}
 
@@ -117,8 +120,8 @@ export default function PlayerDetailPage() {
           <PlayerStat value={stats.appearances} label="Appearances" icon={CalendarDays} />
           <PlayerStat value={stats.goals} label="Goals" icon={FaFutbol} />
           <PlayerStat value={stats.assists} label="Assists" icon={GiSoccerKick} />
-          <PlayerStat value={player.default_position === "goalkeeper" ? stats.saves : "—"} label="Saves" icon={GiGoalKeeper} muted={player.default_position !== "goalkeeper"} />
-          <PlayerStat value={player.default_position === "goalkeeper" ? stats.cleanSheets : "—"} label="Clean sheets" icon={ShieldCheck} muted={player.default_position !== "goalkeeper"} />
+          <PlayerStat value={stats.saves} label="Saves" icon={GiGoalKeeper} />
+          <PlayerStat value={stats.cleanSheets} label="Clean sheets" icon={ShieldCheck} muted={stats.cleanSheets === 0 && player.default_position !== "goalkeeper"} />
           <PlayerStat value={stats.ownGoals} label="Own goals" icon={MdOutlineReplay} warning={stats.ownGoals > 0} />
         </div>
       </section>
@@ -177,8 +180,8 @@ function playerAppearances(player: Player, games: Game[], data: LeagueData) {
       const score = calculateScore(events, lineups, playerStats);
       const goals = events.filter(event => event.event_type === "goal" && event.player_id === player.id).length + (manual?.goals || 0);
       const assists = events.filter(event => event.event_type === "goal" && event.assist_player_id === player.id).length + (manual?.assists || 0);
-      const saves = role === "goalkeeper" ? manual?.saves || 0 : 0;
-      const ownGoals = events.filter(event => event.event_type === "own_goal" && event.player_id === player.id).length;
+      const saves = manual?.saves || 0;
+      const ownGoals = events.filter(event => event.event_type === "own_goal" && event.player_id === player.id).length + (manual?.own_goals || 0);
       const result = score[team] === score[otherTeam(team)] ? "D" : score[team] > score[otherTeam(team)] ? "W" : "L";
       const breakdown = calculatePlayerBreakdown({ game, player, lineups: data.lineups, events: data.events, playerStats: data.playerStats });
       return { game, team, role, score, goals, assists, saves, ownGoals, result: result as "W" | "D" | "L", fantasyPoints: breakdown.points, potm: game.potm_player_id === player.id };

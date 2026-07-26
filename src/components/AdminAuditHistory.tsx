@@ -26,7 +26,8 @@ const ACTION_LABELS: Record<string, string> = {
   game_player_stats_delete: "Player stat removed",
   season_created: "Season created",
   season_mode_changed: "Season mode changed",
-  season_updated: "Season updated"
+  season_updated: "Season updated",
+  wallet_adjusted: "Wallet adjusted"
 };
 
 function actionLabel(action: string) {

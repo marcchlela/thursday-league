@@ -21,10 +21,9 @@ import { ErrorState } from "@/components/ui";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useHomeBetStatus } from "@/hooks/useHomeBetStatus";
 import { useLeagueData } from "@/hooks/useLeagueData";
-import { isCompetitionEligible } from "@/lib/playerEligibility";
 import { calculateScore, careerStats } from "@/lib/scoring";
 import { Game, LeagueData } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, gameLineupIsReady } from "@/lib/utils";
 
 function matchDate(value: string) {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -57,13 +56,10 @@ function nextPlayableGame(games: Game[]) {
 }
 
 function lineupIsReady(data: LeagueData, gameId: string) {
+  const game = data.games.find(item => item.id === gameId);
+  if (!game) return false;
   const gameLineups = data.lineups.filter(lineup => lineup.game_id === gameId);
-  return (["A", "B"] as const).every(team => {
-    const teamLineup = gameLineups.filter(lineup => lineup.team === team);
-    return teamLineup.length === 5
-      && teamLineup.filter(lineup => lineup.role === "goalkeeper").length === 1
-      && teamLineup.every(lineup => lineup.slot_index != null);
-  });
+  return gameLineupIsReady(game, gameLineups);
 }
 
 export default function HomePage() {
@@ -230,7 +226,6 @@ function CompactTeam({ gameId, team, align = "left" }: { gameId: string; team: "
 function buildLeaders(data: LeagueData) {
   const finalGames = data.games.filter(game => game.status === "final");
   const stats = data.players
-    .filter(isCompetitionEligible)
     .map(player => ({ player, stats: careerStats({ player, games: finalGames, lineups: data.lineups, events: data.events, playerStats: data.playerStats }) }));
   const rank = (field: "goals" | "assists") => [...stats]
     .sort((first, second) => second.stats[field] - first.stats[field] || first.player.name.localeCompare(second.player.name))

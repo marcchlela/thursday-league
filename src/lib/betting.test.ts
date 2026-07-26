@@ -53,7 +53,7 @@ describe("player-lineup betting model", () => {
     const data = testLeague();
     const game = data.games[0];
     const result = generatePlayerLineupMarkets(data, game, 0.06);
-    expect(result.markets.length).toBe(83);
+    expect(result.markets.length).toBe(89);
     for (const market of result.markets) {
       const probability = market.outcomes.reduce((total, outcome) => total + outcome.fair_probability, 0);
       expect(probability).toBeCloseTo(1, 6);
@@ -62,6 +62,7 @@ describe("player-lineup betting model", () => {
     const predictions = result.snapshot.predictions as Record<string, number>;
     expect(predictions.expected_goals_A).toBeGreaterThan(predictions.expected_goals_B);
     expect(result.markets.filter(market => market.market_type === "total_goals")).toHaveLength(5);
+    expect(result.markets.filter(market => market.market_type === "team_saves")).toHaveLength(6);
     expect(result.markets.filter(market => market.market_type === "player_goals" && market.subject_player_id === data.players[1].id).map(market => market.line)).toEqual([0.5, 1.5, 2.5, 3.5]);
   });
 
@@ -83,16 +84,29 @@ describe("player-lineup betting model", () => {
     const data = testLeague();
     const game = data.games[0];
     const guest = data.players[1];
-    guest.competition_eligible = false;
+    guest.player_type = "guest";
+    guest.fantasy_eligible = false;
+    guest.individual_betting_eligible = false;
 
     const result = generatePlayerLineupMarkets(data, game);
     const guestMarkets = result.markets.filter(market => market.subject_player_id === guest.id);
-    const teamA = result.snapshot.team_A as Array<{ player_id: string; competition_eligible: boolean; model: { appearances: number } }>;
+    const teamA = result.snapshot.team_A as Array<{
+      player_id: string;
+      player_type: string;
+      model_eligible: boolean;
+      individual_betting_eligible: boolean;
+      model: { appearances: number };
+    }>;
     const guestSnapshot = teamA.find(player => player.player_id === guest.id);
 
     expect(guestMarkets).toHaveLength(0);
-    expect(result.markets).toHaveLength(76);
-    expect(guestSnapshot).toMatchObject({ competition_eligible: false, model: { appearances: 0 } });
+    expect(result.markets).toHaveLength(82);
+    expect(guestSnapshot).toMatchObject({
+      player_type: "guest",
+      model_eligible: false,
+      individual_betting_eligible: false,
+      model: { appearances: 0 }
+    });
   });
 
   it("quotes builders more conservatively than multiplying single prices", () => {
@@ -104,5 +118,6 @@ describe("player-lineup betting model", () => {
   it("groups alternate lines for the same subject into one builder selection family", () => {
     expect(bettingSelectionGroup({ market_type: "total_goals", subject_player_id: null })).toBe("total_goals:game");
     expect(bettingSelectionGroup({ market_type: "player_goals", subject_player_id: "player-1" })).toBe("player_goals:player-1");
+    expect(bettingSelectionGroup({ market_type: "team_saves", subject_player_id: null, subject_team: "A" })).toBe("team_saves:A");
   });
 });

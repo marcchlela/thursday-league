@@ -1,3 +1,4 @@
+-- Add aggregate player statistics to the initial match schema.
 create table if not exists public.game_player_stats (
   id uuid primary key default gen_random_uuid(),
   game_id uuid not null references public.games(id) on delete cascade,

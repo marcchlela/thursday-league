@@ -1,5 +1,5 @@
 import { calculateScore, otherTeam } from "./scoring";
-import { isCompetitionEligible } from "./playerEligibility";
+import { isIndividualBettingEligible, isModelEligible } from "./playerEligibility";
 import {
   BettingMarketType,
   BettingMarket,
@@ -30,6 +30,7 @@ export type GeneratedMarket = {
   market_type: BettingMarketType;
   title: string;
   subject_player_id: string | null;
+  subject_team: TeamCode | null;
   line: number | null;
   outcomes: GeneratedOutcome[];
 };
@@ -200,11 +201,14 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
     const weight = recencyWeight(historicalGame.game_date, game.game_date);
     weightedTeamGoals += (score.A + score.B) * weight;
     weightedTeamSamples += 2 * weight;
-    weightedOwnGoals += events.filter(event => event.event_type === "own_goal").length * weight;
+    weightedOwnGoals += (
+      events.filter(event => event.event_type === "own_goal").length
+      + stats.reduce((total, stat) => total + (stat.own_goals || 0), 0)
+    ) * weight;
     weightedGameSamples += weight;
     for (const lineup of lineups) {
       const player = data.players.find(item => item.id === lineup.player_id);
-      if (!isCompetitionEligible(player)) continue;
+      if (!isModelEligible(player)) continue;
       const totals = playerGameTotals(lineup.player_id, events, stats);
       appearances.push({
         gameId: historicalGame.id,
@@ -233,7 +237,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
   const models = new Map<string, PlayerModel>();
   for (const playerId of targetPlayerIds) {
     const player = data.players.find(item => item.id === playerId);
-    const playerAppearances = isCompetitionEligible(player) ? appearances.filter(item => item.playerId === playerId) : [];
+    const playerAppearances = isModelEligible(player) ? appearances.filter(item => item.playerId === playerId) : [];
     const weightedAppearances = playerAppearances.reduce((total, item) => total + item.weight, 0);
     const appearanceCount = new Set(playerAppearances.map(item => item.gameId)).size;
     const smoothed = (field: "goals" | "assists" | "saves" | "conceded", prior: number) => (
@@ -259,7 +263,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
     const opponentKeeper = opponent.find(lineup => lineup.role === "goalkeeper");
     const keeperModel = opponentKeeper ? models.get(opponentKeeper.player_id) : null;
     const keeperConcessionIndex = (keeperModel?.concededRate || leagueTeamGoals) / Math.max(leagueTeamGoals, 0.1);
-    const eligibleTeam = team.filter(lineup => isCompetitionEligible(data.players.find(player => player.id === lineup.player_id)));
+    const eligibleTeam = team.filter(lineup => isModelEligible(data.players.find(player => player.id === lineup.player_id)));
     const synergy = teamSynergy(eligibleTeam, historicalGames, historicalLineups, appearances);
     const attackIndex = goalIndex * 0.78 + assistIndex * 0.22;
     return clamp(leagueTeamGoals * attackIndex ** 0.72 * keeperConcessionIndex ** 0.28 * synergy, 0.5, 12);
@@ -274,6 +278,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
     market_type: "match_result",
     title: "Match result",
     subject_player_id: null,
+    subject_team: null,
     line: null,
     outcomes: [
       { outcome_key: "A", label: "Team A", fair_probability: round(matchResult.A, 8), offered_odds: oddsFromProbability(matchResult.A, singleMargin) },
@@ -289,6 +294,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
       market_type: "total_goals",
       title: "Total goals",
       subject_player_id: null,
+      subject_team: null,
       line: totalLine,
       outcomes: twoWayOutcomes(1 - poissonUnder(expectedTotal, totalLine), singleMargin, totalLine)
     });
@@ -297,7 +303,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
   for (const lineup of targetLineups) {
     const model = models.get(lineup.player_id)!;
     const player = data.players.find(item => item.id === lineup.player_id);
-    if (!isCompetitionEligible(player)) continue;
+    if (!isIndividualBettingEligible(player)) continue;
     const teamExpected = lineup.team === "A" ? expectedA : expectedB;
     const teammateModels = (lineup.team === "A" ? teamA : teamB).map(item => models.get(item.player_id)!);
     const goalRateTotal = teammateModels.reduce((total, item) => total + Math.max(item.goalRate, 0.05), 0);
@@ -310,6 +316,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
         market_type: "player_goals",
         title: `${playerLabel(player)} goals`,
         subject_player_id: lineup.player_id,
+        subject_team: null,
         line: goalLine,
         outcomes: twoWayOutcomes(1 - poissonUnder(expectedGoals, goalLine), singleMargin, goalLine)
       });
@@ -320,6 +327,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
         market_type: "player_assists",
         title: `${playerLabel(player)} assists`,
         subject_player_id: lineup.player_id,
+        subject_team: null,
         line: assistLine,
         outcomes: twoWayOutcomes(1 - poissonUnder(expectedAssists, assistLine), singleMargin, assistLine)
       });
@@ -333,10 +341,37 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
           market_type: "goalkeeper_saves",
           title: `${playerLabel(player)} saves`,
           subject_player_id: lineup.player_id,
+          subject_team: null,
           line: saveLine,
           outcomes: twoWayOutcomes(1 - poissonUnder(expectedSaves, saveLine), singleMargin, saveLine)
         });
       }
+    }
+  }
+
+  const weightedTeamSaves = historicalGames.reduce((total, historicalGame) => {
+    const weight = recencyWeight(historicalGame.game_date, game.game_date);
+    const saves = data.playerStats
+      .filter(stat => stat.game_id === historicalGame.id)
+      .reduce((sum, stat) => sum + stat.saves, 0);
+    return total + saves * weight;
+  }, 0);
+  const leagueTeamSaves = weightedGameSamples ? weightedTeamSaves / (weightedGameSamples * 2) : DEFAULT_KEEPER_SAVES;
+  const expectedTeamSaves: Record<TeamCode, number> = {
+    A: clamp(leagueTeamSaves * 0.65 + expectedB * 0.45, 0.5, 18),
+    B: clamp(leagueTeamSaves * 0.65 + expectedA * 0.45, 0.5, 18)
+  };
+  for (const team of ["A", "B"] as TeamCode[]) {
+    for (const saveLine of halfLineRange(expectedTeamSaves[team], [-2, 0, 2])) {
+      markets.push({
+        market_key: `team-saves-${team}-${saveLine}`,
+        market_type: "team_saves",
+        title: `Team ${team} total saves`,
+        subject_player_id: null,
+        subject_team: team,
+        line: saveLine,
+        outcomes: twoWayOutcomes(1 - poissonUnder(expectedTeamSaves[team], saveLine), singleMargin, saveLine)
+      });
     }
   }
 
@@ -346,6 +381,7 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
     market_type: "own_goal",
     title: "Any own goal",
     subject_player_id: null,
+    subject_team: null,
     line: null,
     outcomes: [
       { outcome_key: "yes", label: "Yes", fair_probability: round(ownGoalProbability, 8), offered_odds: oddsFromProbability(ownGoalProbability, singleMargin) },
@@ -356,7 +392,9 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
   const serializeTeam = (lineups: GameLineup[]) => lineups.map(lineup => ({
     player_id: lineup.player_id,
     role: lineup.role,
-    competition_eligible: isCompetitionEligible(data.players.find(player => player.id === lineup.player_id)),
+    player_type: data.players.find(player => player.id === lineup.player_id)?.player_type || (isModelEligible(data.players.find(player => player.id === lineup.player_id)) ? "regular" : "guest"),
+    model_eligible: isModelEligible(data.players.find(player => player.id === lineup.player_id)),
+    individual_betting_eligible: isIndividualBettingEligible(data.players.find(player => player.id === lineup.player_id)),
     model: models.get(lineup.player_id)
   }));
   return {
@@ -385,8 +423,8 @@ export function quoteBuilderOdds(outcomeOdds: number[], builderMargin = 0.1) {
   return round(Math.max(1.01, 1 + (product - 1) * (1 - builderMargin)), 4);
 }
 
-export function bettingSelectionGroup(market: Pick<BettingMarket, "market_type" | "subject_player_id">) {
-  return `${market.market_type}:${market.subject_player_id || "game"}`;
+export function bettingSelectionGroup(market: Pick<BettingMarket, "market_type" | "subject_player_id" | "subject_team">) {
+  return `${market.market_type}:${market.subject_player_id || market.subject_team || "game"}`;
 }
 
 export function coinsFromUnits(units: number) {
