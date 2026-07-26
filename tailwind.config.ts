@@ -6,27 +6,41 @@ const config: Config = {
     extend: {
       colors: {
         turf: {
-          50: "#effff1",
-          100: "#d7fadd",
-          400: "#31b94e",
-          500: "#148a32",
-          700: "#0b5a23",
-          900: "#063916"
+          50: "rgb(var(--turf-50) / <alpha-value>)",
+          100: "rgb(var(--turf-100) / <alpha-value>)",
+          400: "rgb(var(--turf-400) / <alpha-value>)",
+          500: "rgb(var(--turf-500) / <alpha-value>)",
+          700: "rgb(var(--turf-700) / <alpha-value>)",
+          900: "rgb(var(--turf-900) / <alpha-value>)"
         },
         perimeter: {
-          400: "#28a8ff",
-          500: "#0c74d9",
-          700: "#063f83"
+          400: "rgb(var(--perimeter-400) / <alpha-value>)",
+          500: "rgb(var(--perimeter-500) / <alpha-value>)",
+          700: "rgb(var(--perimeter-700) / <alpha-value>)"
+        },
+        red: {
+          100: "rgb(var(--red-100) / <alpha-value>)",
+          200: "rgb(var(--red-200) / <alpha-value>)",
+          300: "rgb(var(--red-300) / <alpha-value>)",
+          400: "rgb(var(--red-400) / <alpha-value>)",
+          500: "rgb(var(--red-500) / <alpha-value>)"
+        },
+        amber: {
+          100: "rgb(var(--amber-100) / <alpha-value>)",
+          200: "rgb(var(--amber-200) / <alpha-value>)",
+          300: "rgb(var(--amber-300) / <alpha-value>)"
         },
         ink: {
-          900: "#11110f",
-          850: "#171714",
-          800: "#1e1d19"
+          900: "rgb(var(--ink-900) / <alpha-value>)",
+          850: "rgb(var(--ink-850) / <alpha-value>)",
+          800: "rgb(var(--ink-800) / <alpha-value>)"
         },
-        chalk: "#f5f2e8",
-        floodlight: "#f7b733",
-        "league-gold": "#DAA520",
-        "league-gold-dark": "#B8860B"
+        chalk: "rgb(var(--chalk) / <alpha-value>)",
+        "gold-ink": "#171814",
+        "pitch-line": "#f5f2e8",
+        floodlight: "rgb(var(--floodlight) / <alpha-value>)",
+        "league-gold": "rgb(var(--league-gold) / <alpha-value>)",
+        "league-gold-dark": "rgb(var(--league-gold-dark) / <alpha-value>)"
       },
       fontFamily: {
         display: ["Oswald", "Impact", "Arial Narrow", "sans-serif"],
@@ -39,7 +53,7 @@ const config: Config = {
       },
       backgroundImage: {
         turf: "url('/turf-texture.png')",
-        turfMuted: "linear-gradient(rgba(17,17,15,.88), rgba(17,17,15,.92)), url('/turf-muted.png')"
+        turfMuted: "var(--app-background)"
       }
     }
   },

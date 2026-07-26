@@ -274,7 +274,7 @@ function AdminSectionTabs({ active, onChange }: { active: AdminTab; onChange: (t
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-[1.2rem] border border-league-gold/25 bg-[#171814] p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)] sm:grid-cols-6" role="tablist" aria-label="Admin sections">
+    <div className="grid grid-cols-3 gap-1 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)] sm:grid-cols-6" role="tablist" aria-label="Admin sections">
       {adminTabs.map(tab => {
         const Icon = tab.icon;
         return (
@@ -463,7 +463,7 @@ function GameSection({
   }
 
   return (
-    <section id={`admin-game-${game.id}`} className="scroll-mt-24 overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+    <section id={`admin-game-${game.id}`} className="scroll-mt-24 overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <button
         type="button"
         onClick={toggleOpen}
@@ -847,7 +847,7 @@ function GoalkeeperModeControl({ team, value, onChange }: { team: TeamCode; valu
     <div className="rounded-[1rem] border border-league-gold/18 bg-black/15 p-3">
       <div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold">Team {team} goalkeeper</span><span className="text-[9px] uppercase tracking-wider text-chalk/30">{value === "fixed" ? "1 GK + 4 OUT" : "5 OUT"}</span></div>
       <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/25 p-1">
-        {(["fixed", "rotating"] as GoalkeeperMode[]).map(mode => <button key={mode} type="button" aria-pressed={value === mode} onClick={() => onChange(mode)} className={cn("rounded-lg px-3 py-2 text-xs font-bold capitalize transition", value === mode ? "bg-league-gold text-[#171814]" : "text-chalk/45 hover:bg-white/[.035] hover:text-chalk")}>{mode}</button>)}
+        {(["fixed", "rotating"] as GoalkeeperMode[]).map(mode => <button key={mode} type="button" aria-pressed={value === mode} onClick={() => onChange(mode)} className={cn("rounded-lg px-3 py-2 text-xs font-bold capitalize transition", value === mode ? "bg-league-gold text-gold-ink" : "text-chalk/45 hover:bg-chalk/[.035] hover:text-chalk")}>{mode}</button>)}
       </div>
     </div>
   );
@@ -976,7 +976,7 @@ function MoveButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { act
       {...rest}
       className={cn(
         "rounded-xl border border-league-gold/15 px-2 py-2 text-xs font-bold transition hover:border-league-gold/50",
-        active ? "bg-league-gold text-[#171814]" : "bg-black/20 text-chalk/60",
+        active ? "bg-league-gold text-gold-ink" : "bg-black/20 text-chalk/60",
         className
       )}
     />
@@ -991,7 +991,7 @@ function RoleButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { act
       {...rest}
       className={cn(
         "rounded-xl border border-league-gold/15 px-3 py-2 text-sm font-black transition hover:border-league-gold/60",
-        active ? "bg-league-gold text-[#171814]" : "bg-black/20 text-chalk/65",
+        active ? "bg-league-gold text-gold-ink" : "bg-black/20 text-chalk/65",
         className
       )}
     />

@@ -74,7 +74,7 @@ export default function WalletHistoryPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <SettingsHeader title="Wallet history" description="Review every virtual-coin movement in your betting wallet." />
 
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-[1.35rem] border border-league-gold/25 bg-[#171814] p-4 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:p-5">
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-[1.35rem] border border-league-gold/25 bg-ink-850 p-4 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:p-5">
         <div className="flex items-center gap-3">
           <LeagueCoin size={46} />
           <div>

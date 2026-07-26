@@ -267,7 +267,7 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
           {bettingCategoryOrder.map(category => {
             const categoryMarkets = markets.filter(market => market.market_type === category.type);
             if (!categoryMarkets.length) return null;
-            return <details key={category.type} className="overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814]" open={category.type === "match_result"}><summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-4"><span className="font-display text-2xl uppercase">{category.label}</span><Pill>{categoryMarkets.length} markets</Pill></summary><div className="space-y-3 border-t border-league-gold/20 p-3">{categoryMarkets.map(market => <AdminMarketCard key={market.id} market={market} outcomes={outcomes.filter(outcome => outcome.market_id === market.id)} editable={market.status === "draft"} onOddsChange={updateOdds} />)}</div></details>;
+            return <details key={category.type} className="overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-ink-850" open={category.type === "match_result"}><summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-4"><span className="font-display text-2xl uppercase">{category.label}</span><Pill>{categoryMarkets.length} markets</Pill></summary><div className="space-y-3 border-t border-league-gold/20 p-3">{categoryMarkets.map(market => <AdminMarketCard key={market.id} market={market} outcomes={outcomes.filter(outcome => outcome.market_id === market.id)} editable={market.status === "draft"} onOddsChange={updateOdds} />)}</div></details>;
           })}
         </div>
       )}
@@ -285,7 +285,7 @@ function MarketStatus({ status }: { status: BettingMarket["status"] }) {
 }
 
 function Metric({ icon: Icon, label, value }: { icon: typeof Cpu; label: string; value: string }) {
-  return <div className="rounded-[1.2rem] border border-league-gold/18 bg-[#171814] p-4"><Icon size={17} className="text-league-gold" /><div className="mt-3 text-[11px] font-bold uppercase tracking-widest text-chalk/45">{label}</div><div className="mt-1 truncate font-mono text-lg text-chalk" title={value}>{value}</div></div>;
+  return <div className="rounded-[1.2rem] border border-league-gold/18 bg-ink-850 p-4"><Icon size={17} className="text-league-gold" /><div className="mt-3 text-[11px] font-bold uppercase tracking-widest text-chalk/45">{label}</div><div className="mt-1 truncate font-mono text-lg text-chalk" title={value}>{value}</div></div>;
 }
 
 function AdminMarketCard({ market, outcomes, editable, onOddsChange }: { market: BettingMarket; outcomes: BettingOutcome[]; editable: boolean; onOddsChange: (outcome: BettingOutcome, value: string) => void }) {

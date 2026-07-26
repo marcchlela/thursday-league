@@ -11,7 +11,7 @@ export function PlayerAvatar({ name, className }: { name: string; className?: st
   const variant = [...name].reduce((total, character) => total + character.charCodeAt(0), 0) % 3;
   return (
     <span className={cn(
-      "relative grid shrink-0 place-items-center overflow-hidden rounded-full border border-league-gold/30 bg-[#132f1d] font-display font-black uppercase text-chalk shadow-[0_7px_18px_rgba(0,0,0,.2)]",
+      "relative grid shrink-0 place-items-center overflow-hidden rounded-full border border-league-gold/30 bg-[#132f1d] font-display font-black uppercase text-pitch-line shadow-[0_7px_18px_rgba(0,0,0,.2)]",
       className
     )} aria-hidden="true">
       <span className={cn(

@@ -3,7 +3,75 @@
 @tailwind utilities;
 
 :root {
+  --ink-900: 17 17 15;
+  --ink-850: 23 23 20;
+  --ink-800: 30 29 25;
+  --chalk: 245 242 232;
+  --league-gold: 218 165 32;
+  --league-gold-dark: 184 134 11;
+  --floodlight: 247 183 51;
+  --turf-50: 239 255 241;
+  --turf-100: 215 250 221;
+  --turf-400: 49 185 78;
+  --turf-500: 20 138 50;
+  --turf-700: 11 90 35;
+  --turf-900: 6 57 22;
+  --perimeter-400: 40 168 255;
+  --perimeter-500: 12 116 217;
+  --perimeter-700: 6 63 131;
+  --red-100: 254 226 226;
+  --red-200: 254 202 202;
+  --red-300: 252 165 165;
+  --red-400: 248 113 113;
+  --red-500: 239 68 68;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --app-background:
+    linear-gradient(rgb(17 17 15 / .88), rgb(17 17 15 / .92)),
+    url('/turf-muted.png');
+  --panel-background:
+    linear-gradient(rgb(17 17 15 / .90), rgb(17 17 15 / .94)),
+    url('/turf-muted.png');
+  --skeleton-edge: rgb(245 242 232 / .045);
+  --skeleton-highlight: rgb(218 165 32 / .105);
   color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --ink-900: 246 242 232;
+  --ink-850: 255 252 245;
+  --ink-800: 235 228 212;
+  --chalk: 42 37 27;
+  --league-gold: 148 101 7;
+  --league-gold-dark: 108 72 3;
+  --floodlight: 178 119 7;
+  --turf-50: 235 249 238;
+  --turf-100: 12 91 35;
+  --turf-400: 24 126 53;
+  --turf-500: 15 104 40;
+  --turf-700: 10 79 30;
+  --turf-900: 6 57 22;
+  --perimeter-400: 17 116 184;
+  --perimeter-500: 9 87 161;
+  --perimeter-700: 5 59 116;
+  --red-100: 127 29 29;
+  --red-200: 153 27 27;
+  --red-300: 185 28 28;
+  --red-400: 220 38 38;
+  --red-500: 185 28 28;
+  --amber-100: 120 72 0;
+  --amber-200: 146 88 0;
+  --amber-300: 180 111 0;
+  --app-background:
+    linear-gradient(rgb(246 242 232 / .92), rgb(246 242 232 / .95)),
+    url('/turf-muted.png');
+  --panel-background:
+    linear-gradient(rgb(255 252 245 / .93), rgb(255 252 245 / .96)),
+    url('/turf-muted.png');
+  --skeleton-edge: rgb(42 37 27 / .045);
+  --skeleton-highlight: rgb(148 101 7 / .13);
+  color-scheme: light;
 }
 
 * {
@@ -12,14 +80,13 @@
 
 body {
   margin: 0;
-  background: #11110f;
-  color: #f5f2e8;
+  background: rgb(var(--ink-900));
+  color: rgb(var(--chalk));
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 .panel {
-  background:
-    linear-gradient(rgba(17, 17, 15, .90), rgba(17, 17, 15, .94)),
-    url('/turf-muted.png');
+  background: var(--panel-background);
   background-size: 420px 420px;
 }
 
@@ -31,23 +98,23 @@ body {
 }
 
 .chalk-dash {
-  border-top: 1px dashed rgba(245, 242, 232, .32);
+  border-top: 1px dashed rgb(var(--chalk) / .32);
 }
 
 .gold-dividers > :not([hidden]) ~ :not([hidden]) {
-  border-color: rgba(218, 165, 32, .22);
+  border-color: rgb(var(--league-gold) / .22);
 }
 
 [class~="divide-league-gold/18"] > :not([hidden]) ~ :not([hidden]) {
-  border-color: rgba(218, 165, 32, .22);
+  border-color: rgb(var(--league-gold) / .22);
 }
 
 [class~="border-league-gold/18"] {
-  border-color: rgba(218, 165, 32, .22);
+  border-color: rgb(var(--league-gold) / .22);
 }
 
 ::selection {
-  background: rgba(247, 183, 51, .35);
+  background: rgb(var(--floodlight) / .35);
 }
 
 @keyframes toast-progress {
@@ -73,16 +140,109 @@ body {
 .skeleton-shimmer {
   background-image: linear-gradient(
     105deg,
-    rgba(245, 242, 232, .045) 20%,
-    rgba(218, 165, 32, .105) 38%,
-    rgba(245, 242, 232, .045) 56%
+    var(--skeleton-edge) 20%,
+    var(--skeleton-highlight) 38%,
+    var(--skeleton-edge) 56%
   );
   background-size: 220% 100%;
   animation: skeleton-shimmer 1.7s ease-in-out infinite;
 }
 
+@keyframes launch-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(.86);
+  }
+
+  65% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.025);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes launch-orbit {
+  from {
+    transform: rotate(0deg) scale(.96);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.03);
+  }
+
+  to {
+    transform: rotate(360deg) scale(.96);
+  }
+}
+
+@keyframes launch-wordmark {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+    letter-spacing: .15em;
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes launch-breathe {
+  0%, 100% {
+    opacity: .34;
+    transform: scale(.92);
+  }
+
+  50% {
+    opacity: .68;
+    transform: scale(1.04);
+  }
+}
+
+.launch-screen {
+  isolation: isolate;
+}
+
+.launch-backdrop {
+  position: absolute;
+  width: min(78vw, 34rem);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--league-gold) / .12);
+  box-shadow:
+    0 0 0 4rem rgb(var(--league-gold) / .025),
+    0 0 0 8rem rgb(var(--league-gold) / .015);
+  animation: launch-breathe 3s ease-in-out infinite;
+}
+
+.launch-mark {
+  animation: launch-rise 850ms cubic-bezier(.2, .75, .2, 1) both;
+}
+
+.launch-orbit {
+  animation: launch-orbit 6s linear infinite;
+}
+
+.launch-orbit-delayed {
+  animation-direction: reverse;
+  animation-duration: 8s;
+}
+
+.launch-wordmark {
+  animation: launch-wordmark 700ms 240ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-shimmer {
+  .skeleton-shimmer,
+  .launch-backdrop,
+  .launch-mark,
+  .launch-orbit,
+  .launch-wordmark {
     animation: none;
   }
 }

@@ -105,7 +105,7 @@ export function AdminMatchStatsGrid({
   }
 
   return (
-    <section className={cn("overflow-hidden rounded-[1.3rem] border border-league-gold/22 bg-[#141511]", disabled && "opacity-65")}>
+    <section className={cn("overflow-hidden rounded-[1.3rem] border border-league-gold/22 bg-ink-850", disabled && "opacity-65")}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-league-gold/15 px-4 py-3.5 sm:px-5">
         <div>
           <div className="text-[9px] font-black uppercase tracking-[.18em] text-league-gold/65">Full-time entry</div>
@@ -178,16 +178,16 @@ function TeamStatTable({
   }
 
   return (
-    <div className="min-w-0 bg-[#171814] p-3 sm:p-4">
+    <div className="min-w-0 bg-ink-850 p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between">
         <h5 className="font-display text-2xl uppercase">Team {team}</h5>
         <span className="rounded-full border border-league-gold/15 bg-league-gold/[.055] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-league-gold">{rows.length}/5</span>
       </div>
       <div className="max-h-[28rem] overflow-auto rounded-xl border border-league-gold/15">
         <table className="w-full min-w-[24rem] border-collapse">
-          <thead className="sticky top-0 z-20 bg-[#12130f] shadow-[0_1px_0_rgba(218,165,32,.18)]">
+          <thead className="sticky top-0 z-20 border-b border-league-gold/20 bg-ink-850">
             <tr>
-              <th className="sticky left-0 z-30 bg-[#12130f] px-3 py-2 text-left text-[9px] font-black uppercase tracking-wider text-chalk/35 shadow-[1px_0_0_rgba(218,165,32,.14)]">Player</th>
+              <th className="sticky left-0 z-30 border-r border-league-gold/15 bg-ink-850 px-3 py-2 text-left text-[9px] font-black uppercase tracking-wider text-chalk/35">Player</th>
               {statColumns.map(column => {
                 const Icon = column.icon;
                 return <th key={column.key} className="w-14 px-1 py-2 text-center" title={column.title}><span className="inline-flex items-center gap-1 text-[9px] font-black text-league-gold/70"><Icon size={12} /> {column.label}</span></th>;
@@ -198,8 +198,8 @@ function TeamStatTable({
             {rows.map((lineup, rowIndex) => {
               const player = data.players.find(item => item.id === lineup.player_id);
               return (
-                <tr key={lineup.player_id} className="transition focus-within:bg-league-gold/[.035] hover:bg-white/[.015]">
-                  <th scope="row" className="sticky left-0 z-10 max-w-36 bg-[#171814] px-3 py-2 text-left shadow-[1px_0_0_rgba(218,165,32,.11)]">
+                <tr key={lineup.player_id} className="transition focus-within:bg-league-gold/[.035] hover:bg-chalk/[.015]">
+                  <th scope="row" className="sticky left-0 z-10 max-w-36 border-r border-league-gold/10 bg-ink-850 px-3 py-2 text-left">
                     <span className="block truncate text-xs font-semibold">{playerName(data.players, lineup.player_id)}</span>
                     <span className="mt-0.5 block text-[8px] font-black uppercase tracking-wider text-chalk/28">{lineup.role === "goalkeeper" ? "Fixed GK" : "OUT"}{isGuestPlayer(player) ? " / Guest" : ""}</span>
                   </th>
@@ -217,7 +217,7 @@ function TeamStatTable({
                         onFocus={event => event.currentTarget.select()}
                         data-stat-cell={`${rowIndex}-${columnIndex}`}
                         aria-label={`${column.title} for ${playerName(data.players, lineup.player_id)}`}
-                        className="h-9 w-11 rounded-lg border border-white/[.065] bg-black/25 px-1 text-center font-mono text-sm text-chalk outline-none transition focus:border-league-gold/60 focus:bg-league-gold/[.055] focus:ring-1 focus:ring-league-gold/30 disabled:opacity-50"
+                        className="h-9 w-11 rounded-lg border border-chalk/[.065] bg-black/25 px-1 text-center font-mono text-sm text-chalk outline-none transition focus:border-league-gold/60 focus:bg-league-gold/[.055] focus:ring-1 focus:ring-league-gold/30 disabled:opacity-50"
                       />
                     </td>
                   ))}
@@ -226,7 +226,7 @@ function TeamStatTable({
             })}
             {!rows.length ? <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-chalk/35">No Team {team} lineup saved.</td></tr> : null}
           </tbody>
-          {rows.length ? <tfoot className="sticky bottom-0 z-20 bg-[#10110e] shadow-[0_-1px_0_rgba(218,165,32,.18)]"><tr><th scope="row" className="sticky left-0 z-30 bg-[#10110e] px-3 py-2 text-left text-[9px] font-black uppercase tracking-wider text-league-gold shadow-[1px_0_0_rgba(218,165,32,.14)]">Team total</th>{statColumns.map(column => <td key={column.key} className="px-1 py-2 text-center font-mono text-sm font-black text-league-gold">{totals[column.key]}</td>)}</tr></tfoot> : null}
+          {rows.length ? <tfoot className="sticky bottom-0 z-20 border-t border-league-gold/20 bg-ink-900"><tr><th scope="row" className="sticky left-0 z-30 border-r border-league-gold/15 bg-ink-900 px-3 py-2 text-left text-[9px] font-black uppercase tracking-wider text-league-gold">Team total</th>{statColumns.map(column => <td key={column.key} className="px-1 py-2 text-center font-mono text-sm font-black text-league-gold">{totals[column.key]}</td>)}</tr></tfoot> : null}
         </table>
       </div>
     </div>

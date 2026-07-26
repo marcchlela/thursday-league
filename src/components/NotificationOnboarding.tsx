@@ -195,7 +195,7 @@ export function NotificationOnboarding() {
         <div className="flex items-center justify-between gap-3">
           <Pill>New feature</Pill>
           <div className="flex gap-1.5" aria-label={`Step ${step + 1} of 3`}>
-            {[0, 1, 2].map(index => <span key={index} className={`h-2 rounded-full transition-all ${index === step ? "w-7 bg-floodlight" : "w-2 bg-white/15"}`} />)}
+            {[0, 1, 2].map(index => <span key={index} className={`h-2 rounded-full transition-all ${index === step ? "w-7 bg-floodlight" : "w-2 bg-chalk/15"}`} />)}
           </div>
         </div>
 
@@ -206,7 +206,7 @@ export function NotificationOnboarding() {
             <p className="mt-3 text-chalk/65">Enable push notifications for Thursday League.</p>
             <div className="mt-6 grid gap-2">
               {["New game is scheduled", "Lineups are ready and fantasy opens", "Fantasy deadline reminder before kickoff", "Final score and fantasy results are ready"].map(item => (
-                <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-chalk/75"><CheckCircle2 size={18} className="shrink-0 text-perimeter-400" />{item}</div>
+                <div key={item} className="flex items-center gap-3 rounded-2xl border border-chalk/10 bg-chalk/[0.03] p-3 text-sm text-chalk/75"><CheckCircle2 size={18} className="shrink-0 text-perimeter-400" />{item}</div>
               ))}
             </div>
           </div>
@@ -220,9 +220,9 @@ export function NotificationOnboarding() {
               <div className="mt-5 flex items-center gap-3 rounded-2xl border border-perimeter-400/30 bg-perimeter-400/10 p-4 text-perimeter-400"><CheckCircle2 /> Thursday League is already running as an installed app.</div>
             ) : device.isIOS ? (
               <div className="mt-5 space-y-3 text-sm text-chalk/70">
-                <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><Share className="shrink-0 text-perimeter-400" size={20} /><span>In your browser, press the <strong>Share</strong> button.</span></div>
-                <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><Download className="shrink-0 text-perimeter-400" size={20} /><span>Choose <strong>Add to Home Screen</strong>, then press Add.</span></div>
-                <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"><AppWindow className="shrink-0 text-perimeter-400" size={20} /><span>Open the <strong>new Thursday League app</strong>, sign in and finish setup.</span></div>
+                <div className="flex gap-3 rounded-2xl border border-chalk/10 bg-chalk/[0.03] p-3"><Share className="shrink-0 text-perimeter-400" size={20} /><span>In your browser, press the <strong>Share</strong> button.</span></div>
+                <div className="flex gap-3 rounded-2xl border border-chalk/10 bg-chalk/[0.03] p-3"><Download className="shrink-0 text-perimeter-400" size={20} /><span>Choose <strong>Add to Home Screen</strong>, then press Add.</span></div>
+                <div className="flex gap-3 rounded-2xl border border-chalk/10 bg-chalk/[0.03] p-3"><AppWindow className="shrink-0 text-perimeter-400" size={20} /><span>Open the <strong>new Thursday League app</strong>, sign in and finish setup.</span></div>
 
                 <p>iPhone only allows Web Push from the installed Home Screen app.</p>
               </div>
@@ -256,7 +256,7 @@ export function NotificationOnboarding() {
 
         {message ? <p className="mt-4 text-sm text-chalk/65" role="status">{message}</p> : null}
 
-        <div className="mt-7 flex items-center justify-between gap-2 border-t border-white/10 pt-4">
+        <div className="mt-7 flex items-center justify-between gap-2 border-t border-chalk/10 pt-4">
           <SecondaryButton type="button" onClick={dismiss}>Not now</SecondaryButton>
           <div className="flex gap-2">
             {step > 0 ? <SecondaryButton type="button" onClick={previous} aria-label="Previous step"><ChevronLeft size={18} /></SecondaryButton> : null}
@@ -303,7 +303,7 @@ export function NotificationNudge({ userId }: { userId: string }) {
 
   if (!visible) return null;
   return (
-    <div className="border-b border-floodlight/40 bg-floodlight px-4 py-2 text-ink-900">
+    <div className="border-b border-floodlight/40 bg-floodlight px-4 py-2 text-gold-ink">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 text-sm font-semibold"><BellRing size={17} className="shrink-0" /><span className="truncate">{blocked ? "Notifications are blocked on this device." : "Get game, lineup, and result notifications."}</span></div>
         <button type="button" onClick={openSetup} className="shrink-0 rounded-xl bg-ink-900 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-chalk">{blocked ? "Review" : "Enable"}</button>

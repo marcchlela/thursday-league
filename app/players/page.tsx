@@ -58,7 +58,7 @@ export default function PlayersPage() {
             <label className="relative block">
               <span className="sr-only">Search players</span>
               <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-league-gold/55" size={18} />
-              <TextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search players…" className="rounded-[1.15rem] border-league-gold/20 bg-[#171814] py-3 pl-11 shadow-[0_7px_20px_rgba(0,0,0,.1)]" />
+              <TextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search players…" className="rounded-[1.15rem] border-league-gold/20 bg-ink-850 py-3 pl-11 shadow-[0_7px_20px_rgba(0,0,0,.1)]" />
             </label>
             {!visiblePlayers.length ? <EmptyState title="No players found" text={normalizedQuery ? "Try another player name." : "Admin can add active players from the Admin page."} /> : (
               <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -81,7 +81,7 @@ function PlayerCircle({ player }: { player: Player }) {
   return (
     <Link
       href={`/players/${player.id}`}
-      className="group relative aspect-square min-w-0 overflow-hidden rounded-full border border-league-gold/25 bg-[#171814] p-2 text-center shadow-[0_8px_20px_rgba(0,0,0,.14)] transition hover:-translate-y-0.5 hover:border-league-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:p-3"
+      className="group relative aspect-square min-w-0 overflow-hidden rounded-full border border-league-gold/25 bg-ink-850 p-2 text-center shadow-[0_8px_20px_rgba(0,0,0,.14)] transition hover:-translate-y-0.5 hover:border-league-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold sm:p-3"
       aria-label={`Open ${player.name}, ${player.default_position === "goalkeeper" ? "goalkeeper" : "outfield"} player`}
     >
       <span className="flex h-full flex-col items-center justify-center">
@@ -116,7 +116,7 @@ function PlayerStatBoards({ players, data, seasonScope }: { players: Player[]; d
         const open = !!expanded[board.key];
         const visible = open ? ordered : ordered.slice(0, 5);
         return (
-          <section key={board.key} className="overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+          <section key={board.key} className="overflow-hidden rounded-[1.3rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
             <div className="flex items-center gap-3 border-b border-league-gold/15 px-4 py-3.5">
               <span className="grid h-9 w-9 place-items-center rounded-xl border border-league-gold/20 bg-league-gold/[.055] text-league-gold"><Icon size={18} /></span>
               <div><div className="text-[8px] font-black uppercase tracking-[.17em] text-chalk/28">Leaderboard</div><h2 className="font-display text-2xl uppercase">{board.label}</h2></div>
@@ -163,7 +163,7 @@ function rankRows(
 function SeasonScopeSelect({ data, value, onChange }: { data: LeagueData; value: string; onChange: (value: string) => void }) {
   const current = currentSeason(data);
   return (
-    <section className="flex flex-col gap-3 rounded-[1.2rem] border border-league-gold/25 bg-[#171814] p-4 shadow-[0_7px_20px_rgba(0,0,0,.1)] sm:flex-row sm:items-center sm:justify-between">
+    <section className="flex flex-col gap-3 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-4 shadow-[0_7px_20px_rgba(0,0,0,.1)] sm:flex-row sm:items-center sm:justify-between">
       <div><div className="text-sm font-semibold">Statistics period</div><div className="mt-0.5 text-xs text-chalk/35">Season results or complete league history</div></div>
       <Select className="rounded-xl border-league-gold/15 py-2.5 sm:w-64" value={value} onChange={event => onChange(event.target.value)}>
         <option value="current">{current ? `${current.name} · current season` : "Current season"}</option>

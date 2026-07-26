@@ -42,7 +42,7 @@ export function BettingBalance({ balanceUnits, lockAt, lockMinutes = 5, isOpen, 
   const countdown = useLockCountdown(lockAt);
   const visiblyOpen = !!isOpen && !countdown.expired;
   return (
-    <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-[1.3rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]", compact ? "px-4 py-3" : "px-5 py-4")}>
+    <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-[1.3rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]", compact ? "px-4 py-3" : "px-5 py-4")}>
       <div className="flex items-center gap-3">
         <LeagueCoin size={compact ? 38 : 46} />
         <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/65">Your balance</div><CoinAmount units={balanceUnits} iconSize={0} className={cn("mt-0.5 font-bold text-league-gold", compact ? "text-2xl" : "text-3xl")} /></div>
@@ -57,9 +57,9 @@ export function MarketSection({ label, icon: Icon, markets, outcomes, lineups = 
   const splitByTeam = markets.some(market => market.subject_player_id || market.subject_team);
 
   return (
-    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)]">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(current => !current)} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-white/[.02] sm:px-5">
-        <span className="flex min-w-0 items-center gap-2.5"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-league-gold/15 bg-league-gold/[.06] text-league-gold"><Icon size={18} /></span><span className="truncate font-display text-xl uppercase sm:text-2xl">{label}</span><span className="rounded-full border border-white/[.07] bg-white/[.025] px-2 py-0.5 font-mono text-[10px] text-chalk/35">{markets.length}</span></span>
+    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(current => !current)} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-chalk/[.02] sm:px-5">
+        <span className="flex min-w-0 items-center gap-2.5"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-league-gold/15 bg-league-gold/[.06] text-league-gold"><Icon size={18} /></span><span className="truncate font-display text-xl uppercase sm:text-2xl">{label}</span><span className="rounded-full border border-chalk/[.07] bg-chalk/[.025] px-2 py-0.5 font-mono text-[10px] text-chalk/35">{markets.length}</span></span>
         <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-chalk/35">{open ? "Hide" : "Show"}<ChevronDown size={17} className={cn("transition", open && "rotate-180")} /></span>
       </button>
       {open ? splitByTeam ? (
@@ -103,19 +103,19 @@ function TeamMarkets({ team, markets, outcomes, lineups, selected, disabled, onT
 
 function MarketGroup({ title, markets, outcomes, selected, disabled, onToggle }: { title: string; markets: BettingMarket[]; outcomes: BettingOutcome[]; selected: string[]; disabled: boolean; onToggle: (outcome: BettingOutcome) => void }) {
   return (
-    <section className="rounded-[.9rem] border border-white/[.065] bg-black/15 p-2.5 sm:p-3">
+    <section className="rounded-[.9rem] border border-chalk/[.065] bg-black/15 p-2.5 sm:p-3">
       <h3 className="mb-2.5 truncate text-xs font-bold text-chalk/80 sm:text-sm">{title}</h3>
       <div className="space-y-2">
         {markets.sort((first, second) => Number(first.line || 0) - Number(second.line || 0)).map(market => {
           const marketOutcomes = outcomes.filter(outcome => outcome.market_id === market.id);
           return (
             <div key={market.id} className={cn("grid items-stretch gap-2", market.line != null ? "grid-cols-[auto_1fr]" : "grid-cols-1")}>
-              {market.line != null ? <div className="grid min-w-12 place-items-center rounded-lg border border-white/[.065] bg-white/[.025] px-2 font-mono text-xs text-chalk/50">{Number(market.line).toFixed(1)}</div> : null}
+              {market.line != null ? <div className="grid min-w-12 place-items-center rounded-lg border border-chalk/[.065] bg-chalk/[.025] px-2 font-mono text-xs text-chalk/50">{Number(market.line).toFixed(1)}</div> : null}
               <div className={cn("grid gap-2", marketOutcomes.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
                 {marketOutcomes.map(outcome => {
                   const active = selected.includes(outcome.id);
                   const compactLabel = market.line == null ? outcome.label : outcome.label.split(" ")[0];
-                  return <button key={outcome.id} type="button" disabled={disabled} aria-pressed={active} aria-label={`${title}: ${outcome.label}`} onClick={() => onToggle(outcome)} className={cn("min-w-0 rounded-lg border px-2 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold disabled:cursor-not-allowed disabled:opacity-45", active ? "border-league-gold/55 bg-league-gold/[.11]" : "border-white/[.065] bg-white/[.025] hover:border-league-gold/30 hover:bg-league-gold/[.045]")}><span className={cn("block truncate text-[10px]", active ? "text-league-gold/75" : "text-chalk/45")}>{compactLabel}</span><span className={cn("mt-0.5 block font-mono text-sm font-bold sm:text-base", active ? "text-league-gold" : "text-chalk/85")}>{Number(outcome.offered_odds).toFixed(2)}</span></button>;
+                  return <button key={outcome.id} type="button" disabled={disabled} aria-pressed={active} aria-label={`${title}: ${outcome.label}`} onClick={() => onToggle(outcome)} className={cn("min-w-0 rounded-lg border px-2 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold disabled:cursor-not-allowed disabled:opacity-45", active ? "border-league-gold/55 bg-league-gold/[.11]" : "border-chalk/[.065] bg-chalk/[.025] hover:border-league-gold/30 hover:bg-league-gold/[.045]")}><span className={cn("block truncate text-[10px]", active ? "text-league-gold/75" : "text-chalk/45")}>{compactLabel}</span><span className={cn("mt-0.5 block font-mono text-sm font-bold sm:text-base", active ? "text-league-gold" : "text-chalk/85")}>{Number(outcome.offered_odds).toFixed(2)}</span></button>;
                 })}
               </div>
             </div>
@@ -128,21 +128,21 @@ function MarketGroup({ title, markets, outcomes, selected, disabled, onToggle }:
 
 export function BetSlipCard({ markets, outcomes, odds, stake, potentialReturn, balanceUnits, disabled, placing, onStake, onRemove, onPlace }: { markets: BettingMarket[]; outcomes: BettingOutcome[]; odds: number; stake: string; potentialReturn: number; balanceUnits: number; disabled: boolean; placing: boolean; onStake: (value: string) => void; onRemove: (id: string) => void; onPlace: () => void }) {
   return (
-    <section className="h-fit overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-[#171814] shadow-[0_9px_24px_rgba(0,0,0,.13)] xl:sticky xl:top-24">
+    <section className="h-fit overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)] xl:sticky xl:top-24">
       <div className="flex items-center justify-between border-b border-league-gold/15 px-4 py-3.5">
         <div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg border border-league-gold/15 bg-league-gold/[.06] text-league-gold"><Ticket size={17} /></span><h2 className="font-display text-2xl uppercase">Bet slip</h2></div>
         {outcomes.length > 1 ? <Pill className="border-league-gold/15 bg-league-gold/[.05] text-league-gold">Builder</Pill> : outcomes.length === 1 ? <Pill className="border-league-gold/15 bg-league-gold/[.05] text-league-gold">Single</Pill> : null}
       </div>
       <div className="p-4">
-        {!outcomes.length ? <div className="rounded-xl border border-dashed border-white/[.09] p-6 text-center text-sm text-chalk/40">Choose an outcome to start a slip.</div> : (
+        {!outcomes.length ? <div className="rounded-xl border border-dashed border-chalk/[.09] p-6 text-center text-sm text-chalk/40">Choose an outcome to start a slip.</div> : (
           <div className="space-y-2">
             {outcomes.map(outcome => {
               const market = markets.find(item => item.id === outcome.market_id);
-              return <div key={outcome.id} className="flex items-start justify-between gap-3 rounded-xl border border-white/[.06] bg-black/15 p-3"><div className="min-w-0"><div className="truncate text-[10px] text-chalk/35">{market?.title}</div><div className="mt-1 truncate text-sm font-semibold">{outcome.label} <span className="ml-1 font-mono text-league-gold">{Number(outcome.offered_odds).toFixed(2)}</span></div></div><button type="button" onClick={() => onRemove(outcome.id)} className="rounded-lg p-1 text-chalk/35 transition hover:bg-white/[.04] hover:text-chalk" aria-label={`Remove ${outcome.label}`}><X size={15} /></button></div>;
+              return <div key={outcome.id} className="flex items-start justify-between gap-3 rounded-xl border border-chalk/[.06] bg-black/15 p-3"><div className="min-w-0"><div className="truncate text-[10px] text-chalk/35">{market?.title}</div><div className="mt-1 truncate text-sm font-semibold">{outcome.label} <span className="ml-1 font-mono text-league-gold">{Number(outcome.offered_odds).toFixed(2)}</span></div></div><button type="button" onClick={() => onRemove(outcome.id)} className="rounded-lg p-1 text-chalk/35 transition hover:bg-chalk/[.04] hover:text-chalk" aria-label={`Remove ${outcome.label}`}><X size={15} /></button></div>;
             })}
           </div>
         )}
-        <div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-xl border border-white/[.055] bg-white/[.02] p-3"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Accepted odds</div><div className="mt-1 font-mono text-xl">{outcomes.length ? odds.toFixed(2) : "—"}</div></div><div className="rounded-xl border border-white/[.055] bg-white/[.02] p-3"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Potential return</div><div className="mt-1 text-league-gold">{potentialReturn ? <CoinAmount units={Math.round(potentialReturn * 100)} iconSize={18} className="text-lg" /> : <span className="font-mono text-xl">—</span>}</div></div></div>
+        <div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-xl border border-chalk/[.055] bg-chalk/[.02] p-3"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Accepted odds</div><div className="mt-1 font-mono text-xl">{outcomes.length ? odds.toFixed(2) : "—"}</div></div><div className="rounded-xl border border-chalk/[.055] bg-chalk/[.02] p-3"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Potential return</div><div className="mt-1 text-league-gold">{potentialReturn ? <CoinAmount units={Math.round(potentialReturn * 100)} iconSize={18} className="text-lg" /> : <span className="font-mono text-xl">—</span>}</div></div></div>
         <label className="mt-3 block"><span className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-chalk/40"><span>Stake</span><CoinAmount units={balanceUnits} iconSize={14} /></span><TextInput type="number" min="0.01" step="0.01" inputMode="decimal" value={stake} onChange={event => onStake(event.target.value)} placeholder="Coins" className="rounded-xl border-league-gold/15 py-2.5 focus:border-league-gold focus:ring-league-gold" /></label>
         <PrimaryButton type="button" className="mt-3 w-full rounded-xl bg-league-gold py-3 shadow-none" disabled={disabled || placing || !outcomes.length || Number(stake) <= 0} onClick={onPlace}>{placing ? "Placing…" : outcomes.length > 1 ? "Place bet builder" : "Place bet"}</PrimaryButton>
         <p className="mt-3 text-center text-[10px] text-chalk/30">Your available coin balance is the stake limit.</p>
@@ -175,7 +175,7 @@ export function BetSlipDrawer({ markets, outcomes, odds, stake, potentialReturn,
             <div className="max-h-36 space-y-1.5 overflow-y-auto pr-1">
               {outcomes.map(outcome => {
                 const market = markets.find(item => item.id === outcome.market_id);
-                return <div key={outcome.id} className="flex items-center justify-between gap-3 rounded-xl bg-black/25 px-3 py-2"><div className="min-w-0"><div className="truncate text-[10px] text-chalk/35">{market?.title}</div><div className="truncate text-xs font-semibold">{outcome.label} <span className="font-mono text-league-gold">{Number(outcome.offered_odds).toFixed(2)}</span></div></div><button type="button" onClick={() => onRemove(outcome.id)} className="shrink-0 rounded-lg p-1.5 text-chalk/35 hover:bg-white/5 hover:text-chalk" aria-label={`Remove ${outcome.label}`}><X size={15} /></button></div>;
+                return <div key={outcome.id} className="flex items-center justify-between gap-3 rounded-xl bg-black/25 px-3 py-2"><div className="min-w-0"><div className="truncate text-[10px] text-chalk/35">{market?.title}</div><div className="truncate text-xs font-semibold">{outcome.label} <span className="font-mono text-league-gold">{Number(outcome.offered_odds).toFixed(2)}</span></div></div><button type="button" onClick={() => onRemove(outcome.id)} className="shrink-0 rounded-lg p-1.5 text-chalk/35 hover:bg-chalk/5 hover:text-chalk" aria-label={`Remove ${outcome.label}`}><X size={15} /></button></div>;
               })}
             </div>
             <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">

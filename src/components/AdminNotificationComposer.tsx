@@ -108,7 +108,7 @@ export function AdminNotificationComposer({ games, onSent }: { games: Game[]; on
 
   return (
     <>
-      <Card className="border-league-gold/30 bg-[linear-gradient(135deg,rgba(218,165,32,.07),#171814_46%)]">
+      <Card className="border-league-gold/30 bg-ink-850 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex gap-3"><BellRing className="mt-1 shrink-0 text-league-gold" /><div><h2 className="font-display text-3xl uppercase">Send announcement</h2><p className="mt-1 max-w-2xl text-sm text-chalk/55">Write a one-time league update and choose where it opens when pressed.</p></div></div>
           <div className="flex items-center gap-2" aria-live="polite">
