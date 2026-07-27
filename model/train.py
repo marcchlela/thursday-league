@@ -129,6 +129,34 @@ def posterior(total: float, appearances: float, prior_rate: float, prior_appeara
     return (total + prior_rate * prior_appearances) / (appearances + prior_appearances)
 
 
+def assisted_goal_probability(rates: Dict[str, float]) -> float:
+    return clamp(
+        rates["player_assists"] / max(rates["player_goals"], 0.1),
+        0.15,
+        0.90,
+    )
+
+
+def opponent_adjusted_saves(
+    baseline_saves: float,
+    opponent_expected_goals: float,
+    league_team_goals: float,
+    maximum: float = 15.0,
+) -> float:
+    """Adjust saves without counting opponent strength twice.
+
+    A player save rate already reflects the league environment in which it was
+    observed. A damped ratio preserves that baseline against average opposition
+    and only moves it gradually for stronger or weaker lineups.
+    """
+    strength_ratio = clamp(
+        opponent_expected_goals / max(league_team_goals, 0.1),
+        0.50,
+        1.50,
+    )
+    return clamp(baseline_saves * strength_ratio ** 0.45, 0.5, maximum)
+
+
 def pair_synergy(
     history: Sequence[Dict[str, Any]], player_ids: Sequence[str], decay: float, prior_appearances: float
 ) -> float:

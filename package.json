@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude=e2e/**",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "model:report": "python model/evaluate_odds.py --artifact model/artifacts/player-lineup-v1.json --scenarios model/data/scenarios-v1.json --output model/artifacts/odds-report-v1.json"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

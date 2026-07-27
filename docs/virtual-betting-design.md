@@ -34,6 +34,8 @@ Synthetic data remains useful for:
 - load and settlement tests;
 - checking calibration code before enough real outcomes exist.
 
+The first synthetic tool writes a separate, reproducible scenario bundle rather than adding rows to the real-game export. Every scenario is provenance-tagged, records the seed and source-game fingerprint, and is rejected by the observed-game trainer. This lets the odds engine explore randomized five-a-side lineups and rare outcomes without presenting invented results as extra evidence.
+
 Once the league has more completed games, a later model can be trained and evaluated with time-ordered validation. Forecast quality should be tracked with Brier score, log loss, and reliability/calibration plots, not only prediction accuracy.
 
 ## Markets

@@ -10,7 +10,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from model.train import match_probabilities, train, validate_export  # noqa: E402
+from model.scenarios import generate_scenarios  # noqa: E402
+from model.train import (  # noqa: E402
+    match_probabilities,
+    opponent_adjusted_saves,
+    train,
+    validate_export,
+)
 
 
 def synthetic_export(game_count=7):
@@ -56,6 +62,20 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertAlmostEqual(sum(probabilities.values()), 1.0, places=10)
         self.assertTrue(all(0 < value < 1 for value in probabilities.values()))
 
+    def test_save_adjustment_preserves_baseline_against_average_opposition(self):
+        self.assertAlmostEqual(
+            opponent_adjusted_saves(6.5, 4.2, 4.2),
+            6.5,
+        )
+        self.assertGreater(
+            opponent_adjusted_saves(6.5, 6.0, 4.2),
+            6.5,
+        )
+        self.assertLess(
+            opponent_adjusted_saves(6.5, 3.0, 4.2),
+            6.5,
+        )
+
     def test_walk_forward_training_is_finite_and_pseudonymous(self):
         artifact = train(synthetic_export(), min_history=3)
         evaluation = artifact["walk_forward_evaluation"]
@@ -96,6 +116,62 @@ class ModelTrainingTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(output_path.exists())
             self.assertIn("Walk-forward games: 4", result.stdout)
+
+    def test_synthetic_scenarios_are_reproducible_and_schema_isolated(self):
+        payload = synthetic_export()
+        first = generate_scenarios(payload, count=20, seed=42)
+        second = generate_scenarios(payload, count=20, seed=42)
+
+        self.assertEqual(first["scenario_schema_version"], 1)
+        self.assertEqual(first["provenance"]["kind"], "synthetic")
+        self.assertEqual(first["scenarios"], second["scenarios"])
+        self.assertEqual(len(first["scenarios"]), 20)
+        with self.assertRaises(ValueError):
+            validate_export(first)
+
+        for scenario in first["scenarios"]:
+            team_a = {item["player_id"] for item in scenario["lineup"]["A"]}
+            team_b = {item["player_id"] for item in scenario["lineup"]["B"]}
+            self.assertEqual(len(team_a), 5)
+            self.assertEqual(len(team_b), 5)
+            self.assertFalse(team_a & team_b)
+            result = scenario["simulated_result"]
+            totals = result["player_totals"]
+            team_a_goals = sum(total["goals"] for total in totals.values() if total["team"] == "A")
+            team_b_goals = sum(total["goals"] for total in totals.values() if total["team"] == "B")
+            team_a_own_goals = sum(total["own_goals"] for total in totals.values() if total["team"] == "A")
+            team_b_own_goals = sum(total["own_goals"] for total in totals.values() if total["team"] == "B")
+            self.assertEqual(result["score_a"], team_a_goals + team_b_own_goals)
+            self.assertEqual(result["score_b"], team_b_goals + team_a_own_goals)
+
+    def test_scenario_cli_writes_a_provenance_tagged_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = Path(directory) / "input.json"
+            output_path = Path(directory) / "scenarios.json"
+            input_path.write_text(json.dumps(synthetic_export()), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "model" / "scenarios.py"),
+                    "--input",
+                    str(input_path),
+                    "--output",
+                    str(output_path),
+                    "--count",
+                    "12",
+                    "--seed",
+                    "7",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            bundle = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(bundle["provenance"]["kind"], "synthetic")
+            self.assertEqual(bundle["parameters"]["seed"], 7)
+            self.assertEqual(len(bundle["scenarios"]), 12)
+            self.assertIn("Generated 12 synthetic 5v5 scenarios", result.stdout)
 
 
 if __name__ == "__main__":

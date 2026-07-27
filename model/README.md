@@ -24,6 +24,37 @@ The exported file contains stable UUIDs for competition-eligible players so game
 
 The web app continues using its current transparent probability engine until a model is deliberately reviewed, versioned, and integrated in a separate code change. Running this trainer repeatedly is therefore safe even when `.env.local` points at the live Supabase project.
 
+## Generate controlled random scenarios
+
+After exporting real finalized games, generate a reproducible bundle of randomized 5v5 lineups and outcomes:
+
+```powershell
+python model/scenarios.py --input model/data/thursday-league-model-data-YYYY-MM-DD.json --output model/data/scenarios-v1.json --count 1000 --seed 20260726
+```
+
+The generator learns league rates and player priors from the real export, then samples new lineup combinations, fixed or rotating goalkeeper setups, scores, scorers, assists, saves, and own goals. The seed makes the same command produce the same scenarios again.
+
+Scenario bundles use `scenario_schema_version`, contain `source: synthetic_scenario` on every scenario, and record a fingerprint of the real games used to create them. They deliberately do not contain the real export's `games` array, so `train.py` rejects them if someone accidentally supplies a scenario bundle as observed history.
+
+These generated matches expand odds stress-testing and rare-market coverage. They are not counted as real Thursday League evidence and never appear in walk-forward validation. Once their behavior is inspected, a later phase can use them to test market-line consistency and correlated bet-builder pricing.
+
+## View the odds stress report
+
+After training the artifact and generating scenarios, run:
+
+```powershell
+npm run model:report
+```
+
+This prints a compact table in the terminal and saves the detailed aggregate report to `model/artifacts/odds-report-v1.json`. It covers match result, total goals, player goals, player assists, fixed-goalkeeper saves, rotating/fixed team saves, and own goals. `OK` means the market stayed within the configured synthetic calibration thresholds; `REVIEW` identifies formulas or lines to inspect first.
+
+The report contains no player identifiers. It also keeps the two kinds of evidence separate:
+
+- **Real finalized-market reference:** scores probabilities that were actually generated before completed games.
+- **Synthetic stress test:** checks market consistency across many controlled 5v5 scenarios.
+
+A synthetic `OK` is not permission to deploy a model. Production promotion still requires enough new real games for chronological walk-forward validation.
+
 ## What “training” means in v1
 
 - Every historical game is processed in date order.

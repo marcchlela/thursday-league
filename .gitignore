@@ -7,6 +7,8 @@ out
 .vercel
 .DS_Store
 *.log
+__pycache__/
+*.py[cod]
 model/data/*.json
 model/artifacts/*.json
 playwright-report
