@@ -19,6 +19,36 @@ export type ReleaseNote = {
 // update and powers the unread badge in Settings.
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "0.4.1",
+    level: "patch",
+    releasedAt: "2026-07-27",
+    title: "Tilo's matchday debut",
+    summary: "Tilo arrives for useful matchday moments, alongside fixes for lineups, Fantasy, notifications, and bet privacy.",
+    sections: [
+      {
+        title: "Meet Tilo",
+        items: [
+          "Tilo now appears when there is something useful to do: review confirmed lineups, complete your Fantasy team, or explore open match markets.",
+          "His celebration pose is reserved for a first-place Fantasy finish, and he is larger and sharper on phones."
+        ]
+      },
+      {
+        title: "A smoother matchday",
+        items: [
+          "Saving a valid lineup now reliably opens Fantasy and sends the confirmed-lineup notification.",
+          "Admins can send or check the lineup notification again, while real delivery failures remain retryable from Notification History.",
+          "Rotating-goalkeeper teams now use a clearer 2-3 pitch shape instead of implying a fixed keeper."
+        ]
+      },
+      {
+        title: "Private picks",
+        items: [
+          "Public bet slips have been removed from Standings. Everyone now sees only their own slips in My Bets."
+        ]
+      }
+    ]
+  },
+  {
     version: "0.4.0",
     level: "minor",
     releasedAt: "2026-07-26",

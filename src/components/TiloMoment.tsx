@@ -6,12 +6,12 @@ type TiloPose = "matchday-ready" | "celebration";
 const POSES: Record<TiloPose, { src: string; width: number; alt: string }> = {
   "matchday-ready": {
     src: "/mascot/tilo-matchday-ready.png",
-    width: 145,
+    width: 290,
     alt: "Tilo ready for matchday with one boot on a football"
   },
   celebration: {
     src: "/mascot/tilo-celebration.png",
-    width: 152,
+    width: 304,
     alt: "Tilo celebrating with a raised fist"
   }
 };
@@ -35,7 +35,7 @@ export function TiloMoment({
   return (
     <aside
       className={cn(
-        "relative grid min-h-36 grid-cols-[minmax(0,1fr)_6.5rem] items-center overflow-hidden rounded-[1.35rem] border bg-ink-850 px-4 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:min-h-40 sm:grid-cols-[minmax(0,1fr)_8rem] sm:px-5",
+        "relative grid min-h-52 grid-cols-[minmax(0,1fr)_7.75rem] items-center overflow-hidden rounded-[1.35rem] border bg-ink-850 px-4 shadow-[0_9px_24px_rgba(0,0,0,.13)] sm:min-h-56 sm:grid-cols-[minmax(0,1fr)_9rem] sm:px-5",
         celebration ? "border-league-gold/35" : "border-turf-400/25",
         className
       )}
@@ -53,10 +53,10 @@ export function TiloMoment({
         <Image
           src={image.src}
           width={image.width}
-          height={256}
-          sizes="(min-width: 640px) 128px, 104px"
+          height={512}
+          sizes="(min-width: 640px) 144px, 124px"
           alt={image.alt}
-          className="h-auto max-h-36 w-auto max-w-full object-contain drop-shadow-[0_10px_12px_rgba(0,0,0,.28)] sm:max-h-40"
+          className="h-auto max-h-52 w-auto max-w-full object-contain drop-shadow-[0_10px_12px_rgba(0,0,0,.28)] sm:max-h-56"
         />
       </div>
     </aside>
