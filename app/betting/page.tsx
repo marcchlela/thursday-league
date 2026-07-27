@@ -7,6 +7,7 @@ import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useBettingData } from "@/hooks/useBettingData";
 import { useBettingSocial } from "@/hooks/useBettingSocial";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { bettingSelectionGroup, coinsFromUnits, formatCoins, quoteBuilderOdds } from "@/lib/betting";
 import { calculateScore } from "@/lib/scoring";
 import { supabase } from "@/lib/supabase";
@@ -16,7 +17,7 @@ import { BetSlipCard, BetSlipDrawer, BettingBalance, bettingCategoryOrder, Marke
 import { CoinAmount } from "@/components/LeagueCoin";
 import { PlaySwitcher } from "@/components/PlaySwitcher";
 import { TeamCrest } from "@/components/TeamCrest";
-import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Select, TabList, Toast } from "@/components/ui";
+import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Select, TabList, Toast, ToastTone } from "@/components/ui";
 
 type PageTab = "markets" | "mine" | "standings";
 
@@ -38,7 +39,7 @@ export default function BettingPage() {
   const [placing, setPlacing] = useState(false);
   const [cashOutSlip, setCashOutSlip] = useState<BetSlip | null>(null);
   const [cashingOut, setCashingOut] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [toastLinksToMyBets, setToastLinksToMyBets] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -115,8 +116,8 @@ export default function BettingPage() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
-  function showToast(message: string, linksToMyBets = false) {
-    setToast(message);
+  function showToast(message: string, tone: ToastTone = "info", linksToMyBets = false) {
+    setToast({ message, tone });
     setToastLinksToMyBets(linksToMyBets);
   }
 
@@ -151,7 +152,7 @@ export default function BettingPage() {
         return !existingMarket || bettingSelectionGroup(existingMarket) !== selectedGroup;
       });
       if (withoutSameGroup.length >= 5) {
-        showToast("A same-game builder can contain up to five selections.");
+        showToast("A same-game builder can contain up to five selections.", "warning");
         return current;
       }
       return [...withoutSameGroup, outcome.id];
@@ -160,8 +161,8 @@ export default function BettingPage() {
 
   async function placeBet() {
     if (!game || !selectedOutcomeIds.length) return;
-    if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return showToast("Enter a positive stake with up to two decimals.");
-    if (!wallet || stakeCoins > coinsFromUnits(wallet.balance_units)) return showToast("You do not have enough coins for that stake.");
+    if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return showToast("Enter a positive stake with up to two decimals.", "warning");
+    if (!wallet || stakeCoins > coinsFromUnits(wallet.balance_units)) return showToast("You do not have enough coins for that stake.", "warning");
     setPlacing(true);
     const { error } = await supabase.rpc("place_bet", {
       target_game_id: game.id,
@@ -170,8 +171,8 @@ export default function BettingPage() {
       client_request_id: crypto.randomUUID()
     });
     setPlacing(false);
-    if (error) return showToast(error.message);
-    showToast(`${selectedOutcomeIds.length === 1 ? "Bet" : "Bet builder"} placed at ${builderOdds.toFixed(2)} odds.`, true);
+    if (error) return showToast(friendlyActionError(error, "Your bet could not be placed. Please try again."), "error");
+    showToast(`${selectedOutcomeIds.length === 1 ? "Bet" : "Bet builder"} placed at ${builderOdds.toFixed(2)} odds.`, "success", true);
     setSelectedOutcomeIds([]);
     setStake("");
     await betting.reload();
@@ -182,9 +183,9 @@ export default function BettingPage() {
     setCashingOut(true);
     const { data, error } = await supabase.rpc("cash_out_bet", { target_slip_id: cashOutSlip.id });
     setCashingOut(false);
-    if (error) return showToast(error.message);
+    if (error) return showToast(friendlyActionError(error, "This bet could not be cashed out. Please try again."), "error");
     const result = data as { refund_units?: number } | null;
-    showToast(`Bet cashed out. ${formatCoins(Number(result?.refund_units ?? cashOutSlip.stake_units))} coins returned.`);
+    showToast(`Bet cashed out. ${formatCoins(Number(result?.refund_units ?? cashOutSlip.stake_units))} coins returned.`, "success");
     setCashOutSlip(null);
     await betting.reload();
   }
@@ -192,7 +193,8 @@ export default function BettingPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
       <Toast
-        message={toast}
+        message={toast?.message || null}
+        tone={toast?.tone}
         duration={toastLinksToMyBets ? 6000 : 3200}
         actionLabel={toastLinksToMyBets ? "View in My Bets" : undefined}
         onAction={toastLinksToMyBets ? () => {

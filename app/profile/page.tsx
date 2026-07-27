@@ -6,12 +6,13 @@ import { Camera, LoaderCircle, Settings, ShieldCheck, Shirt, UserRound } from "l
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { formatCoins } from "@/lib/betting";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { allTimeLeaderboard } from "@/lib/scoring";
 import { supabase } from "@/lib/supabase";
 import { BettingStanding } from "@/lib/types";
 import { cn, currentSeason } from "@/lib/utils";
 import { LeagueCoin } from "@/components/LeagueCoin";
-import { ErrorState, Toast } from "@/components/ui";
+import { ErrorState, Toast, ToastTone } from "@/components/ui";
 
 const AVATAR_BUCKET = "profile-avatars";
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -32,7 +33,7 @@ export default function ProfilePage() {
   const [coinSummary, setCoinSummary] = useState<CoinSummary | null>(null);
   const [coinLoading, setCoinLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
 
   const allTime = useMemo(() => allTimeLeaderboard(data), [data]);
@@ -82,11 +83,11 @@ export default function ProfilePage() {
 
     const extension = avatarExtensions[file.type];
     if (!extension) {
-      setToast("Choose a JPG, PNG, or WebP image.");
+      setToast({ message: "Choose a JPG, PNG, or WebP image.", tone: "warning" });
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      setToast("Choose an image smaller than 5 MB.");
+      setToast({ message: "Choose an image smaller than 5 MB.", tone: "warning" });
       return;
     }
 
@@ -101,7 +102,7 @@ export default function ProfilePage() {
 
     if (upload.error) {
       setUploading(false);
-      setToast(`Could not upload the photo: ${upload.error.message}`);
+      setToast({ message: friendlyActionError(upload.error, "The photo could not be uploaded. Please try again."), tone: "error" });
       return;
     }
 
@@ -109,7 +110,7 @@ export default function ProfilePage() {
     if (update.error) {
       await supabase.storage.from(AVATAR_BUCKET).remove([avatarPath]);
       setUploading(false);
-      setToast(`Could not save the photo: ${update.error.message}`);
+      setToast({ message: friendlyActionError(update.error, "The uploaded photo could not be saved. Please try again."), tone: "error" });
       return;
     }
 
@@ -118,7 +119,7 @@ export default function ProfilePage() {
       void supabase.storage.from(AVATAR_BUCKET).remove([previousPath]);
     }
     setUploading(false);
-    setToast("Profile photo updated.");
+    setToast({ message: "Profile photo updated.", tone: "success" });
   }
 
   if (authLoading || leagueLoading) return <ProfileSkeleton />;
@@ -127,7 +128,7 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 md:space-y-5">
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast message={toast?.message || null} tone={toast?.tone} onDone={() => setToast(null)} />
 
       <header className="flex items-center justify-between gap-4">
         <div>

@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { VercelObservability } from "@/components/VercelObservability";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
 
 const themeBootScript = `
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProvider>
           <AppShell>{children}</AppShell>
         </ThemeProvider>
+        <VercelObservability />
       </body>
     </html>
   );

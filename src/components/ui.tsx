@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) {
@@ -100,34 +100,90 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...rest} className={cn("w-full rounded-2xl border border-league-gold/15 bg-ink-850 px-4 py-3 text-chalk outline-none ring-league-gold transition focus:border-league-gold focus:ring-2", className)}>{children}</select>;
 }
 
+export type ToastTone = "success" | "error" | "warning" | "info";
+
 export function Toast({
   message,
   onDone,
   actionLabel,
   onAction,
-  duration = 3200
+  duration = 3200,
+  tone = "info"
 }: {
   message: string | null;
   onDone: () => void;
   actionLabel?: string;
   onAction?: () => void;
   duration?: number;
+  tone?: ToastTone;
 }) {
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
   useEffect(() => {
     if (!message) return;
-    const timeout = window.setTimeout(onDone, duration);
+    const timeout = window.setTimeout(() => onDoneRef.current(), duration);
     return () => window.clearTimeout(timeout);
-  }, [duration, message, onDone]);
+  }, [duration, message]);
 
   if (!message) return null;
 
+  const styles = {
+    success: {
+      icon: CheckCircle2,
+      label: "Success",
+      border: "border-turf-400/35",
+      iconBox: "border-turf-400/25 bg-turf-400/10 text-turf-400",
+      progress: "bg-turf-400"
+    },
+    error: {
+      icon: AlertCircle,
+      label: "Error",
+      border: "border-red-400/35",
+      iconBox: "border-red-400/25 bg-red-400/10 text-red-300",
+      progress: "bg-red-400"
+    },
+    warning: {
+      icon: AlertTriangle,
+      label: "Warning",
+      border: "border-league-gold/40",
+      iconBox: "border-league-gold/25 bg-league-gold/[.08] text-league-gold",
+      progress: "bg-league-gold"
+    },
+    info: {
+      icon: Info,
+      label: "Notice",
+      border: "border-chalk/15",
+      iconBox: "border-chalk/10 bg-chalk/[.04] text-chalk/65",
+      progress: "bg-chalk/40"
+    }
+  }[tone];
+  const Icon = styles.icon;
+
   return (
-    <div className="fixed bottom-5 left-1/2 z-[80] w-[min(calc(100vw-2rem),30rem)] -translate-x-1/2 overflow-hidden rounded-[1rem] border border-league-gold/30 bg-ink-850/95 shadow-[0_16px_45px_rgba(0,0,0,.5)] backdrop-blur">
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <span className="text-sm font-semibold text-chalk">{message}</span>
-        {actionLabel && onAction ? <button type="button" onClick={onAction} className="shrink-0 rounded-lg border border-league-gold/25 bg-league-gold/[.08] px-2.5 py-1.5 text-xs font-bold text-league-gold transition hover:bg-league-gold/[.14]">{actionLabel}</button> : null}
+    <div
+      role={tone === "error" || tone === "warning" ? "alert" : "status"}
+      aria-live={tone === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
+      className={cn(
+        "fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 z-[80] w-[min(calc(100vw-2rem),31rem)] -translate-x-1/2 overflow-hidden rounded-[1.1rem] border bg-ink-850/95 shadow-[0_18px_48px_rgba(0,0,0,.34)] backdrop-blur-xl md:bottom-6",
+        styles.border
+      )}
+    >
+      <div className="flex items-start gap-3 px-3.5 py-3">
+        <span className={cn("mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl border", styles.iconBox)}>
+          <Icon size={17} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="block text-[10px] font-black uppercase tracking-[.16em] text-chalk/35">{styles.label}</span>
+          <span className="mt-0.5 block text-sm font-semibold leading-snug text-chalk">{message}</span>
+          {actionLabel && onAction ? <button type="button" onClick={onAction} className="mt-2 rounded-lg border border-league-gold/25 bg-league-gold/[.08] px-2.5 py-1.5 text-xs font-bold text-league-gold transition hover:bg-league-gold/[.14]">{actionLabel}</button> : null}
+        </div>
+        <button type="button" onClick={onDone} aria-label="Dismiss notification" className="shrink-0 rounded-lg p-1.5 text-chalk/30 transition hover:bg-chalk/[.05] hover:text-chalk">
+          <X size={15} />
+        </button>
       </div>
-      <div className="h-1 origin-left bg-league-gold" style={{ animation: `toast-progress ${duration}ms linear forwards` }} />
+      <div key={`${tone}-${message}`} className={cn("h-0.5 origin-left motion-reduce:hidden", styles.progress)} style={{ animation: `toast-progress ${duration}ms linear forwards` }} />
     </div>
   );
 }
