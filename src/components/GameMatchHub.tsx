@@ -14,6 +14,7 @@ import { Game, GameLineup, LeagueData, TeamCode } from "@/lib/types";
 import { cn, gameLineupIsReady, goalkeeperMode, playerName } from "@/lib/utils";
 import { TeamCrest } from "./TeamCrest";
 import { GameBettingPanel } from "./GameBettingPanel";
+import { TiloMoment } from "./TiloMoment";
 
 export type MatchDetailTab = "lineups" | "stats" | "fantasy" | "bets";
 
@@ -43,7 +44,19 @@ export function GameMatchHub({ game, data, initialTab }: { game: Game; data: Lea
       <MatchHero game={game} data={data} lineups={lineups} />
       <MatchTabs active={tab} onChange={setTab} />
       <div id={`match-${tab}-panel`} role="tabpanel" aria-labelledby={`match-${tab}-tab`}>
-        {tab === "lineups" ? <MatchPitch game={game} data={data} lineups={lineups} /> : null}
+        {tab === "lineups" ? (
+          <div className="space-y-4">
+            {game.status === "draft" && gameLineupIsReady(game, lineups) ? (
+              <TiloMoment
+                pose="matchday-ready"
+                eyebrow="Tilo's matchday note"
+                title="Lineups locked in."
+                text="Both teams are confirmed. Take a look before matchday."
+              />
+            ) : null}
+            <MatchPitch game={game} data={data} lineups={lineups} />
+          </div>
+        ) : null}
         {tab === "stats" ? <SparseMatchStats game={game} data={data} /> : null}
         {tab === "fantasy" ? <MatchFantasy game={game} data={data} /> : null}
         {tab === "bets" ? <GameBettingPanel game={game} data={data} /> : null}
@@ -219,9 +232,13 @@ function FormationHalf({ team, mode, data, lineups }: { team: TeamCode; mode: "f
   const keeper = ordered.find(lineup => lineup.role === "goalkeeper");
   const outfield = ordered.filter(lineup => lineup.role !== "goalkeeper");
   const slots = mode === "fixed" ? [keeper, ...outfield.slice(0, 2), ...outfield.slice(2, 4)] : ordered;
-  const positions = team === "A"
+  const fixedPositions = team === "A"
     ? ["top-[7%] left-1/2", "top-[22%] left-[28%]", "top-[22%] left-[72%]", "top-[39%] left-[28%]", "top-[39%] left-[72%]"]
     : ["bottom-[7%] left-1/2", "bottom-[22%] left-[28%]", "bottom-[22%] left-[72%]", "bottom-[39%] left-[28%]", "bottom-[39%] left-[72%]"];
+  const rotatingPositions = team === "A"
+    ? ["top-[15%] left-[32%]", "top-[15%] left-[68%]", "top-[36%] left-[18%]", "top-[36%] left-1/2", "top-[36%] left-[82%]"]
+    : ["bottom-[15%] left-[32%]", "bottom-[15%] left-[68%]", "bottom-[36%] left-[18%]", "bottom-[36%] left-1/2", "bottom-[36%] left-[82%]"];
+  const positions = mode === "fixed" ? fixedPositions : rotatingPositions;
   return <>{slots.map((lineup, index) => <div key={lineup?.id || `${team}-${index}`} className={cn("absolute z-10 -translate-x-1/2", positions[index])}><PitchPlayer playerId={lineup?.player_id} name={lineup ? playerName(data.players, lineup.player_id) : "TBD"} role={mode === "fixed" && index === 0 ? "goalkeeper" : "outfield"} team={team} pending={!lineup} /></div>)}</>;
 }
 

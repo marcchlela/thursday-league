@@ -19,7 +19,7 @@ import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, Sec
 
 type AdminTab = "games" | "roster" | "betting" | "seasons" | "notifications" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
-type PushSendResult = { total: number; sent: number; failed: number; removed: number };
+type PushSendResult = { total: number; sent: number; failed: number; removed: number; skipped?: boolean };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
 type ConfirmState = {
   title: string;
@@ -47,6 +47,13 @@ async function sendAdminGameNotification(gameId: string, event: AdminPushEvent) 
 
 function deliveryMessage(action: string, result?: PushSendResult) {
   const delivered = result?.sent || 0;
+  const failed = result?.failed || 0;
+  if (result?.skipped) {
+    return `${action} The notification was already recorded: ${delivered} sent${failed ? `, ${failed} failed` : ""}.`;
+  }
+  if (failed) {
+    return `${action} Notification sent to ${delivered} device${delivered === 1 ? "" : "s"}; ${failed} failed. Retry failed deliveries in Notifications.`;
+  }
   return `${action} Notification sent to ${delivered} device${delivered === 1 ? "" : "s"}.`;
 }
 
@@ -509,6 +516,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
   const [dateEdit, setDateEdit] = useState(toLocalDatetimeInput(game.game_date));
   const [correctionReason, setCorrectionReason] = useState("");
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [sendingLineupNotification, setSendingLineupNotification] = useState(false);
   const [statsDirty, setStatsDirty] = useState(false);
   const handleStatsDirtyChange = useCallback((dirty: boolean) => {
     setStatsDirty(dirty);
@@ -634,6 +642,18 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
     reload();
   }
 
+  async function sendLineupNotification() {
+    setSendingLineupNotification(true);
+    try {
+      const result = await sendAdminGameNotification(game.id, "lineups_ready");
+      notify(deliveryMessage("Lineup notification checked.", result), result?.failed ? "warning" : "success");
+    } catch (notificationError) {
+      notify(`The lineup is saved, but its notification could not be sent: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
+    } finally {
+      setSendingLineupNotification(false);
+    }
+  }
+
   async function updateStatus(status: Game["status"]) {
     if ((status === "live" || status === "final") && !lineupReady) {
       notify("Set and save exactly 5 players per team with a valid goalkeeper mode before changing the game status.", "warning");
@@ -740,7 +760,15 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
           {lineupOpen ? (
             <PrimaryButton type="button" onClick={saveLineup} disabled={!lineupCanSave}>Save lineup</PrimaryButton>
           ) : (
-            <PrimaryButton disabled={game.status === "final"} type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
+            <div className="flex flex-wrap gap-2">
+              {lineupReady && (game.status === "draft" || game.status === "live") ? (
+                <SecondaryButton type="button" disabled={sendingLineupNotification} onClick={() => void sendLineupNotification()} className="inline-flex items-center gap-2">
+                  <BellRing size={16} />
+                  {sendingLineupNotification ? "Sending..." : "Send lineup notification"}
+                </SecondaryButton>
+              ) : null}
+              <PrimaryButton disabled={game.status === "final"} type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
+            </div>
           )}
         </div>
 

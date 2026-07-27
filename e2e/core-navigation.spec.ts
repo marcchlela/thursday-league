@@ -19,6 +19,10 @@ test("seeded member can browse the core league pages", async ({ page }) => {
   await expect(playSections.getByRole("link", { name: "Fantasy", exact: true })).toBeVisible();
   await expect(playSections.getByRole("link", { name: "Bets", exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Set Team" })).toBeVisible();
+
+  await page.goto("/betting?tab=standings", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Standings", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "League picks" })).toHaveCount(0);
 });
 
 test("a normal member cannot open admin controls", async ({ page }) => {

@@ -295,31 +295,6 @@ export type BettingStanding = {
   won_bets: number;
 };
 
-export type PublicBetLeg = {
-  market_title: string;
-  market_type: BettingMarketType;
-  line: number | null;
-  outcome_label: string;
-  accepted_odds: number;
-  status: BetLegStatus;
-};
-
-export type PublicBetSlip = {
-  slip_id: string;
-  user_id: string;
-  username: string;
-  game_id: string;
-  slip_type: "single" | "builder";
-  stake_units: number;
-  accepted_odds: number;
-  potential_payout_units: number;
-  settled_payout_units: number | null;
-  status: BetSlipStatus | "hidden";
-  placed_at: string;
-  picks_revealed: boolean;
-  legs: PublicBetLeg[];
-};
-
 export type PlayerBreakdown = {
   playerId: string;
   playerName: string;
