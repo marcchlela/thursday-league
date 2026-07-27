@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CalendarDays, Check, ChevronRight, EyeOff, HandCoins, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronRight, HandCoins, ShieldCheck, X } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useBettingData } from "@/hooks/useBettingData";
 import { useBettingSocial } from "@/hooks/useBettingSocial";
@@ -11,12 +11,13 @@ import { friendlyActionError } from "@/lib/actionErrors";
 import { bettingSelectionGroup, coinsFromUnits, formatCoins, quoteBuilderOdds } from "@/lib/betting";
 import { calculateScore } from "@/lib/scoring";
 import { supabase } from "@/lib/supabase";
-import { BetSlip, BettingMarket, BettingOutcome, BettingStanding, Game, LeagueData, PublicBetSlip } from "@/lib/types";
+import { BetSlip, BettingMarket, BettingOutcome, BettingStanding, Game, LeagueData } from "@/lib/types";
 import { cn, currentSeason, formatDateTime } from "@/lib/utils";
 import { BetSlipCard, BetSlipDrawer, BettingBalance, bettingCategoryOrder, MarketSection } from "@/components/BettingMarketComponents";
 import { CoinAmount } from "@/components/LeagueCoin";
 import { PlaySwitcher } from "@/components/PlaySwitcher";
 import { TeamCrest } from "@/components/TeamCrest";
+import { TiloMoment } from "@/components/TiloMoment";
 import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Select, TabList, Toast, ToastTone } from "@/components/ui";
 
 type PageTab = "markets" | "mine" | "standings";
@@ -78,7 +79,7 @@ export default function BettingPage() {
   }, [league.data, seasonId]);
 
   const game = league.data.games.find(item => item.id === gameId);
-  const social = useBettingSocial(gameId, seasonId, tab === "standings", game?.status);
+  const social = useBettingSocial(seasonId, tab === "standings", game?.status);
 
   useEffect(() => {
     if (!game?.season_id || !user) return;
@@ -109,6 +110,7 @@ export default function BettingPage() {
   const lockAt = game ? lockTime(game, lockMinutes) : null;
   const isOpen = !!game && bettingOpen(game, markets, lockMinutes, now);
   const lineups = league.data.lineups.filter(lineup => lineup.game_id === gameId);
+  const hasBetForSelectedGame = betting.data.slips.some(slip => slip.user_id === user?.id && slip.game_id === gameId && slip.status !== "cashed_out");
 
   function setTab(nextTab: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -220,6 +222,14 @@ export default function BettingPage() {
           ) : game ? (
             <div className="space-y-4">
               <SelectedGameHeader game={game} data={league.data} marketCount={markets.length} isOpen={isOpen} onBack={closeGameMarkets} />
+              {isOpen && !hasBetForSelectedGame ? (
+                <TiloMoment
+                  pose="matchday-ready"
+                  eyebrow="Tilo's matchday note"
+                  title="Markets are open."
+                  text={`Review your choices. Betting locks ${lockMinutes} minute${lockMinutes === 1 ? "" : "s"} before kickoff, and coins stay virtual.`}
+                />
+              ) : null}
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
                 <div className="space-y-4">
                   {bettingCategoryOrder.map(category => {
@@ -239,7 +249,7 @@ export default function BettingPage() {
 
       {tab === "mine" ? <div id="betting-mine-panel" role="tabpanel" aria-labelledby="betting-mine-tab"><BetHistory slips={betting.data.slips.filter(slip => slip.user_id === user?.id)} games={league.data.games} markets={betting.data.markets} outcomes={betting.data.outcomes} allLegs={betting.data.legs} now={now} onCashOut={setCashOutSlip} /></div> : null}
 
-      {tab === "standings" ? <div id="betting-standings-panel" role="tabpanel" aria-labelledby="betting-standings-tab"><BetStandings userId={user?.id} gameId={gameId} seasonId={seasonId} games={availableGames} seasons={league.data.seasons} standings={social.standings} slips={social.slips} loading={social.loading} error={social.error} onGame={setGameId} onSeason={setSeasonId} onRetry={social.reload} /></div> : null}
+      {tab === "standings" ? <div id="betting-standings-panel" role="tabpanel" aria-labelledby="betting-standings-tab"><BetStandings userId={user?.id} seasonId={seasonId} seasons={league.data.seasons} standings={social.standings} loading={social.loading} error={social.error} onSeason={setSeasonId} onRetry={social.reload} /></div> : null}
     </div>
   );
 }
@@ -391,12 +401,12 @@ function rankBettingStandings(standings: BettingStanding[]) {
   });
 }
 
-function BetStandings({ userId, gameId, seasonId, games, seasons, standings, slips, loading, error, onGame, onSeason, onRetry }: { userId?: string; gameId: string; seasonId: string; games: Game[]; seasons: import("@/lib/types").Season[]; standings: BettingStanding[]; slips: PublicBetSlip[]; loading: boolean; error: string | null; onGame: (id: string) => void; onSeason: (id: string) => void; onRetry: () => void | Promise<void> }) {
+function BetStandings({ userId, seasonId, seasons, standings, loading, error, onSeason, onRetry }: { userId?: string; seasonId: string; seasons: import("@/lib/types").Season[]; standings: BettingStanding[]; loading: boolean; error: string | null; onSeason: (id: string) => void; onRetry: () => void | Promise<void> }) {
   if (loading) return <LoadingState label="Loading bet standings" cards={3} />;
   if (error) return <ErrorState message={error} onRetry={onRetry} />;
   const rankedStandings = rankBettingStandings(standings);
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-3xl">
       <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-league-gold/15 p-4 sm:p-5">
           <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Betting table</div><h2 className="mt-1 font-display text-3xl uppercase">Standings</h2><p className="mt-1 text-sm text-chalk/45">Ranked by settled profit · equal profit shares a rank</p></div>
@@ -405,17 +415,8 @@ function BetStandings({ userId, gameId, seasonId, games, seasons, standings, sli
         {rankedStandings.length ? <ol className="divide-y divide-league-gold/18">{rankedStandings.map(row => <li key={row.user_id} className={cn("grid grid-cols-[2.4rem_1fr_auto] items-center gap-3 px-4 py-3.5 sm:px-5", row.user_id === userId && "bg-league-gold/[.055]")}><span className={cn("grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold", row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-chalk/[.035] text-chalk/35")}>#{row.rank}</span><div className="min-w-0"><div className="truncate font-semibold">{row.username}{row.user_id === userId ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</div><div className="mt-0.5 text-[10px] text-chalk/35">{row.won_bets}/{row.settled_bets} won · {row.total_bets} total</div></div><div className="text-right"><CoinAmount units={row.settled_profit_units} iconSize={15} className={cn("font-semibold", row.settled_profit_units >= 0 ? "text-turf-400" : "text-red-300")} /><div className="mt-1 text-[9px] uppercase tracking-wider text-chalk/30">profit</div></div></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No settled betting results in this season yet.</p>}
       </section>
 
-      <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
-        <div className="border-b border-league-gold/15 p-4 sm:p-5"><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Selected match</div><h2 className="mt-1 font-display text-2xl uppercase">League picks</h2><p className="mt-1 text-xs text-chalk/40">Other users&apos; selections stay hidden until the final result.</p><Select value={gameId} onChange={event => onGame(event.target.value)} className="mt-3 rounded-xl border-league-gold/15 py-2 text-sm" aria-label="League bet game">{games.map(game => <option key={game.id} value={game.id}>{formatDateTime(game.game_date)}</option>)}</Select></div>
-        <div className="space-y-2 p-3 sm:p-4">{!slips.length ? <EmptyState title="No league bets" text="Nobody has placed a bet for this game yet." /> : slips.map(slip => <PublicSlip key={slip.slip_id} slip={slip} own={slip.user_id === userId} />)}</div>
-      </section>
     </div>
   );
-}
-
-function PublicSlip({ slip, own }: { slip: PublicBetSlip; own: boolean }) {
-  if (!own && !slip.picks_revealed) return <section className="flex items-center justify-between gap-3 rounded-xl border border-chalk/[.06] bg-black/15 p-3"><div className="font-semibold">{slip.username}</div><div className="flex items-center gap-2 text-xs text-chalk/35"><EyeOff size={15} /> Hidden until final</div></section>;
-  return <section className={cn("rounded-xl border p-3", own ? "border-league-gold/25 bg-league-gold/[.05]" : "border-chalk/[.06] bg-black/15")}><div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{slip.username}{own ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</div><div className="mt-1 text-[10px] text-chalk/35">{new Date(slip.placed_at).toLocaleString()} · {slip.slip_type}</div></div><span className="rounded-full border border-chalk/[.07] bg-chalk/[.025] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-chalk/45">{slip.status}</span></div>{slip.picks_revealed ? <div className="mt-3 space-y-1.5">{slip.legs.map((leg, index) => <div key={`${slip.slip_id}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border border-chalk/[.055] bg-chalk/[.02] px-3 py-2 text-sm"><span className="min-w-0 truncate text-chalk/60">{leg.market_title}: <strong className="text-chalk/85">{leg.outcome_label}</strong></span><span className="shrink-0 font-mono text-league-gold">{Number(leg.accepted_odds).toFixed(2)}</span></div>)}</div> : <div className="mt-3 flex items-center gap-2 rounded-lg border border-chalk/[.055] bg-chalk/[.02] px-3 py-3 text-sm text-chalk/40"><EyeOff size={16} /> Picks reveal after the final result.</div>}<SlipNumbers stake={slip.stake_units} odds={Number(slip.accepted_odds)} payout={slip.status === "pending" ? slip.potential_payout_units : (slip.settled_payout_units || 0)} payoutLabel={slip.status === "pending" ? "Potential" : "Paid"} /></section>;
 }
 
 function SlipNumbers({ stake, odds, payout, payoutLabel }: { stake: number; odds: number; payout: number; payoutLabel: string }) {

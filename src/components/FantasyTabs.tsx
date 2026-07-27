@@ -13,6 +13,7 @@ import { EmptyState, Pill, Select, TabList } from "./ui";
 import { PitchPicker } from "./PitchPicker";
 import { PlaySwitcher } from "./PlaySwitcher";
 import { TeamCrest } from "./TeamCrest";
+import { TiloMoment } from "./TiloMoment";
 
 type FantasyTab = "set" | "standings" | "history";
 
@@ -73,6 +74,14 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void | Prom
 
   return (
     <div className="space-y-4">
+      {!locked && initialPicks.length !== 5 ? (
+        <TiloMoment
+          pose="matchday-ready"
+          eyebrow="Tilo's matchday note"
+          title="Your five are waiting."
+          text="Matchday is close. Pick your five and choose a captain before kickoff."
+        />
+      ) : null}
       <FantasyGamePreview game={game} data={data} statusLabel={statusLabel} locked={locked} />
       {lineups.length ? <PitchPicker players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the available players have not been confirmed yet." />}
     </div>
@@ -152,6 +161,7 @@ function History({ data }: { data: LeagueData }) {
   if (!game) return <EmptyState title="No fantasy history yet" text="Completed matchweeks and their fantasy results will appear here." />;
 
   const board = weeklyLeaderboard({ ...data, game });
+  const personalResult = user ? board.find(row => row.userId === user.id) : undefined;
 
   function chooseGame(gameId: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -189,6 +199,15 @@ function History({ data }: { data: LeagueData }) {
           })}
         </div>
       </section>
+
+      {personalResult?.rank === 1 ? (
+        <TiloMoment
+          pose="celebration"
+          eyebrow="Weekly winner"
+          title="Top of the week."
+          text="You finished first this matchweek. That one deserves a celebration."
+        />
+      ) : null}
 
       <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="flex items-center justify-between gap-3 border-b border-league-gold/15 px-4 py-3 sm:px-5"><div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Selected week</div><h2 className="mt-0.5 font-display text-2xl uppercase">Weekly leaderboard</h2></div><Trophy size={23} className="text-league-gold" /></div>

@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { BettingStanding, PublicBetSlip } from "@/lib/types";
+import { BettingStanding } from "@/lib/types";
 
-export function useBettingSocial(gameId: string, seasonId: string, enabled: boolean, gameStatus?: string) {
+export function useBettingSocial(seasonId: string, enabled: boolean, gameStatus?: string) {
   const [standings, setStandings] = useState<BettingStanding[]>([]);
-  const [slips, setSlips] = useState<PublicBetSlip[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const previousGameStatus = useRef(gameStatus);
@@ -16,18 +15,13 @@ export function useBettingSocial(gameId: string, seasonId: string, enabled: bool
     setLoading(true);
     setError(null);
     const standingsResult = await supabase.rpc("get_betting_standings", { target_season_id: seasonId });
-    const slipsResult = gameId
-      ? await supabase.rpc("get_public_bet_slips", { target_game_id: gameId })
-      : { data: [], error: null };
-    const firstError = standingsResult.error || slipsResult.error;
-    if (firstError) {
-      setError(`${firstError.message} Apply the expanded betting migration in Supabase if needed.`);
+    if (standingsResult.error) {
+      setError(`${standingsResult.error.message} Apply the expanded betting migration in Supabase if needed.`);
     } else {
       setStandings((standingsResult.data || []) as BettingStanding[]);
-      setSlips((slipsResult.data || []) as PublicBetSlip[]);
     }
     setLoading(false);
-  }, [enabled, gameId, seasonId]);
+  }, [enabled, seasonId]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -35,5 +29,5 @@ export function useBettingSocial(gameId: string, seasonId: string, enabled: bool
     previousGameStatus.current = gameStatus;
     void load();
   }, [gameStatus, load]);
-  return { standings, slips, loading, error, reload: load };
+  return { standings, loading, error, reload: load };
 }
