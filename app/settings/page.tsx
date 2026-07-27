@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bell, KeyRound, LogOut, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useWhatsNewStatus } from "@/hooks/useWhatsNew";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { SettingsHeader, SettingsLinkRow, SettingsPanel } from "@/components/SettingsComponents";
 import { ThemeSelector } from "@/components/ThemeSelector";
@@ -42,7 +43,7 @@ export default function SettingsPage() {
     const { error } = await supabase.auth.signOut();
     if (error) {
       setBusy(null);
-      setToast(error.message);
+      setToast(friendlyActionError(error, "You could not be signed out. Please try again."));
       return;
     }
     router.replace("/login");
@@ -56,7 +57,7 @@ export default function SettingsPage() {
     if (error) {
       setBusy(null);
       setDeactivateOpen(false);
-      setToast(error.message);
+      setToast(friendlyActionError(error, "The account could not be deactivated. Please try again."));
       return;
     }
     await finishSession();
@@ -91,7 +92,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <Toast message={toast} duration={5000} onDone={() => setToast(null)} />
+      <Toast message={toast} tone="error" duration={5000} onDone={() => setToast(null)} />
       <ConfirmDialog
         open={deactivateOpen}
         title="Deactivate account?"

@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useBettingData } from "@/hooks/useBettingData";
 import { bettingSelectionGroup, coinsFromUnits, quoteBuilderOdds } from "@/lib/betting";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { BettingOutcome, Game, LeagueData } from "@/lib/types";
 import { BetSlipDrawer, BettingBalance, bettingCategoryOrder, MarketSection } from "./BettingMarketComponents";
-import { EmptyState, ErrorState, LoadingState, Toast } from "./ui";
+import { EmptyState, ErrorState, LoadingState, Toast, ToastTone } from "./ui";
 
 export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData }) {
   const betting = useBettingData();
@@ -15,7 +16,7 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
   const [selectedOutcomeIds, setSelectedOutcomeIds] = useState<string[]>([]);
   const [stake, setStake] = useState("");
   const [placing, setPlacing] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
         return !existingMarket || bettingSelectionGroup(existingMarket) !== targetGroup;
       });
       if (withoutSameGroup.length >= 5) {
-        setToast("A same-game builder can contain up to five selections.");
+        setToast({ message: "A same-game builder can contain up to five selections.", tone: "warning" });
         return current;
       }
       return [...withoutSameGroup, outcome.id];
@@ -65,8 +66,8 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
 
   async function placeBet() {
     if (!selectedOutcomeIds.length || placing) return;
-    if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return setToast("Enter a positive stake with up to two decimals.");
-    if (stakeCoins > coinsFromUnits(balanceUnits)) return setToast("You do not have enough coins for that stake.");
+    if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return setToast({ message: "Enter a positive stake with up to two decimals.", tone: "warning" });
+    if (stakeCoins > coinsFromUnits(balanceUnits)) return setToast({ message: "You do not have enough coins for that stake.", tone: "warning" });
     setPlacing(true);
     const { error } = await supabase.rpc("place_bet", {
       target_game_id: game.id,
@@ -75,8 +76,8 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
       client_request_id: crypto.randomUUID()
     });
     setPlacing(false);
-    if (error) return setToast(error.message);
-    setToast(`${selectedOutcomeIds.length === 1 ? "Bet" : "Bet builder"} placed at ${combinedOdds.toFixed(2)} odds.`);
+    if (error) return setToast({ message: friendlyActionError(error, "Your bet could not be placed. Please try again."), tone: "error" });
+    setToast({ message: `${selectedOutcomeIds.length === 1 ? "Bet" : "Bet builder"} placed at ${combinedOdds.toFixed(2)} odds.`, tone: "success" });
     setSelectedOutcomeIds([]);
     setStake("");
     await betting.reload();
@@ -84,7 +85,7 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
 
   return (
     <div className="space-y-5">
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast message={toast?.message || null} tone={toast?.tone} onDone={() => setToast(null)} />
       <BettingBalance balanceUnits={balanceUnits} lockAt={lockAt} lockMinutes={Number(settings?.lock_minutes ?? 5)} isOpen={isOpen} compact />
 
       {!markets.length ? <EmptyState title="No bets available" text="Markets will appear here as soon as the confirmed lineups have been priced and approved by the admin." /> : (

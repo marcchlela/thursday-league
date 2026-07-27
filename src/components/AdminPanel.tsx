@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Trash2, UsersRound, X } from "lucide-react";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import { calculateScore } from "@/lib/scoring";
@@ -14,7 +15,7 @@ import { AdminBettingManager } from "./AdminBettingManager";
 import { AdminNotificationHistory } from "./AdminNotificationHistory";
 import { AdminSeasonManager } from "./AdminSeasonManager";
 import { AdminStatsPanel } from "./AdminStatsPanel";
-import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TextInput, Toast } from "./ui";
+import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TextInput, Toast, ToastTone } from "./ui";
 
 type AdminTab = "games" | "roster" | "betting" | "seasons" | "notifications" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
@@ -58,7 +59,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   const [newPlayerFantasyEligible, setNewPlayerFantasyEligible] = useState(true);
   const [newPlayerBettingEligible, setNewPlayerBettingEligible] = useState(true);
   const [gameDate, setGameDate] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [dirtyStatGameIds, setDirtyStatGameIds] = useState<Set<string>>(() => new Set());
   const games = useMemo(
@@ -85,8 +86,8 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
     setActiveTab(nextTab);
   }
 
-  function notify(message: string) {
-    setToast(message);
+  function notify(message: string, tone: ToastTone = "success") {
+    setToast({ message, tone });
   }
 
   function requestConfirm(state: NonNullable<ConfirmState>) {
@@ -108,7 +109,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       fantasy_eligible: newPlayerFantasyEligible,
       individual_betting_eligible: newPlayerBettingEligible
     });
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "The player could not be added. Please try again."), "error");
     setPlayerNameInput("");
     setNewPlayerType("regular");
     setNewPlayerFantasyEligible(true);
@@ -124,7 +125,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       confirmLabel: "Archive player",
       onConfirm: async () => {
         const { error } = await supabase.rpc("archive_player", { target_player_id: id });
-        if (error) return notify(error.message);
+        if (error) return notify(friendlyActionError(error, "The player could not be archived. Please try again."), "error");
         notify("Player archived.");
         reload();
       }
@@ -139,20 +140,20 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       .insert({ game_date: new Date(gameDate).toISOString(), status: "upcoming" })
       .select("id")
       .single();
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "The game could not be created. Please try again."), "error");
     setGameDate("");
     try {
       const result = await sendAdminGameNotification(createdGame.id, "game_scheduled");
       notify(deliveryMessage("Game created.", result));
     } catch (notificationError) {
-      notify(`Game created, but its notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
+      notify(`Game created, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
     }
     reload();
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast message={toast?.message || null} tone={toast?.tone} onDone={() => setToast(null)} />
       <ConfirmDialog
         open={!!confirmState}
         title={confirmState?.title || ""}
@@ -329,7 +330,7 @@ function QuickStartChecklist({ data }: { data: LeagueData }) {
   );
 }
 
-function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player; onArchive: (id: string) => void | Promise<void>; reload: () => void; notify: (message: string) => void }) {
+function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player; onArchive: (id: string) => void | Promise<void>; reload: () => void; notify: (message: string, tone?: ToastTone) => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.name);
   const [position, setPosition] = useState<PlayerPosition>(player.default_position);
@@ -348,7 +349,7 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
       new_fantasy_eligibility: fantasyEligible,
       new_betting_eligibility: bettingEligible
     });
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "Player settings could not be saved. Please try again."), "error");
     setEditing(false);
     notify("Player settings saved. Affected upcoming betting markets were suspended when required.");
     reload();
@@ -356,7 +357,7 @@ function PlayerAdminRow({ player, onArchive, reload, notify }: { player: Player;
 
   async function restore() {
     const { error } = await supabase.rpc("restore_player", { target_player_id: player.id });
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "The player could not be restored. Please try again."), "error");
     notify("Player restored to the active roster.");
     reload();
   }
@@ -438,7 +439,7 @@ function GameSection({
   forceOpen: boolean;
   statsDirty: boolean;
   onStatsDirtyChange: (gameId: string, dirty: boolean) => void;
-  notify: (message: string) => void;
+  notify: (message: string, tone?: ToastTone) => void;
   requestConfirm: (state: NonNullable<ConfirmState>) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -492,7 +493,7 @@ function GameSection({
   );
 }
 
-function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; onStatsDirtyChange: (gameId: string, dirty: boolean) => void; notify: (message: string) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
+function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; onStatsDirtyChange: (gameId: string, dirty: boolean) => void; notify: (message: string, tone?: ToastTone) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
   const currentLineup = useMemo(() => data.lineups.filter(l => l.game_id === game.id), [data.lineups, game.id]);
   const gameEvents = data.events.filter(e => e.game_id === game.id);
   const gamePlayerStats = data.playerStats.filter(stat => stat.game_id === game.id);
@@ -601,7 +602,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
 
   async function saveLineup() {
     if (!lineupCanSave) {
-      notify("Fix lineup issues before saving.");
+      notify("Fix lineup issues before saving.", "warning");
       return;
     }
     const rows = (["A", "B"] as TeamCode[]).flatMap(team => {
@@ -618,14 +619,14 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
       team_a_mode: teamAGoalkeeperMode,
       team_b_mode: teamBGoalkeeperMode
     });
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "The lineup could not be saved. Please try again."), "error");
     setLineupOpen(false);
     if (firstPublication) {
       try {
         const result = await sendAdminGameNotification(game.id, "lineups_ready");
         notify(deliveryMessage("Lineup saved.", result));
       } catch (notificationError) {
-        notify(`Lineup saved, but its notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
+        notify(`Lineup saved, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
       }
     } else {
       notify("Lineup saved. No new notification was sent for this edit.");
@@ -635,21 +636,21 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
 
   async function updateStatus(status: Game["status"]) {
     if ((status === "live" || status === "final") && !lineupReady) {
-      notify("Set and save exactly 5 players per team with a valid goalkeeper mode before changing the game status.");
+      notify("Set and save exactly 5 players per team with a valid goalkeeper mode before changing the game status.", "warning");
       return;
     }
     if (status === "final" && !canFinalize) {
-      notify("Cannot mark final before lineups are saved.");
+      notify("Cannot mark final before lineups are saved.", "warning");
       return;
     }
     const { error } = await supabase.rpc("set_game_status", { target_game_id: game.id, new_status: status });
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "The game status could not be changed. Please try again."), "error");
     if (status === "final") {
       try {
         const result = await sendAdminGameNotification(game.id, "result_finalized");
         notify(deliveryMessage("Game finalized and virtual bets settled.", result));
       } catch (notificationError) {
-        notify(`Game and virtual bets were finalized, but the notification failed: ${notificationError instanceof Error ? notificationError.message : "Unknown error."}`);
+        notify(`Game and virtual bets were finalized, but the notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
       }
     } else {
       notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
@@ -675,7 +676,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
 
   async function reopenForCorrection() {
     const { error } = await supabase.rpc("reopen_final_game", { target_game_id: game.id, correction_reason: correctionReason.trim() });
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "The game could not be reopened. Please try again."), "error");
     setReopenDialogOpen(false);
     setCorrectionReason("");
     notify("Game reopened for a controlled correction.");
@@ -685,7 +686,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
   async function saveGameDetails() {
     if (!dateEdit) return;
     const { error } = await supabase.from("games").update({ game_date: new Date(dateEdit).toISOString() }).eq("id", game.id);
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "The game date could not be saved. Please try again."), "error");
     notify("Game date saved.");
     reload();
   }
@@ -693,7 +694,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
   async function savePotm() {
     if (!lineupReady) return;
     const { error } = await supabase.from("games").update({ potm_player_id: potm || null }).eq("id", game.id);
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "POTM could not be saved. Please try again."), "error");
     notify("POTM saved.");
     reload();
   }
@@ -705,7 +706,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
       confirmLabel: "Delete game",
       onConfirm: async () => {
         const { error } = await supabase.from("games").delete().eq("id", game.id);
-        if (error) return notify(error.message);
+        if (error) return notify(friendlyActionError(error, "The game could not be deleted. Please try again."), "error");
         notify("Game deleted.");
         reload();
       }

@@ -164,7 +164,7 @@ export function PitchPicker({
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast message={toast} tone="success" onDone={() => setToast(null)} />
       <Modal open={selectedSlot != null && !selectingCaptain} title="Choose a player" onClose={() => setSelectedSlot(null)}>
         <div className="flex items-start justify-between gap-4">
           <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Slot {selectedSlot == null ? "" : selectedSlot + 1}</div><h2 className="mt-1 font-display text-3xl uppercase">Choose a player</h2><p className="mt-1 text-sm text-chalk/45">{requiresGoalkeeper && selectedSlot != null && slotRole(selectedSlot) === "goalkeeper" ? "Goalkeepers available for this match" : requiresGoalkeeper ? "Outfield players available for this match" : "All eligible lineup players are available"}</p></div>

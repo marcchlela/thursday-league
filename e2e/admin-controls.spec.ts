@@ -18,7 +18,11 @@ test("admin wallet adjustment creates a visible audited correction", async ({ pa
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "Add 7.5 coins?" })).toBeVisible();
   await dialog.getByRole("button", { name: "Confirm adjustment" }).click();
-  await expect(page.getByText(/alex wallet adjusted\. New balance:/)).toBeVisible();
+  const successToast = page.getByRole("status").filter({
+    hasText: /alex wallet adjusted\. New balance:/,
+  });
+  await expect(successToast).toBeVisible();
+  await expect(successToast.getByRole("button", { name: "Dismiss notification" })).toBeVisible();
 
   await page.getByRole("tab", { name: "Audit" }).click();
   await expect(page.getByRole("heading", { name: "Wallet adjusted", exact: true }).first()).toBeVisible();

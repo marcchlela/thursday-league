@@ -11,3 +11,4 @@ model/data/*.json
 model/artifacts/*.json
 playwright-report
 test-results
+backups/

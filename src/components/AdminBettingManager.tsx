@@ -3,20 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BarChart3, CheckCircle2, CircleDollarSign, Cpu, Download, Eye, LockKeyhole, PauseCircle, Pencil, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
 import { useBettingData } from "@/hooks/useBettingData";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { BETTING_MODEL_VERSION, formatCoins, generatePlayerLineupMarkets } from "@/lib/betting";
 import { buildModelExport, downloadModelExport } from "@/lib/modelExport";
 import { supabase } from "@/lib/supabase";
 import { BettingMarket, BettingOutcome, LeagueData } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 import { bettingCategoryOrder } from "./BettingMarketComponents";
-import { Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Pill, PrimaryButton, SecondaryButton, Select, TextArea, TextInput, Toast } from "./ui";
+import { Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Pill, PrimaryButton, SecondaryButton, Select, TextArea, TextInput, Toast, ToastTone } from "./ui";
 
 export function AdminBettingManager({ data }: { data: LeagueData }) {
   const betting = useBettingData();
   const eligibleGames = useMemo(() => data.games.slice().sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()), [data.games]);
   const [gameId, setGameId] = useState("");
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [approveOpen, setApproveOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -28,6 +29,10 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
   const [walletReason, setWalletReason] = useState("");
   const [walletConfirmOpen, setWalletConfirmOpen] = useState(false);
   const [walletRequestId, setWalletRequestId] = useState<string | null>(null);
+
+  function notify(message: string, tone: ToastTone = "success") {
+    setToast({ message, tone });
+  }
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -80,10 +85,10 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
 
   function requestWalletAdjustment() {
     const units = walletAdjustmentUnits();
-    if (!walletUserId || !walletSeasonId) return setToast("Choose a user and season.");
-    if (units === null) return setToast("Enter a positive coin amount with no more than two decimal places.");
-    if (walletReason.trim().length < 5) return setToast("Enter a clear reason of at least five characters.");
-    if (selectedWalletBalance + units < 0) return setToast("This adjustment would make the wallet balance negative.");
+    if (!walletUserId || !walletSeasonId) return notify("Choose a user and season.", "warning");
+    if (units === null) return notify("Enter a positive coin amount with no more than two decimal places.", "warning");
+    if (walletReason.trim().length < 5) return notify("Enter a clear reason of at least five characters.", "warning");
+    if (selectedWalletBalance + units < 0) return notify("This adjustment would make the wallet balance negative.", "warning");
     setWalletRequestId(crypto.randomUUID());
     setWalletConfirmOpen(true);
   }
@@ -102,11 +107,11 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
     setBusy(false);
     setWalletConfirmOpen(false);
     setWalletRequestId(null);
-    if (error) return setToast(error.message);
+    if (error) return notify(friendlyActionError(error, "The wallet could not be adjusted. Please try again."), "error");
     const nextBalance = Number((result as { balance_units?: number } | null)?.balance_units ?? selectedWalletBalance + units);
     setWalletAmount("");
     setWalletReason("");
-    setToast(`${selectedWalletProfile?.username || "User"} wallet adjusted. New balance: ${formatCoins(nextBalance)} coins.`);
+    notify(`${selectedWalletProfile?.username || "User"} wallet adjusted. New balance: ${formatCoins(nextBalance)} coins.`);
     await betting.reload();
   }
 
@@ -122,10 +127,10 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
         submitted_markets: result.markets
       });
       if (error) throw error;
-      setToast(`${result.markets.length} draft markets generated. Review every price before approval.`);
+      notify(`${result.markets.length} draft markets generated. Review every price before approval.`);
       await betting.reload();
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Odds generation failed.");
+      notify(friendlyActionError(error, "Odds generation failed. Review the lineup and try again."), "error");
     } finally {
       setBusy(false);
     }
@@ -138,8 +143,8 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
     setBusy(false);
     setApproveOpen(false);
     setManageOpen(false);
-    if (error) return setToast(error.message);
-    setToast(nextStatus === "open" ? "Markets approved and open." : "All markets suspended. Existing bets keep their accepted odds.");
+    if (error) return notify(friendlyActionError(error), "error");
+    notify(nextStatus === "open" ? "Markets approved and open." : "All markets suspended. Existing bets keep their accepted odds.");
     await betting.reload();
   }
 
@@ -148,9 +153,9 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
     setBusy(true);
     const { error } = await supabase.rpc("admin_prepare_betting_edit", { target_game_id: game.id });
     setBusy(false);
-    if (error) return setToast(error.message);
+    if (error) return notify(friendlyActionError(error), "error");
     setManageOpen(false);
-    setToast("Markets returned to draft. You can edit the offered odds before approving them again.");
+    notify("Markets returned to draft. You can edit the offered odds before approving them again.");
     await betting.reload();
   }
 
@@ -160,8 +165,8 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
     const { error } = await supabase.rpc("admin_delete_betting_markets", { target_game_id: game.id });
     setBusy(false);
     setDeleteOpen(false);
-    if (error) return setToast(error.message);
-    setToast("Markets deleted. You can now generate a fresh set.");
+    if (error) return notify(friendlyActionError(error), "error");
+    notify("Markets deleted. You can now generate a fresh set.");
     await betting.reload();
   }
 
@@ -169,20 +174,20 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
     const nextOdds = Number(rawValue);
     if (!Number.isFinite(nextOdds) || nextOdds < 1.01 || nextOdds === Number(outcome.offered_odds)) return;
     const { error } = await supabase.rpc("admin_update_betting_odds", { target_outcome_id: outcome.id, new_odds: nextOdds });
-    if (error) return setToast(error.message);
-    setToast(`${outcome.label} updated to ${nextOdds.toFixed(2)}.`);
+    if (error) return notify(friendlyActionError(error), "error");
+    notify(`${outcome.label} updated to ${nextOdds.toFixed(2)}.`);
     await betting.reload();
   }
 
   function exportModelData() {
     const payload = buildModelExport(data, betting.data);
     downloadModelExport(payload);
-    setToast(`${payload.games.length} finalized games exported without player names or user betting data.`);
+    notify(`${payload.games.length} finalized games exported without player names or user betting data.`);
   }
 
   return (
     <div className="space-y-5">
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast message={toast?.message || null} tone={toast?.tone} onDone={() => setToast(null)} />
       <ConfirmDialog open={approveOpen} title="Approve and open these markets?" text={`You are approving ${markets.length} markets generated from the confirmed player lineups. Users can place bets immediately and every accepted price becomes immutable. Betting locks automatically ${settings?.lock_minutes ?? 5} minutes before kick-off.`} confirmLabel="Approve markets" confirmTone="primary" cancelLabel="Keep reviewing" onCancel={() => setApproveOpen(false)} onConfirm={() => setStatus("open")} />
       <ConfirmDialog open={deleteOpen} title="Delete all markets for this game?" text="This removes the generated set so you can create it again. It is allowed only when nobody has placed a bet." confirmLabel="Delete markets" onCancel={() => setDeleteOpen(false)} onConfirm={deleteMarkets} />
       <ConfirmDialog
