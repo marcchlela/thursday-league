@@ -2,11 +2,14 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { Crown, Pencil, Plus, X } from "lucide-react";
+import { Check, Crown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { GameLineup, FantasyPick, Player, PlayerPosition } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { isFantasyEligible } from "@/lib/playerEligibility";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { Modal, PrimaryButton, SecondaryButton, Toast } from "./ui";
+import { PlayerAvatar } from "./PlayerAvatar";
+import { TeamCrest } from "./TeamCrest";
 
 const outfieldSlots = [
   { x: 25, y: 27 },
@@ -37,6 +40,7 @@ type ExtraFantasyPlayer = {
 
 export function PitchPicker({
   players,
+  gameId,
   lineups,
   extraPlayers = [],
   initialPicks,
@@ -44,6 +48,7 @@ export function PitchPicker({
   onSave
 }: {
   players: Player[];
+  gameId: string;
   lineups: GameLineup[];
   extraPlayers?: ExtraFantasyPlayer[];
   initialPicks: FantasyPick[];
@@ -150,7 +155,7 @@ export function PitchPicker({
       setSelectedSlot(null);
       setToast("Picks saved.");
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : "Could not save picks.");
+      setMessage(friendlyActionError(error, "Your Fantasy team could not be saved. Please try again."));
     } finally {
       setSaving(false);
     }
@@ -161,6 +166,12 @@ export function PitchPicker({
     : requiresGoalkeeper
       ? pool.filter(item => item.role === slotRole(selectedSlot))
       : pool;
+  const selectedPlayer = selectedSlot == null ? null : playerForSlot(selectedSlot);
+  const candidateGroups = [
+    { id: "A", label: "Team A", items: candidates.filter(item => item.team === "A") },
+    { id: "B", label: "Team B", items: candidates.filter(item => item.team === "B") },
+    { id: "extra", label: "Late additions", items: candidates.filter(item => !item.team) }
+  ].filter(group => group.items.length);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -171,10 +182,35 @@ export function PitchPicker({
           <button type="button" onClick={() => setSelectedSlot(null)} aria-label="Close player selection" className="rounded-xl border border-chalk/[.07] p-2 text-chalk/40 transition hover:bg-chalk/[.04] hover:text-chalk"><X size={17} /></button>
         </div>
         <div className="mt-5 max-h-[55vh] space-y-2 overflow-y-auto pr-1">
-          {candidates.map(item => {
-            const alreadyPicked = draft.some(pick => pick.player_id === item.player!.id);
-            return <button key={item.player!.id} type="button" onClick={() => choosePlayer(item.player!.id)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-chalk/[.07] bg-chalk/[.025] px-3 py-3 text-left transition hover:border-league-gold/35 hover:bg-league-gold/[.055] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"><span className="min-w-0 truncate font-semibold">{item.player!.name}</span><span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-chalk/35">{alreadyPicked ? "Swap" : item.team ? `Team ${item.team}` : "Available"}</span></button>;
-          })}
+          {selectedPlayer && selectedSlot != null ? (
+            <SecondaryButton type="button" onClick={() => { removeSlot(selectedSlot); setSelectedSlot(null); }} className="mb-3 flex w-full items-center justify-center gap-2 border-red-400/20 text-red-200">
+              <Trash2 size={16} /> Remove {selectedPlayer.name}
+            </SecondaryButton>
+          ) : null}
+          {candidateGroups.map(group => (
+            <section key={group.id} className="overflow-hidden rounded-2xl border border-league-gold/15 bg-black/10">
+              <div className="flex items-center gap-2 border-b border-league-gold/15 px-3 py-2.5">
+                {group.id === "A" || group.id === "B" ? <TeamCrest gameId={gameId} team={group.id} className="h-8 w-7" /> : null}
+                <h3 className="text-xs font-black uppercase tracking-wider text-chalk/70">{group.label}</h3>
+                <span className="ml-auto font-mono text-xs text-chalk/50">{group.items.length}</span>
+              </div>
+              <div className="divide-y divide-league-gold/10">
+                {group.items.map(item => {
+                  const alreadyPicked = draft.some(pick => pick.player_id === item.player!.id);
+                  return (
+                    <button key={item.player!.id} type="button" onClick={() => choosePlayer(item.player!.id)} className="flex min-h-14 w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-league-gold/[.055] focus:outline-none focus-visible:bg-league-gold/[.08]">
+                      <PlayerAvatar name={item.player!.name} className="h-9 w-9 text-xs" />
+                      <span className="min-w-0 flex-1 truncate font-semibold">{item.player!.name}</span>
+                      <span className={cn("inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wider", alreadyPicked ? "text-league-gold" : "text-chalk/50")}>
+                        {alreadyPicked ? <Check size={13} /> : null}
+                        {alreadyPicked ? "Selected" : item.role === "goalkeeper" ? "GK" : "OUT"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
           {!candidates.length ? <p className="rounded-xl border border-dashed border-chalk/10 p-6 text-center text-sm text-chalk/40">No eligible players are available for this slot.</p> : null}
         </div>
       </Modal>
@@ -208,10 +244,9 @@ export function PitchPicker({
               style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
             >
               <span className="relative mx-auto block h-[4.9rem] w-[4.9rem] sm:h-[5.8rem] sm:w-[5.8rem]">
-                <Image src={role === "goalkeeper" ? "/fantasy/goalkeeper-jersey.png" : "/fantasy/outfield-jersey.png"} alt="" fill sizes="96px" className={cn("object-contain drop-shadow-[0_9px_9px_rgba(0,0,0,.4)]", !player && "grayscale opacity-45")} />
+                <Image src={role === "goalkeeper" ? "/fantasy/goalkeeper-jersey.webp" : "/fantasy/outfield-jersey.webp"} alt="" fill sizes="96px" className={cn("object-contain drop-shadow-[0_9px_9px_rgba(0,0,0,.4)]", !player && "grayscale opacity-45")} />
                 {!player ? <span className="absolute inset-0 grid place-items-center"><span className="grid h-7 w-7 place-items-center rounded-full border border-pitch-line/25 bg-[#11110f]/80 text-pitch-line"><Plus size={15} /></span></span> : null}
                 {pick?.is_captain ? <span className="absolute -right-1 top-0 grid h-7 w-7 place-items-center rounded-full border-2 border-[#0b3e22] bg-[#daa520] text-[#11110f] shadow-lg"><Crown size={14} /></span> : null}
-                {editing && player && !selectingCaptain ? <span role="button" tabIndex={0} aria-label={`Remove ${player.name}`} onClick={event => { event.stopPropagation(); removeSlot(index); }} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); removeSlot(index); } }} className="absolute -left-1 top-0 grid h-6 w-6 place-items-center rounded-full border border-pitch-line/15 bg-[#11110f]/90 text-pitch-line/55 transition hover:text-pitch-line"><X size={12} /></span> : null}
               </span>
               <span className={cn("mx-auto -mt-1 block max-w-full truncate rounded-lg border px-2 py-1 text-[10px] font-bold shadow-lg backdrop-blur sm:text-xs", player ? "border-pitch-line/10 bg-[#11110f]/90 text-pitch-line" : "border-dashed border-pitch-line/15 bg-black/35 text-pitch-line/55")}>{player?.name || (requiresGoalkeeper && role === "goalkeeper" ? "Pick GK" : "Pick player")}</span>
             </button>
@@ -220,8 +255,19 @@ export function PitchPicker({
       </section>
 
       {locked ? <div className="mt-3 rounded-xl border border-chalk/[.07] bg-ink-850 px-4 py-3 text-center text-sm text-chalk/45">Picks are locked for this match.</div> : null}
-      {message ? <div className="mt-3 rounded-xl border border-league-gold/20 bg-league-gold/[.055] px-4 py-3 text-center text-sm text-chalk/70">{message}</div> : null}
-      {editing && captainExists && !locked ? <div className="mt-4 flex gap-2"><PrimaryButton type="button" onClick={save} disabled={saving} className="flex-1 rounded-xl py-3">{saving ? "Saving..." : "Save picks"}</PrimaryButton><SecondaryButton type="button" onClick={() => { setDraft([]); setMessage(null); }} disabled={saving} className="rounded-xl px-4">Clear</SecondaryButton></div> : null}
+      {message ? <div className="mt-3 rounded-xl border border-league-gold/20 bg-league-gold/[.055] px-4 py-3 text-center text-sm text-chalk/75" role="alert">{message}</div> : null}
+      {editing && !locked ? (
+        <div className="sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mt-4 rounded-[1.2rem] border border-league-gold/30 bg-ink-900/95 p-3 shadow-[0_14px_35px_rgba(0,0,0,.32)] backdrop-blur-xl lg:bottom-3">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+            <span className="font-bold text-chalk/75">{draft.length}/5 players selected</span>
+            <span className={captainExists ? "text-turf-400" : "text-league-gold"}>{captainExists ? "Captain selected" : draft.length === 5 ? "Choose a captain" : "Captain needed"}</span>
+          </div>
+          <div className="flex gap-2">
+            <PrimaryButton type="button" onClick={save} disabled={saving || draft.length !== 5 || !captainExists} className="flex-1 rounded-xl py-3">{saving ? "Saving..." : draft.length !== 5 ? `Select ${5 - draft.length} more` : !captainExists ? "Choose a captain" : "Save picks"}</PrimaryButton>
+            <SecondaryButton type="button" onClick={() => { setDraft([]); setMessage(null); }} disabled={saving || !draft.length} className="rounded-xl px-4">Clear</SecondaryButton>
+          </div>
+        </div>
+      ) : null}
       {!editing && draft.length === 5 ? <p className="mt-3 text-center text-xs text-chalk/35">Your team is saved{locked ? " and can no longer be edited" : ""}.</p> : null}
     </div>
   );

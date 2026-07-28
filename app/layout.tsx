@@ -1,10 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono, Oswald } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { VercelObservability } from "@/components/VercelObservability";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const oswald = Oswald({ subsets: ["latin"], variable: "--font-oswald", display: "swap" });
+const jetBrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
 
 const themeBootScript = `
 (function () {
@@ -94,7 +99,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      <body>
+      <body className={`${inter.variable} ${oswald.variable} ${jetBrainsMono.variable}`}>
         <ServiceWorkerRegistration />
         <ThemeProvider>
           <AppShell>{children}</AppShell>

@@ -117,6 +117,7 @@ export default function HomePage() {
 }
 
 function NextMatch({ game, lineupsReady }: { game: Game; lineupsReady: boolean }) {
+  const live = game.status === "live";
   return (
     <Link href={`/games/${game.id}`} className="group relative block min-h-[15.5rem] overflow-hidden rounded-[1.6rem] border border-league-gold/30 bg-ink-850 p-4 shadow-[0_14px_35px_rgba(0,0,0,.22),inset_0_1px_0_rgba(218,165,32,.07)] transition hover:border-league-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold md:min-h-[17rem] md:p-6">
       <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-floodlight/[.08]" />
@@ -126,7 +127,7 @@ function NextMatch({ game, lineupsReady }: { game: Game; lineupsReady: boolean }
       <div className="pointer-events-none absolute bottom-[13%] left-1/2 h-16 w-16 -translate-x-1/2 rounded-full border border-chalk/[.055]" />
 
       <div className="relative flex items-center justify-between">
-        <span className="text-xs font-black uppercase tracking-[.18em] text-turf-400">Next match</span>
+        <span className={cn("text-xs font-black uppercase tracking-[.18em]", live ? "text-red-300" : "text-turf-400")}>{live ? "Live now" : "Next match"}</span>
         <ArrowUpRight size={18} className="text-chalk/35 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-chalk" />
       </div>
 
@@ -167,7 +168,7 @@ function HomeAction({ href, title, description, icon: Icon, completed, completed
     <Link href={href} className={cn(
       "group relative min-h-[7.25rem] overflow-hidden rounded-[1.35rem] border border-league-gold/25 p-3.5 shadow-[0_9px_24px_rgba(0,0,0,.16),inset_0_1px_0_rgba(218,165,32,.06)] transition hover:border-league-gold/45 focus:outline-none focus-visible:ring-2 md:min-h-[8rem] md:p-5",
       tone === "green" ? "bg-turf-400/[.07] focus-visible:ring-turf-400" : "bg-league-gold/[.07] focus-visible:ring-floodlight",
-      completed && "opacity-55 saturate-50"
+      completed && "border-turf-400/30 bg-turf-400/[.06]"
     )}>
       <div className={cn("absolute -right-7 -top-8 h-24 w-24 rounded-full", tone === "green" ? "bg-turf-400/[.08]" : "bg-floodlight/[.08]")} />
       <div className="relative flex h-full flex-col justify-between gap-3">
@@ -176,8 +177,8 @@ function HomeAction({ href, title, description, icon: Icon, completed, completed
           {completed ? <span className="grid h-8 w-8 place-items-center rounded-full bg-chalk text-ink-900"><Check size={18} strokeWidth={3} /></span> : <ChevronRight size={19} className="mt-1 text-chalk/35 transition group-hover:translate-x-1 group-hover:text-chalk" />}
         </div>
         <div>
-          <h2 className="text-sm font-extrabold leading-tight sm:text-base md:text-lg">{title}</h2>
-          <p className="mt-1 text-xs text-chalk/45 md:text-sm">{completed ? completedLabel : description}</p>
+          <h2 className="text-sm font-extrabold leading-tight sm:text-base md:text-lg">{completed ? completedLabel : title}</h2>
+          <p className="mt-1 text-xs text-chalk/55 md:text-sm">{completed ? "Tap to review" : description}</p>
         </div>
       </div>
     </Link>
@@ -246,10 +247,12 @@ function LeaderTable({ title, icon: Icon, rows, tone }: { title: string; icon: I
       </div>
       <ol className="gold-dividers divide-y">
         {rows.map((row, index) => (
-          <li key={row.id} className="grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-1.5 px-3 py-2.5 text-xs md:grid-cols-[1.25rem_minmax(0,1fr)_auto] md:gap-2 md:px-4 md:text-sm">
-            <span className="font-mono text-[10px] text-chalk/30 md:text-xs">{index + 1}</span>
-            <span className="truncate font-semibold text-chalk/75">{row.name}</span>
-            <span className="font-mono text-sm font-bold text-turf-400 md:text-base">{row.value}</span>
+          <li key={row.id}>
+            <Link href={`/players/${row.id}`} className="grid min-h-11 grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-1.5 px-3 py-2.5 text-xs transition hover:bg-league-gold/[.04] focus:outline-none focus-visible:bg-league-gold/[.06] md:grid-cols-[1.25rem_minmax(0,1fr)_auto] md:gap-2 md:px-4 md:text-sm">
+              <span className="font-mono text-[10px] text-chalk/50 md:text-xs">{index + 1}</span>
+              <span className="truncate font-semibold text-chalk/80">{row.name}</span>
+              <span className="font-mono text-sm font-bold text-turf-400 md:text-base">{row.value}</span>
+            </Link>
           </li>
         ))}
         {!rows.length ? <li className="px-3 py-8 text-center text-xs text-chalk/40">No stats yet</li> : null}

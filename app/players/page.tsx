@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Search, ShieldCheck, Users } from "lucide-react";
 import { FaFutbol } from "react-icons/fa6";
 import { GiGoalKeeper, GiSoccerKick } from "react-icons/gi";
@@ -29,9 +30,15 @@ const statBoards: { label: string; key: StatKey; icon: BoardIcon }[] = [
 
 export default function PlayersPage() {
   const { data, loading, error, reload } = useLeagueData();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<PlayerTab>("players");
-  const [seasonScope, setSeasonScope] = useState("current");
+  const tab: PlayerTab = searchParams.get("tab") === "stats" ? "stats" : "players";
+  const requestedSeason = searchParams.get("season");
+  const seasonScope = requestedSeason && (requestedSeason === "all" || data.seasons.some(season => season.id === requestedSeason))
+    ? requestedSeason
+    : "current";
 
   if (loading) return <PlayersSkeleton />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -42,6 +49,19 @@ export default function PlayersPage() {
   const normalizedQuery = query.trim().toLowerCase();
   const visiblePlayers = roster.filter(player => player.name.toLowerCase().includes(normalizedQuery));
 
+  function setView(nextTab: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  function setSeasonScope(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "stats");
+    params.set("season", value);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
       <header>
@@ -50,7 +70,7 @@ export default function PlayersPage() {
         <p className="mt-1.5 text-sm text-chalk/40">Find a player or explore the league&apos;s seasonal and all-time leaders.</p>
       </header>
 
-      <TabList idPrefix="players" label="Player views" tabs={[{ id: "players", label: "Players" }, { id: "stats", label: "Stats" }]} active={tab} onChange={value => setTab(value as PlayerTab)} />
+      <TabList idPrefix="players" label="Player views" tabs={[{ id: "players", label: "Players" }, { id: "stats", label: "Stats" }]} active={tab} onChange={setView} />
 
       <div id={`players-${tab}-panel`} role="tabpanel" aria-labelledby={`players-${tab}-tab`}>
         {tab === "players" ? (

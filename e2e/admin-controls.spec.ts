@@ -39,18 +39,14 @@ test("unsaved match statistics block accidental admin navigation", async ({ page
   await goalsInput.fill("9");
   await expect(page.getByText("Unsaved changes", { exact: true }).first()).toBeVisible();
 
-  page.once("dialog", async dialog => {
-    expect(dialog.message()).toContain("unsaved match statistics");
-    await dialog.dismiss();
-  });
   await page.getByRole("tab", { name: "Betting" }).click();
+  const leaveDialog = page.getByRole("dialog");
+  await expect(leaveDialog.getByRole("heading", { name: "Leave without saving statistics?" })).toBeVisible();
+  await leaveDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("heading", { name: "Match statistics" }).first()).toBeVisible();
   await expect(goalsInput).toHaveValue("9");
 
-  page.once("dialog", async dialog => {
-    expect(dialog.message()).toContain("unsaved match statistics");
-    await dialog.accept();
-  });
   await page.getByRole("tab", { name: "Betting" }).click();
+  await leaveDialog.getByRole("button", { name: "Leave without saving" }).click();
   await expect(page.getByRole("heading", { name: "Betting control" })).toBeVisible();
 });

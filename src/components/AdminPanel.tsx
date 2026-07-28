@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Trash2, UsersRound, X } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Search, Trash2, UsersRound, X } from "lucide-react";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
@@ -58,7 +59,13 @@ function deliveryMessage(action: string, result?: PushSendResult) {
 }
 
 export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => void }) {
-  const [activeTab, setActiveTab] = useState<AdminTab>("games");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const requestedSection = searchParams.get("section");
+  const activeTab: AdminTab = ["games", "roster", "betting", "seasons", "notifications", "audit"].includes(requestedSection || "")
+    ? requestedSection as AdminTab
+    : "games";
   const [focusGameId, setFocusGameId] = useState<string | null>(null);
   const [playerNameInput, setPlayerNameInput] = useState("");
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>("outfield");
@@ -68,6 +75,10 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   const [gameDate, setGameDate] = useState("");
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [rosterQuery, setRosterQuery] = useState("");
+  const [rosterFilter, setRosterFilter] = useState<"active" | "guest" | "inactive" | "archived" | "all">("active");
+  const [addingPlayer, setAddingPlayer] = useState(false);
+  const [creatingGame, setCreatingGame] = useState(false);
   const [dirtyStatGameIds, setDirtyStatGameIds] = useState<Set<string>>(() => new Set());
   const games = useMemo(
     () => [...data.games].sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()),
@@ -75,7 +86,19 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   );
   const hasUnsavedStats = dirtyStatGameIds.size > 0;
 
-  useUnsavedChangesWarning(hasUnsavedStats);
+  const requestNavigation = useCallback((href: string) => {
+    setConfirmState({
+      title: "Leave without saving statistics?",
+      text: UNSAVED_CHANGES_MESSAGE,
+      confirmLabel: "Leave without saving",
+      onConfirm: () => {
+        setDirtyStatGameIds(new Set());
+        router.push(href);
+      }
+    });
+  }, [router]);
+
+  useUnsavedChangesWarning(hasUnsavedStats, requestNavigation);
 
   const setGameStatsDirty = useCallback((gameId: string, dirty: boolean) => {
     setDirtyStatGameIds(current => {
@@ -88,9 +111,24 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 
   function changeAdminTab(nextTab: AdminTab) {
     if (nextTab === activeTab) return;
-    if (hasUnsavedStats && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
-    setDirtyStatGameIds(new Set());
-    setActiveTab(nextTab);
+    const navigate = () => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("section", nextTab);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    };
+    if (hasUnsavedStats) {
+      requestConfirm({
+        title: "Leave without saving statistics?",
+        text: UNSAVED_CHANGES_MESSAGE,
+        confirmLabel: "Leave without saving",
+        onConfirm: () => {
+          setDirtyStatGameIds(new Set());
+          navigate();
+        }
+      });
+      return;
+    }
+    navigate();
   }
 
   function notify(message: string, tone: ToastTone = "success") {
@@ -103,12 +141,15 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 
   function openGameControls(gameId: string) {
     setFocusGameId(gameId);
-    setActiveTab("games");
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("section", "games");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   async function addPlayer(e: React.FormEvent) {
     e.preventDefault();
-    if (!playerNameInput.trim()) return;
+    if (!playerNameInput.trim() || addingPlayer) return;
+    setAddingPlayer(true);
     const { error } = await supabase.from("players").insert({
       name: playerNameInput.trim(),
       default_position: playerPosition,
@@ -116,13 +157,17 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       fantasy_eligible: newPlayerFantasyEligible,
       individual_betting_eligible: newPlayerBettingEligible
     });
-    if (error) return notify(friendlyActionError(error, "The player could not be added. Please try again."), "error");
+    if (error) {
+      setAddingPlayer(false);
+      return notify(friendlyActionError(error, "The player could not be added. Please try again."), "error");
+    }
     setPlayerNameInput("");
     setNewPlayerType("regular");
     setNewPlayerFantasyEligible(true);
     setNewPlayerBettingEligible(true);
     notify("Player added.");
-    reload();
+    await reload();
+    setAddingPlayer(false);
   }
 
   async function archivePlayer(id: string) {
@@ -141,13 +186,17 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 
   async function createGame(e: React.FormEvent) {
     e.preventDefault();
-    if (!gameDate) return;
+    if (!gameDate || creatingGame) return;
+    setCreatingGame(true);
     const { data: createdGame, error } = await supabase
       .from("games")
       .insert({ game_date: new Date(gameDate).toISOString(), status: "upcoming" })
       .select("id")
       .single();
-    if (error) return notify(friendlyActionError(error, "The game could not be created. Please try again."), "error");
+    if (error) {
+      setCreatingGame(false);
+      return notify(friendlyActionError(error, "The game could not be created. Please try again."), "error");
+    }
     setGameDate("");
     try {
       const result = await sendAdminGameNotification(createdGame.id, "game_scheduled");
@@ -155,7 +204,8 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
     } catch (notificationError) {
       notify(`Game created, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
     }
-    reload();
+    await reload();
+    setCreatingGame(false);
   }
 
   return (
@@ -179,7 +229,12 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
         <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-chalk/40">Manage games, players, seasons, betting, notifications, and controlled corrections.</p>
       </header>
 
-      <AdminStatsPanel data={data} />
+      <AdminMatchweekPulse data={data} onOpenGame={openGameControls} />
+
+      <details className="rounded-[1.2rem] border border-league-gold/20 bg-ink-850 p-3.5">
+        <summary className="cursor-pointer text-sm font-bold text-chalk/70">League totals and notification adoption</summary>
+        <div className="mt-3"><AdminStatsPanel data={data} /></div>
+      </details>
 
       <AdminSectionTabs active={activeTab} onChange={changeAdminTab} />
 
@@ -194,17 +249,27 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
               </div>
               <form onSubmit={createGame} className="grid min-w-0 gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
                 <TextInput className="min-w-0 w-full" type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
-                <PrimaryButton className="w-full whitespace-nowrap sm:w-auto">Create game</PrimaryButton>
+                <PrimaryButton disabled={creatingGame || !gameDate} className="w-full whitespace-nowrap sm:w-auto">{creatingGame ? "Creating…" : "Create game"}</PrimaryButton>
               </form>
             </div>
           </Card>
 
           <div className="space-y-4">
-            {games.map((game, index) => (
+            {games.filter(game => game.status !== "final").map((game, index) => (
               <GameSection key={game.id} game={game} data={data} reload={reload} defaultOpen={index === 0} forceOpen={focusGameId === game.id} statsDirty={dirtyStatGameIds.has(game.id)} onStatsDirtyChange={setGameStatsDirty} notify={notify} requestConfirm={requestConfirm} />
             ))}
           </div>
-          {!games.length ? <EmptyState title="No games yet" text="Create the first Thursday game to start setting lineups." /> : null}
+          {!games.some(game => game.status !== "final") ? <EmptyState title="No current game" text="Create the next Thursday game when its date is confirmed." /> : null}
+          {games.some(game => game.status === "final") ? (
+            <details className="rounded-[1.3rem] border border-league-gold/20 bg-ink-850 p-3.5">
+              <summary className="cursor-pointer font-bold text-chalk/70">Past games ({games.filter(game => game.status === "final").length})</summary>
+              <div className="mt-4 space-y-3">
+                {games.filter(game => game.status === "final").map(game => (
+                  <GameSection key={game.id} game={game} data={data} reload={reload} defaultOpen={false} forceOpen={focusGameId === game.id} statsDirty={dirtyStatGameIds.has(game.id)} onStatsDirtyChange={setGameStatsDirty} notify={notify} requestConfirm={requestConfirm} />
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
       ) : activeTab === "roster" ? (
         <Card id="admin-roster-panel" role="tabpanel" aria-labelledby="admin-roster-tab">
@@ -224,18 +289,47 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
               <option value="regular">Regular player</option>
               <option value="guest">Guest player</option>
             </Select>
-            <PrimaryButton>Add player</PrimaryButton>
+            <PrimaryButton disabled={addingPlayer || !playerNameInput.trim()}>{addingPlayer ? "Adding…" : "Add player"}</PrimaryButton>
             <div className="grid gap-2 sm:grid-cols-2 lg:col-span-4">
               <EligibilityToggle checked={newPlayerFantasyEligible} onChange={setNewPlayerFantasyEligible} title="Fantasy eligible" detail="Can be selected and earn Fantasy points." />
               <EligibilityToggle checked={newPlayerBettingEligible} onChange={setNewPlayerBettingEligible} title="Individual betting eligible" detail="Can receive personal goals, assists and saves markets." />
             </div>
           </form>
 
+          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <label className="relative block">
+              <span className="sr-only">Search roster</span>
+              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-league-gold/60" size={17} />
+              <TextInput value={rosterQuery} onChange={event => setRosterQuery(event.target.value)} placeholder="Search roster…" className="pl-11" />
+            </label>
+            <div className="flex overflow-x-auto rounded-xl border border-league-gold/15 bg-black/15 p-1" aria-label="Roster filters">
+              {(["active", "guest", "inactive", "archived", "all"] as const).map(filter => (
+                <button key={filter} type="button" aria-pressed={rosterFilter === filter} onClick={() => setRosterFilter(filter)} className={cn("min-h-11 min-w-max rounded-lg px-3 text-xs font-bold capitalize", rosterFilter === filter ? "bg-league-gold/[.12] text-league-gold" : "text-chalk/60")}>{filter}</button>
+              ))}
+            </div>
+          </div>
           <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {data.players.map(player => (
+            {data.players.filter(player => {
+              const matchesQuery = player.name.toLowerCase().includes(rosterQuery.trim().toLowerCase());
+              const matchesFilter = rosterFilter === "all"
+                || (rosterFilter === "active" && player.active && !player.archived_at && !isGuestPlayer(player))
+                || (rosterFilter === "guest" && isGuestPlayer(player) && !player.archived_at)
+                || (rosterFilter === "inactive" && !player.active && !player.archived_at)
+                || (rosterFilter === "archived" && !!player.archived_at);
+              return matchesQuery && matchesFilter;
+            }).map(player => (
               <PlayerAdminRow key={player.id} player={player} onArchive={archivePlayer} reload={reload} notify={notify} />
             ))}
           </div>
+          {!data.players.some(player => {
+            const matchesQuery = player.name.toLowerCase().includes(rosterQuery.trim().toLowerCase());
+            const matchesFilter = rosterFilter === "all"
+              || (rosterFilter === "active" && player.active && !player.archived_at && !isGuestPlayer(player))
+              || (rosterFilter === "guest" && isGuestPlayer(player) && !player.archived_at)
+              || (rosterFilter === "inactive" && !player.active && !player.archived_at)
+              || (rosterFilter === "archived" && !!player.archived_at);
+            return matchesQuery && matchesFilter;
+          }) ? <EmptyState title="No matching players" text="Try a different search or roster filter." /> : null}
         </Card>
       ) : activeTab === "betting" ? (
         <div id="admin-betting-panel" role="tabpanel" aria-labelledby="admin-betting-tab">
@@ -292,6 +386,70 @@ function AdminSectionTabs({ active, onChange }: { active: AdminTab; onChange: (t
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function AdminMatchweekPulse({ data, onOpenGame }: { data: LeagueData; onOpenGame: (gameId: string) => void }) {
+  const game = data.games.find(item => item.status === "live")
+    || [...data.games]
+      .filter(item => item.status !== "final")
+      .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0];
+
+  if (!game) {
+    return (
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[.18em] text-league-gold">Current matchweek</div>
+          <h2 className="mt-1 font-display text-3xl uppercase">No active game</h2>
+          <p className="mt-1 text-sm text-chalk/60">Create the next game when its date is confirmed.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
+  const teamACount = lineups.filter(lineup => lineup.team === "A").length;
+  const teamBCount = lineups.filter(lineup => lineup.team === "B").length;
+  const activeProfiles = data.profiles.filter(profile => profile.account_status !== "deactivated" && profile.account_status !== "deleted");
+  const fantasyUsers = new Set(data.squads.filter(squad => squad.game_id === game.id).map(squad => squad.user_id));
+  const nextAction = !gameLineupIsReady(game, lineups)
+    ? "Complete both lineups"
+    : game.status === "upcoming"
+      ? "Open fantasy and betting"
+      : game.status === "draft"
+        ? "Prepare for kickoff"
+        : "Record the live result";
+
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,.65fr)]">
+        <div className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill>{statusLabel(game.status)}</Pill>
+            <span className="text-xs font-black uppercase tracking-[.18em] text-league-gold">Current matchweek</span>
+          </div>
+          <h2 className="mt-2 font-display text-3xl uppercase sm:text-4xl">{formatDateTime(game.game_date)}</h2>
+          <p className="mt-1 text-sm text-chalk/60">Next: {nextAction}</p>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <AdminPulseMetric label="Team A" value={`${teamACount}/5`} ready={teamACount === 5} />
+            <AdminPulseMetric label="Team B" value={`${teamBCount}/5`} ready={teamBCount === 5} />
+            <AdminPulseMetric label="Fantasy" value={`${fantasyUsers.size}/${activeProfiles.length}`} ready={activeProfiles.length > 0 && fantasyUsers.size === activeProfiles.length} />
+          </div>
+        </div>
+        <div className="flex items-center border-t border-league-gold/15 bg-league-gold/[.035] p-4 lg:border-l lg:border-t-0 sm:p-5">
+          <PrimaryButton type="button" className="w-full" onClick={() => onOpenGame(game.id)}>Open game controls</PrimaryButton>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function AdminPulseMetric({ label, value, ready }: { label: string; value: string; ready: boolean }) {
+  return (
+    <div className={cn("rounded-xl border p-2.5", ready ? "border-turf-400/25 bg-turf-400/[.065]" : "border-league-gold/15 bg-black/15")}>
+      <div className="text-[10px] font-black uppercase tracking-wider text-chalk/60">{label}</div>
+      <div className={cn("mt-1 font-mono text-lg font-bold", ready ? "text-turf-400" : "text-chalk")}>{value}</div>
     </div>
   );
 }
@@ -464,8 +622,16 @@ function GameSection({
 
   function toggleOpen() {
     if (open && statsDirty) {
-      if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
-      onStatsDirtyChange(game.id, false);
+      requestConfirm({
+        title: "Close without saving statistics?",
+        text: UNSAVED_CHANGES_MESSAGE,
+        confirmLabel: "Close without saving",
+        onConfirm: () => {
+          onStatsDirtyChange(game.id, false);
+          setOpen(false);
+        }
+      });
+      return;
     }
     setOpen(value => !value);
   }

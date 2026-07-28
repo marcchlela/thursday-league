@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { serverRateLimitDecision } from "@/lib/serverRateLimit";
+import { friendlyActionError } from "@/lib/actionErrors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,9 @@ export async function POST(request: Request) {
     delete_confirmation: body.confirmation
   });
   if (deletion.error) {
-    return NextResponse.json({ error: deletion.error.message }, { status: 400 });
+    return NextResponse.json({
+      error: friendlyActionError(deletion.error, "The account could not be deleted. Please try again.")
+    }, { status: 400 });
   }
 
   const result = deletion.data as { avatar_path?: string | null } | null;

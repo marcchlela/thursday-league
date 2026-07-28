@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, RefreshCw, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { AdminAuditLog, Game, Profile } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 import { Card, EmptyState, ErrorState, LoadingState, Pill, SecondaryButton, Select, TextInput } from "./ui";
@@ -63,7 +64,7 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
       .limit(200);
 
     if (requestError) {
-      setError(`${requestError.message}. Make sure the 20260719 integrity migration has been run in Supabase.`);
+      setError(friendlyActionError(requestError, "Audit history could not be loaded. Check the database setup and try again."));
       setRows([]);
     } else {
       setRows((data || []) as AdminAuditLog[]);

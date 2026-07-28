@@ -9,7 +9,7 @@ import { evaluateScoreForecasts } from "@/lib/modelEvaluation";
 import { buildModelExport, downloadModelExport } from "@/lib/modelExport";
 import { supabase } from "@/lib/supabase";
 import { BettingData, BettingMarket, BettingOutcome, Game, LeagueData, Player } from "@/lib/types";
-import { cn, formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime, statusLabel } from "@/lib/utils";
 import { bettingCategoryOrder } from "./BettingMarketComponents";
 import { Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Pill, PrimaryButton, SecondaryButton, Select, TextArea, TextInput, Toast, ToastTone } from "./ui";
 
@@ -277,7 +277,7 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
           <div><div className="flex items-center gap-2 text-league-gold"><ShieldCheck size={18} /><span className="text-xs font-bold uppercase tracking-[.2em]">Admin approval required</span></div><h2 className="mt-2 font-display text-4xl uppercase">Betting control</h2><p className="mt-1 max-w-2xl text-sm text-chalk/55">Generate player-lineup probabilities, inspect fair chances and offered odds, adjust unrealistic draft prices, then approve the full market set.</p></div>
           {status ? <MarketStatus status={status} /> : null}
         </div>
-        <label className="mt-5 block max-w-xl"><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/50">Game</span><Select value={gameId} onChange={event => setGameId(event.target.value)}>{eligibleGames.map(item => <option key={item.id} value={item.id}>{formatDateTime(item.game_date)} — {item.status}</option>)}</Select></label>
+        <label className="mt-5 block max-w-xl"><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/50">Game</span><Select value={gameId} onChange={event => setGameId(event.target.value)}>{eligibleGames.map(item => <option key={item.id} value={item.id}>{formatDateTime(item.game_date)} — {statusLabel(item.status)}</option>)}</Select></label>
       </Card>
 
       <Card>
@@ -442,7 +442,15 @@ function PredictionReview({ data, betting }: { data: LeagueData; betting: Bettin
 
 function MarketStatus({ status }: { status: BettingMarket["status"] }) {
   const tone = status === "open" ? "border-turf-400/30 bg-turf-400/10 text-turf-400" : status === "draft" ? "border-league-gold/30 bg-league-gold/[.07] text-league-gold" : status === "settled" ? "border-league-gold/30 bg-league-gold/[.07] text-league-gold" : "border-league-gold/15 bg-black/15 text-chalk/60";
-  return <span className={cn("rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-widest", tone)}>{status}</span>;
+  const label: Record<BettingMarket["status"], string> = {
+    open: "Open",
+    draft: "Private draft",
+    suspended: "Suspended",
+    locked: "Locked",
+    settled: "Settled",
+    void: "Void"
+  };
+  return <span className={cn("rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-widest", tone)}>{label[status]}</span>;
 }
 
 function Metric({ icon: Icon, label, value }: { icon: typeof Cpu; label: string; value: string }) {

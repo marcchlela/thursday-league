@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppWindow, BellRing, CheckCircle2, ChevronLeft, ChevronRight, Download, Share, ShieldCheck, Smartphone } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
+import { friendlyActionError } from "@/lib/actionErrors";
 import {
   enablePushNotifications,
   consumeNotificationInstallHandoff,
@@ -164,7 +165,7 @@ export function NotificationOnboarding() {
       setMessage("Notifications are ready on this device.");
       window.setTimeout(() => setOpen(false), 700);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not enable notifications.");
+      setMessage(friendlyActionError(error, "Notifications could not be enabled on this device."));
       setDevice(await readPushDeviceState());
     } finally {
       setBusy(false);

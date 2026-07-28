@@ -219,8 +219,9 @@ export async function POST(request: Request) {
       dedupeKey: `${event}:${game.id}:${finalVersion}`
     });
   } catch (error) {
+    console.error("Admin game notification failed", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not send notifications." },
+      { error: "Could not send notifications. You can retry failed deliveries from Notifications." },
       { status: 500 }
     );
   }

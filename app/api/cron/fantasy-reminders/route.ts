@@ -85,7 +85,8 @@ export async function GET(request: Request) {
         });
         results.push({ gameId: game.id, minutes, ...result });
       } catch (error) {
-        results.push({ gameId: game.id, minutes, error: error instanceof Error ? error.message : "Reminder failed." });
+        console.error("Fantasy reminder delivery failed", { gameId: game.id, minutes, error });
+        results.push({ gameId: game.id, minutes, error: "Reminder delivery failed." });
       }
     }
   }

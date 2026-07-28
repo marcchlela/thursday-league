@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, CheckCircle2, CircleDashed, Clock3, Crown } from "lucide-react";
 import { FaFutbol } from "react-icons/fa6";
 import { GiGoalKeeper, GiSoccerKick } from "react-icons/gi";
@@ -11,7 +11,7 @@ import type { IconType } from "react-icons";
 import { calculatePlayerBreakdown, calculateScore } from "@/lib/scoring";
 import { isFantasyEligible } from "@/lib/playerEligibility";
 import { Game, GameLineup, LeagueData, TeamCode } from "@/lib/types";
-import { cn, gameLineupIsReady, goalkeeperMode, playerName } from "@/lib/utils";
+import { cn, gameLineupIsReady, goalkeeperMode, playerName, statusLabel } from "@/lib/utils";
 import { TeamCrest } from "./TeamCrest";
 import { GameBettingPanel } from "./GameBettingPanel";
 import { TiloMoment } from "./TiloMoment";
@@ -36,8 +36,20 @@ function matchTime(value: string) {
 }
 
 export function GameMatchHub({ game, data, initialTab }: { game: Game; data: LeagueData; initialTab?: MatchDetailTab }) {
-  const [tab, setTab] = useState<MatchDetailTab>(initialTab || (game.status === "final" ? "stats" : "lineups"));
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const tab: MatchDetailTab = detailTabs.some(item => item.id === requestedTab)
+    ? requestedTab as MatchDetailTab
+    : initialTab || (game.status === "final" ? "stats" : "lineups");
   const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
+
+  function setTab(nextTab: MatchDetailTab) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   return (
     <div className="space-y-4 md:space-y-5">
@@ -82,7 +94,7 @@ function MatchHero({ game, data, lineups }: { game: Game; data: LeagueData; line
 
       <div className="relative flex items-center justify-between">
         <span className="text-xs font-black uppercase tracking-[.18em] text-turf-400">{game.status === "final" ? "Final result" : game.status === "live" ? "Live match" : "Next match"}</span>
-        <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest", game.status === "live" ? "bg-red-400/15 text-red-300" : "bg-chalk/[.05] text-chalk/40")}>{game.status}</span>
+        <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest", game.status === "live" ? "bg-red-400/15 text-red-300" : "bg-chalk/[.05] text-chalk/60")}>{statusLabel(game.status)}</span>
       </div>
 
       <div className="relative mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:mt-4 md:gap-8">
@@ -244,10 +256,10 @@ function FormationHalf({ team, mode, data, lineups }: { team: TeamCode; mode: "f
 
 function PitchPlayer({ playerId, name, role, team, pending }: { playerId?: string; name: string; role: "goalkeeper" | "outfield"; team: TeamCode; pending: boolean }) {
   const jersey = role === "goalkeeper"
-    ? "/fantasy/goalkeeper-jersey.png"
+    ? "/fantasy/goalkeeper-jersey.webp"
     : team === "A"
-      ? "/fantasy/outfield-jersey.png"
-      : "/fantasy/team-b-outfield-jersey.png";
+      ? "/fantasy/outfield-jersey.webp"
+      : "/fantasy/team-b-outfield-jersey.webp";
 
   const content = (
     <>

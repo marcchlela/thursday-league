@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BellOff, BellRing, Clock3, SlidersHorizontal } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { supabase } from "@/lib/supabase";
+import { friendlyActionError } from "@/lib/actionErrors";
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -89,7 +90,7 @@ export function NotificationSettings() {
       user_id: user.id,
       ...preferences
     }, { onConflict: "user_id" });
-    setMessage(error ? error.message : "Notification preferences saved.");
+    setMessage(error ? friendlyActionError(error, "Notification preferences could not be saved.") : "Notification preferences saved.");
     setPreferencesSaving(false);
   }
 
@@ -105,7 +106,7 @@ export function NotificationSettings() {
       setMessage("Notifications are enabled on this device.");
       await refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not enable notifications.");
+      setMessage(friendlyActionError(error, "Notifications could not be enabled on this device."));
       await refresh();
     } finally {
       setBusy(false);
@@ -120,7 +121,7 @@ export function NotificationSettings() {
       setMessage("Notifications are disabled on this device.");
       await refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not disable notifications.");
+      setMessage(friendlyActionError(error, "Notifications could not be disabled on this device."));
     } finally {
       setBusy(false);
     }
@@ -138,7 +139,7 @@ export function NotificationSettings() {
       if (!response.ok) throw new Error(await pushResponseError(response));
       setMessage("Test notification sent.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not send the test notification.");
+      setMessage(friendlyActionError(error, "The test notification could not be sent."));
     } finally {
       setBusy(false);
     }

@@ -12,6 +12,7 @@ import {
 import { pushAccessToken, pushResponseError } from "@/lib/pushClient";
 import { Game } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { Card, Modal, Pill, PrimaryButton, SecondaryButton, Select, TextArea, TextInput } from "./ui";
 
 type RecipientCount = { users: number; devices: number };
@@ -46,7 +47,7 @@ export function AdminNotificationComposer({ games, onSent }: { games: Game[]; on
       const result = await response.json() as { recipients?: RecipientCount };
       setRecipients(result.recipients || emptyRecipients);
     } catch (error) {
-      setRecipientsError(error instanceof Error ? error.message : "Could not count recipients.");
+      setRecipientsError(friendlyActionError(error, "Recipients could not be counted. Please try again."));
     } finally {
       setRecipientsLoading(false);
     }
@@ -96,7 +97,7 @@ export function AdminNotificationComposer({ games, onSent }: { games: Game[]; on
       setRequestId(null);
       await Promise.all([loadRecipients(), Promise.resolve(onSent())]);
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : "Could not send the announcement.");
+      setSendError(friendlyActionError(error, "The announcement could not be sent. Please try again."));
     } finally {
       setSending(false);
     }

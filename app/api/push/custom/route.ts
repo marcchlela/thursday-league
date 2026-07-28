@@ -39,7 +39,8 @@ export async function GET(request: Request) {
     const recipients = await countPushRecipients("announcement");
     return NextResponse.json({ success: true, recipients });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not count announcement recipients." }, { status: 500 });
+    console.error("Announcement recipient count failed", error);
+    return NextResponse.json({ error: "Could not count announcement recipients. Please try again." }, { status: 500 });
   }
 }
 
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ success: true, result });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not send the announcement." }, { status: 500 });
+    console.error("Announcement delivery failed", error);
+    return NextResponse.json({ error: "Could not send the announcement. Please try again." }, { status: 500 });
   }
 }
