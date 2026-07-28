@@ -37,6 +37,11 @@ The web app continues using its current transparent probability engine until a m
 
 This is intentionally the baseline. It should not replace the current production probability engine until it has enough real walk-forward results and demonstrably improves calibration.
 
+With only a few completed league games, training can confirm that the pipeline
+runs, but it cannot establish that a new learned model generalizes better.
+Synthetic or random matches are useful for software tests and simulation
+experiments only; they must never be mixed into the real evaluation record.
+
 ## Tests
 
 ```powershell

@@ -18,14 +18,32 @@ if (manifest.format_version !== 1 || !Array.isArray(manifest.files)) {
   throw new Error("Unsupported or invalid backup manifest.");
 }
 
+const seenFiles = new Set();
 for (const expected of manifest.files) {
   if (
     typeof expected.file !== "string" ||
-    expected.file !== path.basename(expected.file)
+    !expected.file ||
+    path.isAbsolute(expected.file) ||
+    expected.file.includes("\0") ||
+    expected.file.split(/[\\/]/).some(segment => segment === "..") ||
+    !Number.isSafeInteger(expected.bytes) ||
+    expected.bytes < 0 ||
+    typeof expected.sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(expected.sha256)
   ) {
+    throw new Error("The backup manifest contains an invalid file record.");
+  }
+  if (seenFiles.has(expected.file)) {
+    throw new Error(
+      `The backup manifest contains duplicate file ${expected.file}.`
+    );
+  }
+  seenFiles.add(expected.file);
+
+  const filePath = path.resolve(target, expected.file);
+  if (!filePath.startsWith(`${target}${path.sep}`)) {
     throw new Error("The backup manifest contains an unsafe file path.");
   }
-  const filePath = path.join(target, expected.file);
   if (!existsSync(filePath)) throw new Error(`${expected.file} is missing.`);
   const contents = readFileSync(filePath);
   const actualHash = createHash("sha256").update(contents).digest("hex");

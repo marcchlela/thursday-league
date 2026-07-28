@@ -18,6 +18,7 @@ function runSupabase(args: string[], silent = false) {
 }
 
 function localEnvValue(name: string) {
+  if (process.env[name]) return process.env[name];
   const contents = readFileSync(path.resolve(process.cwd(), ".env.development.local"), "utf8");
   const line = contents.split(/\r?\n/).find(entry => entry.startsWith(`${name}=`));
   return line?.slice(name.length + 1).trim();

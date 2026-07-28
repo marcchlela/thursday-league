@@ -68,7 +68,11 @@ Redis was not added. PostgreSQL is sufficient for the current traffic and avoids
 
 The app now sends frame denial, MIME sniffing protection, strict referrer behavior, a restrictive permissions policy, production HSTS, cross-origin opener isolation, API no-store caching, and a report-only Content Security Policy.
 
-The CSP is report-only intentionally. Review browser console violations for required Next.js, Supabase, analytics, and push origins before enforcing it; an untested enforced CSP can break authentication or installed-app behavior.
+The CSP is report-only intentionally. Sanitized violations are sent to the
+application CSP-report endpoint and appear in server logs without query
+strings, UUIDs, or cross-origin paths. Review those reports for required
+Next.js, Supabase, analytics, and push origins before enforcing the policy; an
+untested enforced CSP can break authentication or installed-app behavior.
 
 ## Residual work before public multi-league release
 
@@ -76,6 +80,6 @@ The CSP is report-only intentionally. Review browser console violations for requ
 - Separate platform administrators from league administrators.
 - Add verified recovery email and signed reset links.
 - Promote CSP from report-only after compatibility observation.
-- Export Storage object bytes in addition to database backups.
+- Configure and verify scheduled Storage object exports in GitHub Actions.
 - Conduct an external penetration test after the multi-league migration.
 - Add privacy/consent controls before persistent product analytics.

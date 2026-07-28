@@ -14,7 +14,8 @@ Those controls prevent many mistakes, but they do not replace a database backup.
 
 In Supabase, check **Database → Backups** before every production migration. Supabase currently provides automatic daily database backups on Pro, Team, and Enterprise projects. Free projects should create regular logical exports. Point-in-Time Recovery is a paid add-on and is probably unnecessary at the current friends-league scale.
 
-Supabase database backups do not contain uploaded Storage object bytes. Profile-avatar files therefore need a separate Storage export if they become important.
+Supabase database backups do not contain uploaded Storage object bytes. The
+repository therefore backs up the `profile-avatars` bucket separately.
 
 Official references:
 
@@ -38,6 +39,17 @@ The command creates an ignored timestamped directory under `backups/supabase/` c
 - `data.sql`
 - `manifest.json` with file sizes and SHA-256 hashes
 
+Back up profile-avatar object bytes with the server-only Supabase credentials
+already used by the app:
+
+```powershell
+node --env-file=.env.local scripts/backup-supabase-storage.mjs
+```
+
+The command creates another ignored timestamped directory under
+`backups/storage/`. It never uses public object URLs and records every
+downloaded object size and SHA-256 hash in its manifest.
+
 Create one backup:
 
 - weekly while the app is active;
@@ -48,19 +60,26 @@ Copy the completed directory to encrypted off-device storage. A backup kept only
 
 ## Free scheduled backups with GitHub Actions
 
-The repository includes `.github/workflows/database-backup.yml`. It creates and verifies a logical backup every Monday and retains the private workflow artifact for seven days.
+The repository includes `.github/workflows/database-backup.yml`. It creates and
+verifies the database backup and configured Storage buckets every Monday, then
+retains the private workflow artifact for seven days.
 
 1. In the GitHub repository, open **Settings → Secrets and variables → Actions**.
 2. Add a repository secret named `SUPABASE_DB_URL` using the Session pooler connection string.
-3. Open **Actions → Scheduled database backup → Run workflow** once.
-4. Download the artifact, verify it locally, and copy it to encrypted off-device storage.
+3. Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` repository secrets so
+   avatar object bytes are included. These values must remain server-only.
+4. Open **Actions → Supabase backup → Run workflow** once.
+5. Download the artifact, verify it locally, and copy it to encrypted off-device storage.
 
-GitHub workflow artifacts are a short-retention safety net, not the only backup location. Keep the repository access restricted, rotate the database password if the secret is ever exposed, and remember that Storage object bytes such as avatars still require a separate export.
+GitHub workflow artifacts are a short-retention safety net, not the only backup
+location. Keep the repository access restricted and rotate the database
+password or service-role key if either secret is ever exposed.
 
 ## Verify a backup
 
 ```powershell
 npm run db:backup:verify -- "backups/supabase/TIMESTAMP"
+npm run storage:backup:verify -- "backups/storage/TIMESTAMP"
 ```
 
 Hash verification proves that the exported files have not changed. It does not prove they can be restored, so perform a test restore occasionally.

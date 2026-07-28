@@ -38,7 +38,7 @@ jobs:
 
   database-protections:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,5 +48,16 @@ jobs:
       - run: npm ci
       - run: npx supabase start
       - run: npm run test:db
+      - name: Install the desktop test browser
+        run: npx playwright install --with-deps chromium
+      - name: Run desktop end-to-end checks
+        run: |
+          eval "$(npx supabase status -o env)"
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          export LEAGUE_INVITE_CODE="local-ci-invite"
+          export NEXT_PUBLIC_APP_URL="http://127.0.0.1:3000"
+          npm run test:e2e -- --project=desktop-chromium
       - if: always()
         run: npx supabase stop --no-backup

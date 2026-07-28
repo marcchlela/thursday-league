@@ -132,7 +132,6 @@ export async function sendTrackedPush(args: {
   dedupeKey?: string;
   targetUserIds?: string[];
 }): Promise<PushSendResult> {
-  configureWebPush();
   const supabaseAdmin = createSupabaseAdmin();
   const { payload } = args;
   const { data: dispatch, error: dispatchError } = await supabaseAdmin
@@ -198,6 +197,37 @@ export async function sendTrackedPush(args: {
   let failed = 0;
   let removed = 0;
 
+  try {
+    configureWebPush();
+  } catch (error) {
+    const failureMessage = error instanceof Error
+      ? error.message
+      : "Push service configuration failed.";
+    const deliveryIds = (deliveries || []).map(row => row.id);
+    const { error: updateError } = await supabaseAdmin
+      .from("notification_deliveries")
+      .update({
+        status: "failed",
+        attempt_count: 1,
+        error_message: failureMessage,
+        last_attempt_at: new Date().toISOString()
+      })
+      .in("id", deliveryIds);
+    if (updateError) {
+      console.error("Could not record push configuration failures", {
+        dispatchId: dispatch.id,
+        message: updateError.message
+      });
+    }
+    return {
+      dispatchId: dispatch.id,
+      total: enabledSubscriptions.length,
+      sent: 0,
+      failed: enabledSubscriptions.length,
+      removed: 0
+    };
+  }
+
   await Promise.all(enabledSubscriptions.map(async subscription => {
     const result = await deliverOne(subscription, payload);
     const status = result.ok ? "sent" : result.expired ? "expired" : "failed";
@@ -224,7 +254,6 @@ export async function sendTrackedPush(args: {
 }
 
 export async function retryFailedDispatch(dispatchId: string): Promise<PushSendResult> {
-  configureWebPush();
   const supabaseAdmin = createSupabaseAdmin();
   const { data: dispatch, error: dispatchError } = await supabaseAdmin
     .from("notification_dispatches")
@@ -241,6 +270,7 @@ export async function retryFailedDispatch(dispatchId: string): Promise<PushSendR
   if (failedError) throw new Error("Could not load failed deliveries.");
   if (!failedRows?.length) return { dispatchId, total: 0, sent: 0, failed: 0, removed: 0 };
 
+  configureWebPush();
   const subscriptionIds = failedRows.flatMap(row => row.subscription_id ? [row.subscription_id] : []);
   const { data: subscriptionData, error: subscriptionError } = subscriptionIds.length
     ? await supabaseAdmin.from("push_subscriptions").select("id, user_id, endpoint, p256dh_key, auth_key").in("id", subscriptionIds)

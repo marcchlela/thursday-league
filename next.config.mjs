@@ -13,7 +13,9 @@ const contentSecurityPolicy = [
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.vercel-insights.com https://vitals.vercel-insights.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
-  "media-src 'self' blob:"
+  "media-src 'self' blob:",
+  "report-uri /api/security/csp-report",
+  "report-to csp-endpoint"
 ].join("; ");
 
 const securityHeaders = [
@@ -22,6 +24,7 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/security/csp-report"' },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
   ...(isProduction
     ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]

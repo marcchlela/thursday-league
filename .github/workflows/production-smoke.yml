@@ -1,0 +1,22 @@
+name: Production smoke check
+
+on:
+  schedule:
+    - cron: "15 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-surface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PRODUCTION_APP_URL: ${{ vars.PRODUCTION_APP_URL || 'https://thursday-league.vercel.app' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run smoke:production
