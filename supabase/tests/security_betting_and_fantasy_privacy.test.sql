@@ -24,6 +24,32 @@ insert into public.fantasy_picks(id, squad_id, player_id, role, is_captain, slot
   ('94000000-0000-4000-8000-000000000001', '93000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000001', 'goalkeeper', true, 0),
   ('94000000-0000-4000-8000-000000000002', '93000000-0000-4000-8000-000000000002', '92000000-0000-4000-8000-000000000002', 'outfield', true, 0);
 
+do $$
+declare
+  readable_table text;
+begin
+  foreach readable_table in array array[
+    'profiles',
+    'players',
+    'games',
+    'game_lineups',
+    'events',
+    'game_player_stats',
+    'fantasy_squads',
+    'fantasy_picks'
+  ]
+  loop
+    if not has_table_privilege(
+      'authenticated',
+      format('public.%I', readable_table),
+      'SELECT'
+    ) then
+      raise exception 'Authenticated users cannot read the RLS-protected % table', readable_table;
+    end if;
+  end loop;
+end;
+$$;
+
 select set_config('request.jwt.claim.sub', '90000000-0000-4000-8000-000000000002', true);
 set local role authenticated;
 
