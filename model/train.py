@@ -8,6 +8,7 @@ model can be reproduced locally without a separate Python environment.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 from collections import defaultdict
@@ -17,8 +18,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
-SCHEMA_VERSION = 2
-MODEL_VERSION = "player-lineup-python-v1"
+SCHEMA_VERSION = 3
+SUPPORTED_SCHEMA_VERSIONS = {2, 3}
+MODEL_VERSION = "player-lineup-python-v1.1"
 EPSILON = 1e-12
 
 
@@ -32,9 +34,45 @@ def weighted_items(history: Sequence[Dict[str, Any]], decay: float) -> Iterable[
         yield game, decay ** (newest_index - index)
 
 
+def parse_timestamp(value: Any, label: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a non-empty ISO timestamp.")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError(f"{label} must be a valid ISO timestamp.") from error
+    if parsed.tzinfo is None:
+        raise ValueError(f"{label} must include a timezone.")
+    return parsed.astimezone(timezone.utc)
+
+
+def nonnegative_count(value: Any, label: str) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        or value < 0
+        or not float(value).is_integer()
+    ):
+        raise ValueError(f"{label} must be a non-negative whole number.")
+
+
+def complete_lineup(game: Dict[str, Any]) -> bool:
+    counts = {"A": 0, "B": 0}
+    for total in game["player_totals"].values():
+        counts[total["team"]] += 1
+    return counts == {"A": 5, "B": 5}
+
+
 def validate_export(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-    if payload.get("schema_version") != SCHEMA_VERSION:
-        raise ValueError(f"Expected export schema {SCHEMA_VERSION}, received {payload.get('schema_version')!r}.")
+    if not isinstance(payload, dict):
+        raise ValueError("Export must be a JSON object.")
+    if payload.get("schema_version") not in SUPPORTED_SCHEMA_VERSIONS:
+        raise ValueError(
+            f"Expected export schema {sorted(SUPPORTED_SCHEMA_VERSIONS)}, "
+            f"received {payload.get('schema_version')!r}."
+        )
+    parse_timestamp(payload.get("exported_at"), "exported_at")
     games = payload.get("games")
     if not isinstance(games, list):
         raise ValueError("Export must contain a games array.")
@@ -46,27 +84,119 @@ def validate_export(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         if game["game_id"] in seen_ids:
             raise ValueError(f"Duplicate game_id {game['game_id']}.")
         seen_ids.add(game["game_id"])
-        if not isinstance(game.get("game_date"), str):
-            raise ValueError(f"Game {game['game_id']} is missing game_date.")
+        if not game["game_id"].strip():
+            raise ValueError("Every game_id must be non-empty.")
+        parse_timestamp(game.get("game_date"), f"Game {game['game_id']} game_date")
+        if game.get("result_source") not in ("canonical_snapshot", "legacy_aggregate"):
+            raise ValueError(f"Game {game['game_id']} has an invalid result_source.")
         for key in ("score_a", "score_b", "own_goal_count"):
-            value = game.get(key)
-            if not isinstance(value, (int, float)) or value < 0:
-                raise ValueError(f"Game {game['game_id']} has invalid {key}.")
+            nonnegative_count(game.get(key), f"Game {game['game_id']} {key}")
         totals = game.get("player_totals")
-        if not isinstance(totals, dict):
+        if not isinstance(totals, dict) or not totals:
             raise ValueError(f"Game {game['game_id']} is missing player_totals.")
         for player_id, total in totals.items():
-            if not isinstance(player_id, str) or not isinstance(total, dict):
+            if not isinstance(player_id, str) or not player_id.strip() or not isinstance(total, dict):
                 raise ValueError(f"Game {game['game_id']} has an invalid player total.")
             if total.get("team") not in ("A", "B") or total.get("role") not in ("goalkeeper", "outfield"):
                 raise ValueError(f"Game {game['game_id']} has an invalid team or role for {player_id}.")
             if not isinstance(total.get("model_eligible"), bool):
                 raise ValueError(f"Game {game['game_id']} is missing model_eligible for {player_id}.")
             for key in ("goals", "assists", "saves", "own_goals"):
-                value = total.get(key)
-                if not isinstance(value, (int, float)) or value < 0:
-                    raise ValueError(f"Game {game['game_id']} has invalid {key} for {player_id}.")
+                nonnegative_count(
+                    total.get(key),
+                    f"Game {game['game_id']} {key} for {player_id}",
+                )
+
+    forecasts = payload.get("forecasts", {})
+    if forecasts is not None and not isinstance(forecasts, dict):
+        raise ValueError("forecasts must be an object.")
+    if payload.get("schema_version") == 3:
+        for forecast in forecasts.get("score_predictions", []):
+            if not isinstance(forecast, dict) or forecast.get("game_id") not in seen_ids:
+                raise ValueError("Every score prediction must reference an exported game.")
+            game = next(item for item in games if item["game_id"] == forecast["game_id"])
+            generated_at = parse_timestamp(
+                forecast.get("generated_at"),
+                f"Forecast {forecast.get('generation_run_id')} generated_at",
+            )
+            if generated_at >= parse_timestamp(game["game_date"], f"Game {game['game_id']} game_date"):
+                raise ValueError(f"Forecast {forecast.get('generation_run_id')} was not generated before kick-off.")
+            for key in ("expected_goals_a", "expected_goals_b"):
+                value = forecast.get(key)
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(float(value))
+                    or value < 0
+                ):
+                    raise ValueError(f"Forecast {forecast.get('generation_run_id')} has invalid {key}.")
+            probabilities = forecast.get("probabilities")
+            if probabilities is not None:
+                if not isinstance(probabilities, dict) or set(probabilities) != {"A", "draw", "B"}:
+                    raise ValueError("Score forecast probabilities must contain A, draw, and B.")
+                values = list(probabilities.values())
+                if any(
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(float(value))
+                    or value <= 0
+                    or value >= 1
+                    for value in values
+                ) or abs(sum(float(value) for value in values) - 1.0) > 0.001:
+                    raise ValueError("Score forecast probabilities must be finite and sum to one.")
     return sorted(games, key=lambda game: (game["game_date"], game["game_id"]))
+
+
+def data_quality_report(games: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    excluded = []
+    canonical_games = 0
+    legacy_games = 0
+    eligible_appearances = 0
+    neutral_guest_appearances = 0
+    rotating_or_missing_keeper_games = 0
+
+    for game in games:
+        if game["result_source"] == "canonical_snapshot":
+            canonical_games += 1
+        else:
+            legacy_games += 1
+        team_counts = {
+            team: sum(1 for total in game["player_totals"].values() if total["team"] == team)
+            for team in ("A", "B")
+        }
+        keeper_count = sum(
+            1 for total in game["player_totals"].values() if total["role"] == "goalkeeper"
+        )
+        if keeper_count == 0:
+            rotating_or_missing_keeper_games += 1
+        eligible_appearances += sum(
+            1 for total in game["player_totals"].values() if total["model_eligible"]
+        )
+        neutral_guest_appearances += sum(
+            1 for total in game["player_totals"].values() if not total["model_eligible"]
+        )
+        if team_counts != {"A": 5, "B": 5}:
+            excluded.append({
+                "game_id": game["game_id"],
+                "game_date": game["game_date"],
+                "reason": "incomplete_or_unbalanced_lineup",
+                "team_counts": team_counts,
+            })
+
+    return {
+        "exported_games": len(games),
+        "model_eligible_games": len(games) - len(excluded),
+        "excluded_games": excluded,
+        "canonical_result_games": canonical_games,
+        "legacy_aggregate_games": legacy_games,
+        "eligible_player_appearances": eligible_appearances,
+        "neutral_guest_appearances": neutral_guest_appearances,
+        "rotating_or_missing_keeper_games": rotating_or_missing_keeper_games,
+        "warning": (
+            "Games with anything other than five player totals per team are excluded "
+            "from fitting and walk-forward evaluation."
+        ),
+    }
 
 
 def league_rates(history: Sequence[Dict[str, Any]], decay: float) -> Dict[str, float]:
@@ -239,9 +369,16 @@ def calibration_rows(predictions: Sequence[Tuple[float, int]]) -> List[Dict[str,
     for lower_tenth in range(10):
         lower = lower_tenth / 10.0
         upper = (lower_tenth + 1) / 10.0
-        samples = [(probability, outcome) for probability, outcome in predictions if lower <= probability <= upper if lower_tenth == 9]
-        if lower_tenth != 9:
-            samples = [(probability, outcome) for probability, outcome in predictions if lower <= probability < upper]
+        samples = [
+            (probability, outcome)
+            for probability, outcome in predictions
+            if lower <= probability <= upper
+            if lower_tenth == 9
+        ] if lower_tenth == 9 else [
+            (probability, outcome)
+            for probability, outcome in predictions
+            if lower <= probability < upper
+        ]
         if samples:
             rows.append({
                 "range": f"{lower:.1f}-{upper:.1f}",
@@ -259,6 +396,11 @@ def walk_forward_evaluation(
     log_losses: List[float] = []
     goal_errors: List[float] = []
     calibration: List[Tuple[float, int]] = []
+    league_baseline_brier: List[float] = []
+    league_baseline_log_loss: List[float] = []
+    league_baseline_goal_errors: List[float] = []
+    uniform_brier: List[float] = []
+    uniform_log_loss: List[float] = []
     rows = []
 
     for index in range(min_history, len(games)):
@@ -272,6 +414,21 @@ def walk_forward_evaluation(
         brier_scores.append(brier)
         log_losses.append(log_loss)
         goal_errors.append(goal_mae)
+        base_goals = clamp(league_rates(games[:index], decay)["team_goals"], 0.5, 7.0)
+        league_probabilities = match_probabilities(base_goals, base_goals)
+        baseline_brier = sum(
+            (league_probabilities[key] - (1.0 if key == actual else 0.0)) ** 2
+            for key in ("A", "draw", "B")
+        )
+        baseline_log_loss = -math.log(max(league_probabilities[actual], EPSILON))
+        baseline_goal_mae = (
+            abs(base_goals - game["score_a"]) + abs(base_goals - game["score_b"])
+        ) / 2.0
+        league_baseline_brier.append(baseline_brier)
+        league_baseline_log_loss.append(baseline_log_loss)
+        league_baseline_goal_errors.append(baseline_goal_mae)
+        uniform_brier.append(2.0 / 3.0)
+        uniform_log_loss.append(math.log(3.0))
         for key in ("A", "draw", "B"):
             calibration.append((probabilities[key], 1 if key == actual else 0))
         rows.append({
@@ -282,14 +439,72 @@ def walk_forward_evaluation(
             "expected_goals_b": prediction["expected_goals_b"],
             "probabilities": probabilities,
             "actual": actual,
+            "metrics": {
+                "three_way_brier": brier,
+                "log_loss": log_loss,
+                "team_goal_mae": goal_mae,
+            },
+            "league_average_baseline": {
+                "expected_goals_a": base_goals,
+                "expected_goals_b": base_goals,
+                "probabilities": league_probabilities,
+                "three_way_brier": baseline_brier,
+                "log_loss": baseline_log_loss,
+                "team_goal_mae": baseline_goal_mae,
+            },
         })
 
+    mean_brier = sum(brier_scores) / len(brier_scores) if brier_scores else None
+    mean_log_loss = sum(log_losses) / len(log_losses) if log_losses else None
+    mean_goal_mae = sum(goal_errors) / len(goal_errors) if goal_errors else None
+    mean_league_brier = (
+        sum(league_baseline_brier) / len(league_baseline_brier)
+        if league_baseline_brier else None
+    )
+    mean_league_log_loss = (
+        sum(league_baseline_log_loss) / len(league_baseline_log_loss)
+        if league_baseline_log_loss else None
+    )
+    mean_league_goal_mae = (
+        sum(league_baseline_goal_errors) / len(league_baseline_goal_errors)
+        if league_baseline_goal_errors else None
+    )
     return {
         "evaluated_games": len(rows),
         "minimum_history_games": min_history,
-        "three_way_brier": sum(brier_scores) / len(brier_scores) if brier_scores else None,
-        "log_loss": sum(log_losses) / len(log_losses) if log_losses else None,
-        "team_goal_mae": sum(goal_errors) / len(goal_errors) if goal_errors else None,
+        "three_way_brier": mean_brier,
+        "log_loss": mean_log_loss,
+        "team_goal_mae": mean_goal_mae,
+        "baselines": {
+            "league_average_poisson": {
+                "three_way_brier": mean_league_brier,
+                "log_loss": mean_league_log_loss,
+                "team_goal_mae": mean_league_goal_mae,
+            },
+            "uniform_three_way": {
+                "three_way_brier": (
+                    sum(uniform_brier) / len(uniform_brier) if uniform_brier else None
+                ),
+                "log_loss": (
+                    sum(uniform_log_loss) / len(uniform_log_loss)
+                    if uniform_log_loss else None
+                ),
+            },
+        },
+        "skill_vs_league_average": {
+            "three_way_brier": (
+                1.0 - mean_brier / mean_league_brier
+                if mean_brier is not None and mean_league_brier else None
+            ),
+            "log_loss": (
+                1.0 - mean_log_loss / mean_league_log_loss
+                if mean_log_loss is not None and mean_league_log_loss else None
+            ),
+            "team_goal_mae": (
+                1.0 - mean_goal_mae / mean_league_goal_mae
+                if mean_goal_mae is not None and mean_league_goal_mae else None
+            ),
+        },
         "calibration": calibration_rows(calibration),
         "predictions": rows,
         "note": "Metrics are unavailable until more than minimum_history_games finalized games exist." if not rows else None,
@@ -316,7 +531,7 @@ def actual_market_outcome(market: Dict[str, Any], game: Dict[str, Any]) -> Optio
         )
     elif market_type in ("player_goals", "player_assists", "goalkeeper_saves"):
         player = game["player_totals"].get(market.get("subject_player_id"))
-        if not player or not player["model_eligible"] or (market_type == "goalkeeper_saves" and player["role"] != "goalkeeper"):
+        if not player or (market_type == "goalkeeper_saves" and player["role"] != "goalkeeper"):
             return None
         key = {"player_goals": "goals", "player_assists": "assists", "goalkeeper_saves": "saves"}[market_type]
         value = player[key]
@@ -332,7 +547,10 @@ def exported_forecast_evaluation(payload: Dict[str, Any], games: Sequence[Dict[s
     brier_scores: List[float] = []
     log_losses: List[float] = []
     calibration: List[Tuple[float, int]] = []
-    by_type: Dict[str, List[Tuple[float, float]]] = defaultdict(list)
+    baseline_brier_scores: List[float] = []
+    baseline_log_losses: List[float] = []
+    by_type: Dict[str, List[Tuple[float, float, float, float]]] = defaultdict(list)
+    seen_market_keys = set()
 
     for market in payload.get("forecasts", {}).get("markets", []):
         game = game_by_id.get(market.get("game_id"))
@@ -342,31 +560,158 @@ def exported_forecast_evaluation(payload: Dict[str, Any], games: Sequence[Dict[s
         outcomes = market.get("outcomes", [])
         if actual is None or not outcomes:
             continue
+        evaluation_key = (market.get("game_id"), market.get("market_key"))
+        if evaluation_key in seen_market_keys:
+            continue
+        seen_market_keys.add(evaluation_key)
         probability_by_key = {outcome["outcome_key"]: float(outcome["fair_probability"]) for outcome in outcomes}
         if actual not in probability_by_key:
             continue
+        probability_total = sum(probability_by_key.values())
+        if (
+            any(not math.isfinite(value) or value <= 0.0 or value >= 1.0 for value in probability_by_key.values())
+            or abs(probability_total - 1.0) > 0.001
+        ):
+            continue
         brier = sum((probability - (1.0 if key == actual else 0.0)) ** 2 for key, probability in probability_by_key.items())
         loss = -math.log(max(probability_by_key[actual], EPSILON))
+        uniform_probability = 1.0 / len(probability_by_key)
+        baseline_brier = sum(
+            (uniform_probability - (1.0 if key == actual else 0.0)) ** 2
+            for key in probability_by_key
+        )
+        baseline_loss = -math.log(uniform_probability)
         brier_scores.append(brier)
         log_losses.append(loss)
-        by_type[str(market.get("market_type"))].append((brier, loss))
+        baseline_brier_scores.append(baseline_brier)
+        baseline_log_losses.append(baseline_loss)
+        by_type[str(market.get("market_type"))].append(
+            (brier, loss, baseline_brier, baseline_loss)
+        )
         for key, probability in probability_by_key.items():
             calibration.append((probability, 1 if key == actual else 0))
 
+    mean_brier = sum(brier_scores) / len(brier_scores) if brier_scores else None
+    mean_log_loss = sum(log_losses) / len(log_losses) if log_losses else None
+    mean_baseline_brier = (
+        sum(baseline_brier_scores) / len(baseline_brier_scores)
+        if baseline_brier_scores else None
+    )
+    mean_baseline_log_loss = (
+        sum(baseline_log_losses) / len(baseline_log_losses)
+        if baseline_log_losses else None
+    )
     return {
         "evaluated_markets": len(brier_scores),
-        "brier": sum(brier_scores) / len(brier_scores) if brier_scores else None,
-        "log_loss": sum(log_losses) / len(log_losses) if log_losses else None,
+        "brier": mean_brier,
+        "log_loss": mean_log_loss,
+        "uniform_baseline": {
+            "brier": mean_baseline_brier,
+            "log_loss": mean_baseline_log_loss,
+        },
+        "skill_vs_uniform": {
+            "brier": (
+                1.0 - mean_brier / mean_baseline_brier
+                if mean_brier is not None and mean_baseline_brier else None
+            ),
+            "log_loss": (
+                1.0 - mean_log_loss / mean_baseline_log_loss
+                if mean_log_loss is not None and mean_baseline_log_loss else None
+            ),
+        },
         "by_market_type": {
             market_type: {
                 "count": len(values),
                 "brier": sum(value[0] for value in values) / len(values),
                 "log_loss": sum(value[1] for value in values) / len(values),
+                "uniform_brier": sum(value[2] for value in values) / len(values),
+                "uniform_log_loss": sum(value[3] for value in values) / len(values),
             }
             for market_type, values in sorted(by_type.items())
         },
         "calibration": calibration_rows(calibration),
         "note": "This benchmarks probabilities previously generated by the web app; it does not retrain on settled bets." if brier_scores else "No finalized exported forecasts were available.",
+    }
+
+
+def exported_score_forecast_evaluation(
+    payload: Dict[str, Any], games: Sequence[Dict[str, Any]]
+) -> Dict[str, Any]:
+    game_by_id = {game["game_id"]: game for game in games}
+    rows = []
+    brier_scores: List[float] = []
+    log_losses: List[float] = []
+    goal_errors: List[float] = []
+    calibration: List[Tuple[float, int]] = []
+
+    for forecast in payload.get("forecasts", {}).get("score_predictions", []):
+        game = game_by_id.get(forecast.get("game_id"))
+        probabilities = forecast.get("probabilities")
+        if not game or not isinstance(probabilities, dict):
+            continue
+        actual = (
+            "A" if game["score_a"] > game["score_b"]
+            else "B" if game["score_b"] > game["score_a"]
+            else "draw"
+        )
+        brier = sum(
+            (float(probabilities[key]) - (1.0 if key == actual else 0.0)) ** 2
+            for key in ("A", "draw", "B")
+        )
+        log_loss = -math.log(max(float(probabilities[actual]), EPSILON))
+        goal_mae = (
+            abs(float(forecast["expected_goals_a"]) - game["score_a"])
+            + abs(float(forecast["expected_goals_b"]) - game["score_b"])
+        ) / 2.0
+        brier_scores.append(brier)
+        log_losses.append(log_loss)
+        goal_errors.append(goal_mae)
+        for key in ("A", "draw", "B"):
+            calibration.append((float(probabilities[key]), 1 if key == actual else 0))
+        rows.append({
+            "game_id": game["game_id"],
+            "game_date": game["game_date"],
+            "generation_run_id": forecast.get("generation_run_id"),
+            "model_version": forecast.get("model_version"),
+            "generated_at": forecast.get("generated_at"),
+            "expected_goals_a": forecast["expected_goals_a"],
+            "expected_goals_b": forecast["expected_goals_b"],
+            "probabilities": probabilities,
+            "actual": actual,
+            "actual_score_a": game["score_a"],
+            "actual_score_b": game["score_b"],
+            "three_way_brier": brier,
+            "log_loss": log_loss,
+            "team_goal_mae": goal_mae,
+        })
+
+    mean_brier = sum(brier_scores) / len(brier_scores) if brier_scores else None
+    mean_log_loss = sum(log_losses) / len(log_losses) if log_losses else None
+    return {
+        "evaluated_games": len(rows),
+        "coverage": len(rows) / len(games) if games else 0.0,
+        "three_way_brier": mean_brier,
+        "log_loss": mean_log_loss,
+        "team_goal_mae": sum(goal_errors) / len(goal_errors) if goal_errors else None,
+        "uniform_baseline": {
+            "three_way_brier": 2.0 / 3.0 if rows else None,
+            "log_loss": math.log(3.0) if rows else None,
+        },
+        "skill_vs_uniform": {
+            "three_way_brier": (
+                1.0 - mean_brier / (2.0 / 3.0) if mean_brier is not None else None
+            ),
+            "log_loss": (
+                1.0 - mean_log_loss / math.log(3.0)
+                if mean_log_loss is not None else None
+            ),
+        },
+        "calibration": calibration_rows(calibration),
+        "predictions": rows,
+        "note": (
+            "Only one retained pre-kickoff score forecast per finalized game is evaluated."
+            if rows else "No finalized pre-kickoff score forecasts were available."
+        ),
     }
 
 
@@ -396,28 +741,102 @@ def fitted_players(games: Sequence[Dict[str, Any]], decay: float, prior_appearan
     return result
 
 
+def readiness_report(
+    walk_forward: Dict[str, Any],
+    score_forecasts: Dict[str, Any],
+    quality: Dict[str, Any],
+) -> Dict[str, Any]:
+    evaluated_games = walk_forward["evaluated_games"]
+    skills = walk_forward["skill_vs_league_average"]
+    beats_baseline = (
+        skills["three_way_brier"] is not None
+        and skills["log_loss"] is not None
+        and skills["three_way_brier"] > 0
+        and skills["log_loss"] > 0
+    )
+    if evaluated_games < 5:
+        status = "pipeline_only"
+    elif evaluated_games < 20:
+        status = "early_evaluation"
+    elif beats_baseline:
+        status = "candidate_review"
+    else:
+        status = "needs_revision"
+
+    blockers = []
+    if evaluated_games < 20:
+        blockers.append(
+            f"Only {evaluated_games} genuine walk-forward games are available; at least 20 are required for candidate review."
+        )
+    if quality["excluded_games"]:
+        blockers.append(
+            f"{len(quality['excluded_games'])} exported game(s) have incomplete or unbalanced lineups and were quarantined."
+        )
+    if score_forecasts["evaluated_games"] < 5:
+        blockers.append(
+            "Fewer than five retained production score forecasts have finalized outcomes."
+        )
+    if evaluated_games >= 20 and not beats_baseline:
+        blockers.append("The candidate does not beat the league-average baseline on both Brier score and log loss.")
+
+    return {
+        "status": status,
+        "promotion_allowed": status == "candidate_review" and not quality["excluded_games"],
+        "minimum_walk_forward_games_for_review": 20,
+        "blockers": blockers,
+        "next_action": (
+            "Keep the production engine unchanged, preserve each pre-kickoff prediction, and rerun this report after every finalized game."
+            if status in ("pipeline_only", "early_evaluation")
+            else "Review the candidate against production forecasts before any integration."
+            if status == "candidate_review"
+            else "Revise features or priors without tuning against the held-out game outcomes."
+        ),
+    }
+
+
 def train(payload: Dict[str, Any], min_history: int = 3, decay: float = 0.90, prior_appearances: float = 5.0) -> Dict[str, Any]:
     games = validate_export(payload)
     if not 0.0 < decay <= 1.0:
         raise ValueError("decay must be greater than 0 and no more than 1.")
     if min_history < 1 or prior_appearances <= 0:
         raise ValueError("min_history and prior_appearances must be positive.")
+    quality = data_quality_report(games)
+    model_games = [game for game in games if complete_lineup(game)]
+    walk_forward = walk_forward_evaluation(
+        model_games, min_history, decay, prior_appearances
+    )
+    score_forecasts = exported_score_forecast_evaluation(payload, games)
+    canonical_payload = json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
     return {
         "model_version": MODEL_VERSION,
-        "export_schema_version": SCHEMA_VERSION,
+        "export_schema_version": payload["schema_version"],
         "trained_at": datetime.now(timezone.utc).isoformat(),
-        "trained_through": games[-1]["game_date"] if games else None,
-        "training_games": len(games),
+        "trained_through": model_games[-1]["game_date"] if model_games else None,
+        "exported_games": len(games),
+        "training_games": len(model_games),
+        "input_provenance": {
+            "sha256": hashlib.sha256(canonical_payload).hexdigest(),
+            "exported_at": payload["exported_at"],
+            "first_game_date": games[0]["game_date"] if games else None,
+            "last_game_date": games[-1]["game_date"] if games else None,
+            "synthetic_observations_included": False,
+        },
         "parameters": {"decay": decay, "prior_appearances": prior_appearances, "minimum_history_games": min_history},
-        "league_rates": league_rates(games, decay),
-        "players": fitted_players(games, decay, prior_appearances),
-        "walk_forward_evaluation": walk_forward_evaluation(games, min_history, decay, prior_appearances),
+        "data_quality": quality,
+        "league_rates": league_rates(model_games, decay),
+        "players": fitted_players(model_games, decay, prior_appearances),
+        "walk_forward_evaluation": walk_forward,
+        "production_score_forecast_evaluation": score_forecasts,
         "exported_web_forecast_evaluation": exported_forecast_evaluation(payload, games),
+        "readiness": readiness_report(walk_forward, score_forecasts, quality),
         "limitations": [
             "This is a conservative statistical baseline, not a neural network.",
             "Small samples are strongly smoothed toward league averages.",
             "Stable player IDs are pseudonymous and must still be kept private.",
             "Synthetic and external 11v11 data are not included as Thursday League observations.",
+            "A minimum sample threshold is a governance guardrail, not proof that the model generalizes.",
         ],
     }
 
@@ -440,7 +859,15 @@ def main() -> int:
         handle.write("\n")
 
     evaluation = artifact["walk_forward_evaluation"]
-    print(f"Trained {artifact['model_version']} on {artifact['training_games']} finalized games.")
+    print(
+        f"Trained {artifact['model_version']} on {artifact['training_games']} "
+        f"of {artifact['exported_games']} finalized games."
+    )
+    excluded_count = len(artifact["data_quality"]["excluded_games"])
+    if excluded_count:
+        print(
+            f"Quarantined {excluded_count} game(s) with incomplete or unbalanced lineups."
+        )
     print(f"Walk-forward games: {evaluation['evaluated_games']}")
     if evaluation["evaluated_games"]:
         print(f"3-way Brier: {evaluation['three_way_brier']:.4f}")
@@ -448,6 +875,14 @@ def main() -> int:
         print(f"Team-goal MAE: {evaluation['team_goal_mae']:.4f}")
     else:
         print(evaluation["note"])
+    production = artifact["production_score_forecast_evaluation"]
+    print(
+        f"Retained production score forecasts: {production['evaluated_games']} "
+        f"({production['coverage'] * 100:.1f}% coverage)"
+    )
+    print(f"Readiness: {artifact['readiness']['status']}")
+    for blocker in artifact["readiness"]["blockers"]:
+        print(f"- {blocker}")
     print(f"Artifact written to {args.output}")
     return 0
 

@@ -90,6 +90,9 @@ supabase/migrations/20260726010000_admin_wallet_adjustments.sql
 supabase/migrations/20260727010000_restore_lineup_publication_status.sql
 supabase/migrations/20260727020000_remove_public_bet_slips.sql
 supabase/migrations/20260728010000_security_betting_and_fantasy_privacy.sql
+supabase/migrations/20260728020000_repair_missing_player_betting_markets.sql
+supabase/migrations/20260728030000_restore_authenticated_core_reads.sql
+supabase/migrations/20260728040000_preserve_model_prediction_history.sql
 ```
 
 Run all migrations in filename order. The virtual betting migration depends on the integrity, seasons, and controlled-corrections migrations. The expanded betting migration adds alternate lines, safe admin edit/delete controls, and privacy-aware league picks and standings. The competition-eligibility migration adds reusable guest players that can play in a match without entering fantasy, personal betting markets, league statistics, or player-model history. The custom-notification migration adds opted-in admin announcements to the existing delivery history and retry workflow. The profile-avatar migration creates the avatar bucket and controlled profile update function. The account-lifecycle migration adds safe deactivation and anonymized deletion without removing historical fantasy or betting results.
@@ -165,5 +168,5 @@ Users only see usernames in the UI.
 - Betting coins are virtual only: no purchase, sale, transfer, real-money withdrawal, or real-world value.
 - Pending bets can be cancelled for a full virtual-coin refund until scheduled kickoff. Other bettors' picks, stakes, and odds remain private until the result is final.
 - Betting closes five minutes before kick-off at the database level. Finalizing a game freezes an additive event-plus-manual-stat result version and settles bets atomically.
-- See `docs/virtual-betting-design.md` for model, security, settlement, correction, and future ML details.
+- See `docs/virtual-betting-design.md` for model, security, settlement, correction, and future ML details. The operational trainer and promotion gates are documented in `model/README.md`.
 - The app keeps the spec wording distinction: roster members are called `players`; fantasy users are not called players in participation reminders.

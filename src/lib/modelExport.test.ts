@@ -16,7 +16,7 @@ describe("model data export", () => {
       profiles: [{ id: "user-secret", username: "private-username", is_admin: false }],
       players: [
         { id: "player-a", name: "Secret Player A", default_position: "outfield", active: true },
-        { id: "player-b", name: "Secret Player B", default_position: "goalkeeper", active: true, player_type: "guest", fantasy_eligible: false, individual_betting_eligible: false }
+        { id: "player-b", name: "Secret Player B", default_position: "goalkeeper", active: true, player_type: "guest", fantasy_eligible: false, individual_betting_eligible: true }
       ],
       games: [finalGame("game-snapshot", "2026-06-01T19:00:00Z"), finalGame("game-legacy", "2026-05-01T19:00:00Z")],
       lineups: [
@@ -38,17 +38,81 @@ describe("model data export", () => {
     };
     const betting: BettingData = {
       settings: null,
-      generations: [], markets: [], outcomes: [],
+      generations: [
+        {
+          id: "run-pre-kickoff",
+          game_id: "game-snapshot",
+          model_version: "player-lineup-v1",
+          input_snapshot: {
+            predictions: {
+              expected_goals_A: 3.2,
+              expected_goals_B: 2.4,
+              probability_A: 0.55,
+              probability_draw: 0.2,
+              probability_B: 0.25
+            }
+          },
+          generated_by: null,
+          created_at: "2026-06-01T18:00:00Z"
+        },
+        {
+          id: "run-after-kickoff",
+          game_id: "game-snapshot",
+          model_version: "invalid-post-kickoff",
+          input_snapshot: { predictions: { expected_goals_A: 99, expected_goals_B: 0 } },
+          generated_by: null,
+          created_at: "2026-06-01T20:00:00Z"
+        }
+      ],
+      markets: [
+        {
+          id: "market-result",
+          game_id: "game-snapshot",
+          generation_run_id: "run-pre-kickoff",
+          market_key: "match-result",
+          market_type: "match_result",
+          title: "Match result",
+          subject_player_id: null,
+          subject_team: null,
+          line: null,
+          status: "settled",
+          invalidated: false,
+          created_at: "2026-06-01T18:00:00Z",
+          updated_at: "2026-06-01T18:00:00Z"
+        },
+        {
+          id: "market-guest",
+          game_id: "game-snapshot",
+          generation_run_id: "run-pre-kickoff",
+          market_key: "player-goals-player-b-0.5",
+          market_type: "player_goals",
+          title: "Guest goals",
+          subject_player_id: "player-b",
+          subject_team: null,
+          line: 0.5,
+          status: "settled",
+          invalidated: false,
+          created_at: "2026-06-01T18:00:00Z",
+          updated_at: "2026-06-01T18:00:00Z"
+        }
+      ],
+      outcomes: [
+        { id: "outcome-a", market_id: "market-result", outcome_key: "A", label: "A", fair_probability: 0.55, offered_odds: 1.7, created_at: "", updated_at: "" },
+        { id: "outcome-draw", market_id: "market-result", outcome_key: "draw", label: "Draw", fair_probability: 0.2, offered_odds: 4.7, created_at: "", updated_at: "" },
+        { id: "outcome-b", market_id: "market-result", outcome_key: "B", label: "B", fair_probability: 0.25, offered_odds: 3.7, created_at: "", updated_at: "" },
+        { id: "outcome-over", market_id: "market-guest", outcome_key: "over", label: "Over", fair_probability: 0.4, offered_odds: 2.3, created_at: "", updated_at: "" },
+        { id: "outcome-under", market_id: "market-guest", outcome_key: "under", label: "Under", fair_probability: 0.6, offered_odds: 1.6, created_at: "", updated_at: "" }
+      ],
       wallets: [{ id: "wallet-secret", user_id: "user-secret", season_id: "season-2026", balance_units: 73, created_at: "", updated_at: "" }],
       slips: [], legs: [], ledger: [], settlementRuns: [],
       resultVersions: [
         { id: "version-1", game_id: "game-snapshot", version_number: 1, score_a: 1, score_b: 1, own_goal_count: 0, player_totals: {}, source_summary: {}, correction_reason: null, created_at: "2026-06-01T20:00:00Z" },
-        { id: "version-2", game_id: "game-snapshot", version_number: 2, score_a: 4, score_b: 2, own_goal_count: 1, player_totals: { "player-a": { team: "A", role: "outfield", goals: 4, assists: 0, saves: 0, own_goals: 0 } }, source_summary: {}, correction_reason: "Corrected", created_at: "2026-06-01T21:00:00Z" }
+        { id: "version-2", game_id: "game-snapshot", version_number: 2, score_a: 4, score_b: 2, own_goal_count: 1, player_totals: { "player-a": { team: "A", role: "outfield", goals: 4, assists: 0, saves: 0, own_goals: 0 }, "player-b": { team: "B", role: "goalkeeper", goals: 0, assists: 0, saves: 3, own_goals: 1 } }, source_summary: {}, correction_reason: "Corrected", created_at: "2026-06-01T21:00:00Z" }
       ]
     };
 
     const payload = buildModelExport(data, betting);
-    expect(payload.schema_version).toBe(2);
+    expect(payload.schema_version).toBe(3);
     expect(payload.games.map(game => game.game_id)).toEqual(["game-legacy", "game-snapshot"]);
     expect(payload.games[1]).toMatchObject({ result_version: 2, score_a: 4, score_b: 2, result_source: "canonical_snapshot" });
     expect(payload.games[0]).toMatchObject({ score_a: 4, score_b: 0, result_source: "legacy_aggregate" });
@@ -57,6 +121,16 @@ describe("model data export", () => {
     const guestId = Object.keys(payload.games[0].player_totals).find(playerId => playerId.startsWith("guest:game-legacy:B:"));
     expect(guestId).toBeTruthy();
     expect(payload.games[0].player_totals[guestId!]).toMatchObject({ saves: 4, own_goals: 1, model_eligible: false });
+    expect(payload.forecasts.generations).toHaveLength(1);
+    expect(payload.forecasts.score_predictions).toHaveLength(1);
+    expect(payload.forecasts.score_predictions[0]).toMatchObject({
+      generation_run_id: "run-pre-kickoff",
+      expected_goals_a: 3.2,
+      probabilities: { A: 0.55, draw: 0.2, B: 0.25 }
+    });
+    expect(payload.forecasts.markets.find(market => market.market_key.includes("player-goals"))?.subject_player_id)
+      .toMatch(/^guest:game-snapshot:B:/);
+    expect(JSON.stringify(payload)).not.toContain("run-after-kickoff");
 
     const serialized = JSON.stringify(payload);
     expect(serialized).not.toContain("Secret Player");

@@ -44,9 +44,13 @@ def synthetic_export(game_count=7):
             "own_goal_count": 0, "player_totals": totals,
         })
     return {
-        "schema_version": 2, "exported_at": "2026-07-21T00:00:00Z",
+        "schema_version": 3, "exported_at": "2026-07-21T00:00:00Z",
         "privacy": "Synthetic test data", "games": games,
-        "forecasts": {"generations": [], "markets": []},
+        "forecasts": {
+            "generations": [],
+            "markets": [],
+            "score_predictions": [],
+        },
     }
 
 
@@ -63,8 +67,12 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertTrue(math.isfinite(evaluation["three_way_brier"]))
         self.assertTrue(math.isfinite(evaluation["log_loss"]))
         self.assertEqual(artifact["training_games"], 7)
+        self.assertEqual(artifact["exported_games"], 7)
         self.assertIn("player-a-0", artifact["players"])
         self.assertNotIn("name", json.dumps(artifact).lower())
+        self.assertIn("league_average_poisson", evaluation["baselines"])
+        self.assertEqual(len(artifact["input_provenance"]["sha256"]), 64)
+        self.assertEqual(artifact["readiness"]["status"], "pipeline_only")
 
     def test_rejects_wrong_schema(self):
         payload = synthetic_export()
@@ -83,6 +91,50 @@ class ModelTrainingTests(unittest.TestCase):
 
         self.assertNotIn(guest_id, artifact["players"])
         self.assertEqual(artifact["training_games"], 7)
+
+    def test_quarantines_incomplete_lineups(self):
+        payload = synthetic_export()
+        payload["games"][0]["player_totals"].pop("player-a-4")
+
+        artifact = train(payload, min_history=3)
+
+        self.assertEqual(artifact["exported_games"], 7)
+        self.assertEqual(artifact["training_games"], 6)
+        self.assertEqual(len(artifact["data_quality"]["excluded_games"]), 1)
+        self.assertFalse(artifact["readiness"]["promotion_allowed"])
+
+    def test_rejects_post_kickoff_forecasts(self):
+        payload = synthetic_export()
+        payload["forecasts"]["score_predictions"] = [{
+            "game_id": "synthetic-game-0",
+            "generation_run_id": "late-run",
+            "model_version": "test",
+            "generated_at": "2026-01-01T21:00:00Z",
+            "expected_goals_a": 2.0,
+            "expected_goals_b": 2.0,
+            "probabilities": {"A": 0.4, "draw": 0.2, "B": 0.4},
+        }]
+
+        with self.assertRaisesRegex(ValueError, "before kick-off"):
+            validate_export(payload)
+
+    def test_scores_one_retained_production_forecast(self):
+        payload = synthetic_export()
+        payload["forecasts"]["score_predictions"] = [{
+            "game_id": "synthetic-game-0",
+            "generation_run_id": "run-1",
+            "model_version": "test",
+            "generated_at": "2025-12-31T20:00:00Z",
+            "expected_goals_a": 2.5,
+            "expected_goals_b": 1.5,
+            "probabilities": {"A": 0.2, "draw": 0.6, "B": 0.2},
+        }]
+
+        artifact = train(payload, min_history=3)
+        evaluation = artifact["production_score_forecast_evaluation"]
+
+        self.assertEqual(evaluation["evaluated_games"], 1)
+        self.assertGreater(evaluation["skill_vs_uniform"]["three_way_brier"], 0)
 
     def test_cli_writes_artifact(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -12,3 +12,5 @@ model/artifacts/*.json
 playwright-report
 test-results
 backups/
+__pycache__/
+*.py[cod]
