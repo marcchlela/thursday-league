@@ -25,7 +25,16 @@ jobs:
       - run: npm ci
       - name: Require the database secret
         run: test -n "$SUPABASE_DB_URL"
-      - run: npm run db:backup
+      - name: Create database backup
+        run: npm run db:backup
+      - name: Show redacted backup diagnostics
+        if: failure()
+        run: |
+          if [ -d backups/supabase ]; then
+            find backups/supabase -maxdepth 2 -type f \( -name INCOMPLETE.txt -o -name roles-not-included.txt \) -print -exec sed -n '1,200p' {} \;
+          else
+            echo "No backup directory was created."
+          fi
       - name: Verify the new backup
         run: |
           latest="$(find backups/supabase -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
@@ -42,10 +51,11 @@ jobs:
         if: env.SUPABASE_URL == '' || env.SUPABASE_SERVICE_ROLE_KEY == ''
         run: echo "::warning::Storage object backup skipped. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY repository secrets."
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: supabase-backup-${{ github.run_id }}
           path: |
             backups/supabase/
             backups/storage/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7

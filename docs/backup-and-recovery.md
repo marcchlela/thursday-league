@@ -34,10 +34,16 @@ Remove-Item Env:SUPABASE_DB_URL
 
 The command creates an ignored timestamped directory under `backups/supabase/` containing:
 
-- `roles.sql`
+- `roles.sql`, when the connection is allowed to inspect database roles;
+- otherwise `roles-not-included.txt`, because a new managed Supabase project
+  already provides the standard Auth/API roles;
 - `schema.sql`
 - `data.sql`
 - `manifest.json` with file sizes and SHA-256 hashes
+
+Schema and data are mandatory. A failure exporting either one fails the backup.
+The role export is optional for Supabase-to-Supabase recovery and any omission
+is recorded in both the manifest and the artifact.
 
 Back up profile-avatar object bytes with the server-only Supabase credentials
 already used by the app:
