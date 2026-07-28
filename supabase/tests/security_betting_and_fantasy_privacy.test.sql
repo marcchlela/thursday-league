@@ -53,13 +53,38 @@ $$;
 select set_config('request.jwt.claim.sub', '90000000-0000-4000-8000-000000000002', true);
 set local role authenticated;
 
+-- Seeded historical squads remain visible after kickoff by design. Restrict
+-- these assertions to the future game created above so they test pre-kickoff
+-- privacy without counting legitimate historical rows.
 do $$
 begin
-  if (select count(*) from public.fantasy_squads) <> 1 then
-    raise exception 'A user can see another user''s pre-kickoff Fantasy squad';
+  if not exists (
+    select 1
+    from public.fantasy_squads
+    where id = '93000000-0000-4000-8000-000000000001'
+  ) then
+    raise exception 'A user cannot read their own pre-kickoff Fantasy squad';
   end if;
-  if (select count(*) from public.fantasy_picks) <> 1 then
-    raise exception 'A user can see another user''s pre-kickoff Fantasy picks';
+  if exists (
+    select 1
+    from public.fantasy_squads
+    where id = '93000000-0000-4000-8000-000000000002'
+  ) then
+    raise exception 'A user can read another user''s pre-kickoff Fantasy squad';
+  end if;
+  if not exists (
+    select 1
+    from public.fantasy_picks
+    where id = '94000000-0000-4000-8000-000000000001'
+  ) then
+    raise exception 'A user cannot read their own pre-kickoff Fantasy pick';
+  end if;
+  if exists (
+    select 1
+    from public.fantasy_picks
+    where id = '94000000-0000-4000-8000-000000000002'
+  ) then
+    raise exception 'A user can read another user''s pre-kickoff Fantasy pick';
   end if;
 end;
 $$;
@@ -70,10 +95,21 @@ set local role authenticated;
 
 do $$
 begin
-  if (select count(*) from public.fantasy_squads) <> 2 then
+  if (
+    select count(*)
+    from public.fantasy_squads
+    where game_id = '91000000-0000-4000-8000-000000000001'
+  ) <> 2 then
     raise exception 'An administrator cannot inspect Fantasy readiness';
   end if;
-  if (select count(*) from public.fantasy_picks) <> 2 then
+  if (
+    select count(*)
+    from public.fantasy_picks
+    where squad_id in (
+      '93000000-0000-4000-8000-000000000001',
+      '93000000-0000-4000-8000-000000000002'
+    )
+  ) <> 2 then
     raise exception 'An administrator cannot inspect Fantasy data';
   end if;
   if has_function_privilege(
