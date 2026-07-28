@@ -12,6 +12,7 @@ import { PlayerBreakdown } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 import { EmptyState, ErrorState, LoadingState, Modal } from "@/components/ui";
 import { TeamCrest } from "@/components/TeamCrest";
+import { AccountAvatar } from "@/components/AccountAvatar";
 
 const goalkeeperFormation = [
   { x: 25, y: 27 },
@@ -54,6 +55,7 @@ export default function FantasySquadHistoryPage() {
     lineups,
     data.playerStats.filter(stat => stat.game_id === game.id)
   );
+  const managerProfile = data.profiles.find(profile => profile.id === row.userId);
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
@@ -61,10 +63,13 @@ export default function FantasySquadHistoryPage() {
 
       <header className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-league-gold/15 px-4 py-4 sm:px-5">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">{row.userId === user?.id ? "Your weekly squad" : "Manager squad"}</div>
-            <h1 className="mt-1 font-display text-3xl uppercase sm:text-4xl">{row.username}&apos;s picks</h1>
-            <p className="mt-1 text-xs text-chalk/40">{formatDateTime(game.game_date)}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <AccountAvatar profile={managerProfile} name={row.username} className="h-11 w-11 text-sm sm:h-12 sm:w-12" />
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">{row.userId === user?.id ? "Your weekly squad" : "Manager squad"}</div>
+              <h1 className="mt-1 truncate font-display text-3xl uppercase sm:text-4xl">{row.username}&apos;s picks</h1>
+              <p className="mt-1 text-xs text-chalk/55">{formatDateTime(game.game_date)}</p>
+            </div>
           </div>
           <div className="text-right"><div className="text-[9px] font-black uppercase tracking-widest text-chalk/30">Total points</div><div className="font-mono text-4xl font-black text-league-gold">{row.points}</div></div>
         </div>
@@ -100,7 +105,7 @@ export default function FantasySquadHistoryPage() {
               aria-label={`${item.playerName}, ${item.points} points. Open points breakdown.`}
             >
               <span className="relative mx-auto block h-[4.9rem] w-[4.9rem] sm:h-[5.8rem] sm:w-[5.8rem]">
-                <Image src={role === "goalkeeper" ? "/fantasy/goalkeeper-jersey.png" : "/fantasy/outfield-jersey.png"} alt="" fill sizes="96px" className="object-contain drop-shadow-[0_9px_9px_rgba(0,0,0,.4)]" />
+                <Image src={role === "goalkeeper" ? "/fantasy/goalkeeper-jersey.webp" : "/fantasy/outfield-jersey.webp"} alt="" fill sizes="96px" className="object-contain drop-shadow-[0_9px_9px_rgba(0,0,0,.4)]" />
                 <span className="absolute -bottom-1 -left-1 rounded-lg border border-[#daa520]/30 bg-[#11110f]/95 px-1.5 py-1 font-mono text-[10px] font-black text-[#daa520] shadow-lg sm:text-xs">{item.points} pts</span>
                 {item.isCaptain ? <span className="absolute -right-1 top-0 grid h-7 w-7 place-items-center rounded-full border-2 border-[#0b3e22] bg-[#daa520] text-[#11110f] shadow-lg"><Crown size={14} /></span> : null}
               </span>

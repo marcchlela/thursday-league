@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { FantasyPick, FantasySquad, Game, GameLineup, GamePlayerStat, LeagueData, LeagueSettings, MatchEvent, Player, Profile, Season } from "@/lib/types";
 
@@ -22,10 +24,10 @@ function friendlyDataError(message: string) {
     return "The Supabase database tables have not been set up yet. Run supabase/schema.sql in your Supabase SQL Editor for the same project used by .env.local, then refresh.";
   }
 
-  return message;
+  return friendlyActionError({ message }, "League data could not be loaded. Check your connection and try again.");
 }
 
-export function useLeagueData() {
+function useLeagueDataStore() {
   const [data, setData] = useState<LeagueData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,5 +99,19 @@ export function useLeagueData() {
     };
   }, [load]);
 
-  return { data, loading, error, reload: load };
+  return useMemo(() => ({ data, loading, error, reload: load }), [data, loading, error, load]);
+}
+
+type LeagueDataState = ReturnType<typeof useLeagueDataStore>;
+const LeagueDataContext = createContext<LeagueDataState | null>(null);
+
+export function LeagueDataProvider({ children }: { children: ReactNode }) {
+  const value = useLeagueDataStore();
+  return createElement(LeagueDataContext.Provider, { value }, children);
+}
+
+export function useLeagueData() {
+  const value = useContext(LeagueDataContext);
+  if (!value) throw new Error("useLeagueData must be used inside LeagueDataProvider.");
+  return value;
 }

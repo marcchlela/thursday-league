@@ -18,4 +18,19 @@ describe("friendlyActionError", () => {
       "Betting closes five minutes before kickoff."
     );
   });
+
+  it("does not expose unknown database details", () => {
+    expect(
+      friendlyActionError(
+        'column "internal_secret" of relation "profiles" does not exist',
+        "Profile could not be updated."
+      )
+    ).toBe("Profile could not be updated.");
+  });
+
+  it("explains common database validation failures", () => {
+    expect(friendlyActionError("value violates check constraint profile_name_check")).toContain(
+      "submitted information"
+    );
+  });
 });

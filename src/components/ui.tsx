@@ -52,9 +52,22 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 }
 
 export function TabList({ idPrefix, label, tabs, active, onChange }: { idPrefix: string; label: string; tabs: { id: string; label: string }[]; active: string; onChange: (id: string) => void }) {
+  function onKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    let target = index;
+    if (event.key === "ArrowRight") target = (index + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") target = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") target = 0;
+    else if (event.key === "End") target = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    const next = tabs[target];
+    onChange(next.id);
+    window.setTimeout(() => document.getElementById(`${idPrefix}-${next.id}-tab`)?.focus(), 0);
+  }
+
   return (
     <div className="flex overflow-x-auto rounded-[1.15rem] border border-league-gold/25 bg-ink-850 p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)]" role="tablist" aria-label={label}>
-      {tabs.map(tab => <button key={tab.id} id={`${idPrefix}-${tab.id}-tab`} type="button" role="tab" aria-selected={active === tab.id} aria-controls={`${idPrefix}-${tab.id}-panel`} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} className={cn("relative min-w-28 flex-1 rounded-[.85rem] px-3 py-3 text-sm font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", active === tab.id ? "bg-league-gold/[.09] text-league-gold after:absolute after:inset-x-6 after:bottom-1 after:h-0.5 after:rounded-full after:bg-league-gold" : "text-chalk/45 hover:bg-chalk/[.035] hover:text-chalk")}>{tab.label}</button>)}
+      {tabs.map((tab, index) => <button key={tab.id} id={`${idPrefix}-${tab.id}-tab`} type="button" role="tab" aria-selected={active === tab.id} aria-controls={`${idPrefix}-${tab.id}-panel`} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} onKeyDown={event => onKeyDown(event, index)} className={cn("relative min-h-11 min-w-28 flex-1 rounded-[.85rem] px-3 py-3 text-sm font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", active === tab.id ? "bg-league-gold/[.09] text-league-gold after:absolute after:inset-x-6 after:bottom-1 after:h-0.5 after:rounded-full after:bg-league-gold" : "text-chalk/60 hover:bg-chalk/[.035] hover:text-chalk")}>{tab.label}</button>)}
     </div>
   );
 }
@@ -65,7 +78,7 @@ export function PrimaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElemen
     <button
       {...rest}
       className={cn(
-        "rounded-2xl bg-league-gold px-4 py-2 font-bold text-gold-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+        "min-h-11 rounded-2xl bg-league-gold px-4 py-2 font-bold text-gold-ink transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
     />
@@ -78,7 +91,7 @@ export function SecondaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElem
     <button
       {...rest}
       className={cn(
-        "rounded-2xl border border-league-gold/15 bg-black/15 px-4 py-2 font-semibold text-chalk transition hover:border-league-gold/40 hover:bg-league-gold/[.07] disabled:cursor-not-allowed disabled:opacity-50",
+        "min-h-11 rounded-2xl border border-league-gold/20 bg-black/15 px-4 py-2 font-semibold text-chalk transition hover:border-league-gold/40 hover:bg-league-gold/[.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
     />
@@ -179,7 +192,7 @@ export function Toast({
           <span className="mt-0.5 block text-sm font-semibold leading-snug text-chalk">{message}</span>
           {actionLabel && onAction ? <button type="button" onClick={onAction} className="mt-2 rounded-lg border border-league-gold/25 bg-league-gold/[.08] px-2.5 py-1.5 text-xs font-bold text-league-gold transition hover:bg-league-gold/[.14]">{actionLabel}</button> : null}
         </div>
-        <button type="button" onClick={onDone} aria-label="Dismiss notification" className="shrink-0 rounded-lg p-1.5 text-chalk/30 transition hover:bg-chalk/[.05] hover:text-chalk">
+        <button type="button" onClick={onDone} aria-label="Dismiss notification" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-chalk/55 transition hover:bg-chalk/[.05] hover:text-chalk focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">
           <X size={15} />
         </button>
       </div>
@@ -259,7 +272,13 @@ export function Modal({ open, title, onClose, children }: { open: boolean; title
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
     document.addEventListener("keydown", onKeyDown);
-    return () => { document.removeEventListener("keydown", onKeyDown); previous?.focus(); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previous?.focus();
+    };
   }, [onClose, open]);
 
   if (!open) return null;

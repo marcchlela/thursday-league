@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { BettingStanding } from "@/lib/types";
+import { friendlyActionError } from "@/lib/actionErrors";
 
 export function useBettingSocial(seasonId: string, enabled: boolean, gameStatus?: string) {
   const [standings, setStandings] = useState<BettingStanding[]>([]);
@@ -16,7 +17,7 @@ export function useBettingSocial(seasonId: string, enabled: boolean, gameStatus?
     setError(null);
     const standingsResult = await supabase.rpc("get_betting_standings", { target_season_id: seasonId });
     if (standingsResult.error) {
-      setError(`${standingsResult.error.message} Apply the expanded betting migration in Supabase if needed.`);
+      setError(friendlyActionError(standingsResult.error, "Betting standings could not be loaded. Please try again."));
     } else {
       setStandings((standingsResult.data || []) as BettingStanding[]);
     }

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 export const UNSAVED_CHANGES_MESSAGE = "You have unsaved match statistics. Leave without saving them?";
 
-export function useUnsavedChangesWarning(enabled: boolean) {
+export function useUnsavedChangesWarning(enabled: boolean, onRequestNavigation?: (href: string) => void) {
   useEffect(() => {
     if (!enabled) return;
 
@@ -24,10 +24,9 @@ export function useUnsavedChangesWarning(enabled: boolean) {
       const current = new URL(window.location.href);
       if (destination.origin !== current.origin) return;
       if (`${destination.pathname}${destination.search}${destination.hash}` === `${current.pathname}${current.search}${current.hash}`) return;
-      if (window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
-
       event.preventDefault();
       event.stopPropagation();
+      onRequestNavigation?.(destination.href);
     }
 
     window.addEventListener("beforeunload", beforeUnload);
@@ -36,5 +35,5 @@ export function useUnsavedChangesWarning(enabled: boolean) {
       window.removeEventListener("beforeunload", beforeUnload);
       document.removeEventListener("click", guardLinkNavigation, true);
     };
-  }, [enabled]);
+  }, [enabled, onRequestNavigation]);
 }

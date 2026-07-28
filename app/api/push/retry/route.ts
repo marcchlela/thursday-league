@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const result = await retryFailedDispatch(dispatchId);
     return NextResponse.json({ success: true, result });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Retry failed." }, { status: 500 });
+    console.error("Notification retry failed", error);
+    return NextResponse.json({ error: "The notification retry failed. Please try again." }, { status: 500 });
   }
 }

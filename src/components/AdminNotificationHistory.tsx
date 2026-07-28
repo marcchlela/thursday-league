@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BellRing, RefreshCw, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { Game, Profile } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 import { Card, EmptyState, ErrorState, LoadingState, Pill, SecondaryButton, Select } from "./ui";
@@ -55,7 +56,7 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
       .order("created_at", { ascending: false })
       .limit(100);
     if (requestError) {
-      setError(`${requestError.message}. Run the notification preferences migration first.`);
+      setError(friendlyActionError(requestError, "Notification history could not be loaded. Check the database setup and try again."));
       setRows([]);
     } else {
       setRows((data || []) as DispatchRow[]);

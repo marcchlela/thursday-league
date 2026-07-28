@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { friendlyActionError } from "@/lib/actionErrors";
 import {
   BetLeg,
   BetSettlementRun,
@@ -52,7 +53,7 @@ export function useBettingData() {
     const responses = [settings, generations, markets, outcomes, wallets, slips, legs, ledger, resultVersions, settlementRuns];
     const firstError = responses.find(response => response.error)?.error;
     if (firstError) {
-      setError(firstError.message);
+      setError(friendlyActionError(firstError, "Betting data could not be loaded. Check your connection and try again."));
       setLoading(false);
       return;
     }

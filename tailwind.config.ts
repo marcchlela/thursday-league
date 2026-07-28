@@ -43,16 +43,16 @@ const config: Config = {
         "league-gold-dark": "rgb(var(--league-gold-dark) / <alpha-value>)"
       },
       fontFamily: {
-        display: ["Oswald", "Impact", "Arial Narrow", "sans-serif"],
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"]
+        display: ["var(--font-oswald)", "Arial Narrow", "sans-serif"],
+        sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-jetbrains-mono)", "ui-monospace", "SFMono-Regular", "monospace"]
       },
       boxShadow: {
         glow: "0 0 30px rgba(40,168,255,.18)",
         amber: "0 0 24px rgba(247,183,51,.22)"
       },
       backgroundImage: {
-        turf: "url('/turf-texture.png')",
+        turf: "url('/turf-texture.webp')",
         turfMuted: "var(--app-background)"
       }
     }

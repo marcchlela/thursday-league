@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { UserRound } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { cleanUsername, supabase, usernameToEmail } from "@/lib/supabase";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { SettingsHeader, SettingsPanel } from "@/components/SettingsComponents";
 import { LoadingState, PrimaryButton, TextInput } from "@/components/ui";
 
@@ -41,7 +42,7 @@ export default function EditProfilePage() {
     });
     if (authUpdate.error) {
       setSaving(false);
-      setMessage(authUpdate.error.message);
+      setMessage(friendlyActionError(authUpdate.error, "Your login username could not be updated."));
       return;
     }
 
@@ -52,7 +53,7 @@ export default function EditProfilePage() {
         data: { ...user!.user_metadata, username: oldUsername }
       });
       setSaving(false);
-      setMessage(profileUpdate.error.message);
+      setMessage(friendlyActionError(profileUpdate.error, "Your profile could not be updated."));
       return;
     }
 

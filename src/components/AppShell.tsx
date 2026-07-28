@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Home, List, Shield, Trophy, Users, UserRound } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useCoinBalance } from "@/hooks/useCoinBalance";
+import { LeagueDataProvider } from "@/hooks/useLeagueData";
 import { cn } from "@/lib/utils";
 import { CoinAmount, LeagueCoin } from "./LeagueCoin";
 import { LaunchScreen } from "./LaunchScreen";
@@ -29,8 +30,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [launchReady, setLaunchReady] = useState(false);
 
   useEffect(() => {
+    if (window.sessionStorage.getItem("thursday-league-launch-seen") === "true") {
+      setLaunchReady(true);
+      return;
+    }
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timeout = window.setTimeout(() => setLaunchReady(true), reduceMotion ? 150 : 950);
+    const timeout = window.setTimeout(() => {
+      window.sessionStorage.setItem("thursday-league-launch-seen", "true");
+      setLaunchReady(true);
+    }, reduceMotion ? 100 : 800);
     return () => window.clearTimeout(timeout);
   }, []);
 
@@ -50,6 +58,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-ink-900 bg-turfMuted text-chalk">
+      <a href="#main-content" className="fixed left-3 top-3 z-[100] -translate-y-24 rounded-xl bg-league-gold px-4 py-2 font-bold text-gold-ink transition focus:translate-y-0">
+        Skip to content
+      </a>
       <NotificationNudge userId={user.id} />
       <header className="sticky top-0 z-40 border-b border-league-gold/10 bg-ink-900/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 pb-2.5 pt-[calc(.625rem+env(safe-area-inset-top))] sm:gap-3 sm:px-4">
@@ -84,7 +95,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className={cn("mx-auto max-w-6xl px-4 pb-24", pathname === "/" ? "py-4 md:py-6" : "py-8")}>{children}</main>
+      <main id="main-content" tabIndex={-1} className={cn("mx-auto max-w-6xl px-4 pb-24 outline-none", pathname === "/" ? "py-4 md:py-6" : "py-8")}>
+        <LeagueDataProvider>{children}</LeagueDataProvider>
+      </main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-league-gold/30 bg-ink-900/95 px-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
         <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}>
@@ -92,7 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const Icon = link.icon;
             const active = pathname === link.href || (link.href === "/games" && pathname.startsWith("/games/")) || (link.href === "/fantasy" && (pathname.startsWith("/fantasy/") || pathname.startsWith("/betting"))) || (link.href === "/profile" && pathname.startsWith("/settings"));
             return (
-              <Link key={link.href} href={link.href} className={cn("flex flex-col items-center gap-1 rounded-xl py-2 text-[11px] text-chalk/45 transition", active && "bg-league-gold/[.08] text-league-gold")}>
+              <Link key={link.href} href={link.href} aria-current={active ? "page" : undefined} className={cn("flex min-h-12 flex-col items-center gap-1 rounded-xl py-2 text-[11px] text-chalk/60 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold", active && "bg-league-gold/[.08] text-league-gold")}>
                 <Icon size={18} /> {link.label}
               </Link>
             );

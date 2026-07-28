@@ -29,10 +29,10 @@
   --amber-300: 252 211 77;
   --app-background:
     linear-gradient(rgb(17 17 15 / .88), rgb(17 17 15 / .92)),
-    url('/turf-muted.png');
+    url('/turf-muted.webp');
   --panel-background:
     linear-gradient(rgb(17 17 15 / .90), rgb(17 17 15 / .94)),
-    url('/turf-muted.png');
+    url('/turf-muted.webp');
   --skeleton-edge: rgb(245 242 232 / .045);
   --skeleton-highlight: rgb(218 165 32 / .105);
   color-scheme: dark;
@@ -65,10 +65,10 @@
   --amber-300: 180 111 0;
   --app-background:
     linear-gradient(rgb(246 242 232 / .92), rgb(246 242 232 / .95)),
-    url('/turf-muted.png');
+    url('/turf-muted.webp');
   --panel-background:
     linear-gradient(rgb(255 252 245 / .93), rgb(255 252 245 / .96)),
-    url('/turf-muted.png');
+    url('/turf-muted.webp');
   --skeleton-edge: rgb(42 37 27 / .045);
   --skeleton-highlight: rgb(148 101 7 / .13);
   color-scheme: light;
@@ -82,7 +82,52 @@ body {
   margin: 0;
   background: rgb(var(--ink-900));
   color: rgb(var(--chalk));
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   transition: background-color 180ms ease, color 180ms ease;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Keep supporting copy readable in both themes, including older screens that used
+   very low-opacity Tailwind utilities for secondary text. */
+[class~="text-chalk/25"],
+[class~="text-chalk/28"],
+[class~="text-chalk/30"],
+[class~="text-chalk/32"],
+[class~="text-chalk/35"],
+[class~="text-chalk/38"],
+[class~="text-chalk/40"],
+[class~="text-chalk/42"] {
+  color: rgb(var(--chalk) / .58);
+}
+
+[class~="text-[7px]"],
+[class~="text-[8px]"],
+[class~="text-[9px]"] {
+  font-size: .625rem;
+}
+
+button[aria-label] {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--league-gold));
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  .app-supporting-text {
+    font-size: .6875rem;
+    color: rgb(var(--chalk) / .56);
+  }
 }
 
 .panel {
@@ -93,7 +138,7 @@ body {
 .pitch {
   background-image:
     linear-gradient(rgba(20, 138, 50, .18), rgba(6, 57, 22, .10)),
-    url('/turf-texture.png');
+    url('/turf-texture.webp');
   background-size: 520px 520px;
 }
 

@@ -22,6 +22,27 @@ const avatarExtensions: Record<string, string> = {
   "image/webp": "webp"
 };
 
+async function prepareAvatar(file: File) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const size = 512;
+    const sourceSize = Math.min(bitmap.width, bitmap.height);
+    const sourceX = (bitmap.width - sourceSize) / 2;
+    const sourceY = (bitmap.height - sourceSize) / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Image processing is unavailable in this browser.");
+    context.drawImage(bitmap, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/webp", 0.86));
+    if (!blob) throw new Error("The photo could not be prepared.");
+    return blob;
+  } finally {
+    bitmap.close();
+  }
+}
+
 type CoinSummary = {
   balanceUnits: number;
   rank: number;
@@ -92,11 +113,19 @@ export default function ProfilePage() {
     }
 
     setUploading(true);
+    let optimizedAvatar: Blob;
+    try {
+      optimizedAvatar = await prepareAvatar(file);
+    } catch (processingError) {
+      setUploading(false);
+      setToast({ message: friendlyActionError(processingError, "The photo could not be prepared. Try a different image."), tone: "error" });
+      return;
+    }
     const previousPath = profile.avatar_path;
-    const avatarPath = `${user.id}/avatar-${Date.now()}.${extension}`;
-    const upload = await supabase.storage.from(AVATAR_BUCKET).upload(avatarPath, file, {
+    const avatarPath = `${user.id}/avatar-${Date.now()}.webp`;
+    const upload = await supabase.storage.from(AVATAR_BUCKET).upload(avatarPath, optimizedAvatar, {
       cacheControl: "31536000",
-      contentType: file.type,
+      contentType: "image/webp",
       upsert: false
     });
 

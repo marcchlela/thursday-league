@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { supabase } from "@/lib/supabase";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { SettingsHeader, SettingsPanel } from "@/components/SettingsComponents";
 import { LoadingState, PrimaryButton, TextInput } from "@/components/ui";
 
@@ -52,7 +53,7 @@ export default function PasswordSettingsPage() {
     }
     const { error } = await supabase.auth.updateUser({ password });
     setSaving(false);
-    setMessage(error ? error.message : "Password updated.");
+    setMessage(error ? friendlyActionError(error, "Your password could not be updated.") : "Password updated.");
     if (!error) {
       setCurrentPassword("");
       setPassword("");

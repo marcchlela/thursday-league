@@ -8,6 +8,7 @@ import { useLeagueData } from "@/hooks/useLeagueData";
 import { supabase } from "@/lib/supabase";
 import { BettingWallet, CoinLedgerEntry } from "@/lib/types";
 import { cn, currentSeason, formatDateTime } from "@/lib/utils";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { CoinAmount, LeagueCoin } from "@/components/LeagueCoin";
 import { SettingsHeader, SettingsPanel } from "@/components/SettingsComponents";
 import { EmptyState, ErrorState, LoadingState, Select } from "@/components/ui";
@@ -32,7 +33,7 @@ export default function WalletHistoryPage() {
       .order("created_at", { ascending: false });
 
     if (walletsResult.error) {
-      setError(walletsResult.error.message);
+      setError(friendlyActionError(walletsResult.error, "Your wallet could not be loaded."));
       setLoading(false);
       return;
     }
@@ -44,7 +45,7 @@ export default function WalletHistoryPage() {
       : { data: [], error: null };
 
     if (ledgerResult.error) {
-      setError(ledgerResult.error.message);
+      setError(friendlyActionError(ledgerResult.error, "Your transaction history could not be loaded."));
     } else {
       setWallets(ownWallets);
       setEntries((ledgerResult.data || []) as CoinLedgerEntry[]);

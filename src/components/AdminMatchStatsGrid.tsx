@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { Game, GameLineup, LeagueData, TeamCode } from "@/lib/types";
 import { isGuestPlayer } from "@/lib/playerEligibility";
 import { cn, playerName } from "@/lib/utils";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { PrimaryButton } from "./ui";
 
 type StatKey = "goals" | "assists" | "saves" | "own_goals";
@@ -97,7 +98,7 @@ export function AdminMatchStatsGrid({
       submitted_stats: submittedStats
     });
     setSaving(false);
-    if (error) return notify(error.message);
+    if (error) return notify(friendlyActionError(error, "Match statistics could not be saved. Please try again."));
     setDirty(false);
     onDirtyChange?.(false);
     notify("Match statistics saved.");

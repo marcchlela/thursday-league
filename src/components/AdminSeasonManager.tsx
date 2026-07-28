@@ -5,6 +5,7 @@ import { CalendarDays, CheckCircle2, Pencil, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LeagueData, Season } from "@/lib/types";
 import { currentSeason } from "@/lib/utils";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { Card, EmptyState, Pill, PrimaryButton, SecondaryButton, TextInput } from "./ui";
 
 export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload: () => void }) {
@@ -24,7 +25,7 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
     setBusy(true);
     setMessage(null);
     const { error } = await supabase.rpc("set_season_mode", { new_mode: "yearly", target_season_id: null });
-    setMessage(error ? error.message : "Yearly seasons are now active.");
+    setMessage(error ? friendlyActionError(error, "The season format could not be changed.") : "Yearly seasons are now active.");
     setBusy(false);
     if (!error) reload();
   }
@@ -33,7 +34,7 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
     setBusy(true);
     setMessage(null);
     const { error } = await supabase.rpc("set_season_mode", { new_mode: "custom", target_season_id: season.id });
-    setMessage(error ? error.message : `${season.name} is now the current season.`);
+    setMessage(error ? friendlyActionError(error, "The current season could not be changed.") : `${season.name} is now the current season.`);
     setBusy(false);
     if (!error) reload();
   }
@@ -46,7 +47,7 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
     const { error } = await supabase.rpc("create_custom_season", {
       season_name: name.trim(), season_start: startDate, season_end: endDate, make_current: true
     });
-    setMessage(error ? error.message : `${name.trim()} was created and selected.`);
+    setMessage(error ? friendlyActionError(error, "The custom season could not be created.") : `${name.trim()} was created and selected.`);
     setBusy(false);
     if (!error) {
       setName("");
@@ -70,7 +71,7 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
     const { error } = await supabase.rpc("update_custom_season", {
       target_season_id: season.id, season_name: editName.trim(), season_start: editStart, season_end: editEnd
     });
-    setMessage(error ? error.message : `${editName.trim()} was updated.`);
+    setMessage(error ? friendlyActionError(error, "The custom season could not be updated.") : `${editName.trim()} was updated.`);
     setBusy(false);
     if (!error) {
       setEditingId(null);

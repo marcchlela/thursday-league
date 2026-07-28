@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, BellRing, Coins, Eye, EyeOff, LockKeyhole, Shirt, Smartphone, UserPlus } from "lucide-react";
 import { isInstalledApp } from "@/lib/pushClient";
+import { friendlyActionError } from "@/lib/actionErrors";
 import { cleanUsername, supabase, supabaseConfigError, usernameToEmail } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { PrimaryButton, TextInput } from "./ui";
@@ -16,7 +17,7 @@ function friendlyAuthError(message: string) {
     return "Supabase is trying to send confirmation emails too often. Turn off email confirmation in Supabase Authentication > Providers > Email for this username-only app, then wait a few minutes and try again.";
   }
 
-  return message;
+  return friendlyActionError(message, "Login could not be completed. Check your details and try again.");
 }
 
 export function AuthForm() {

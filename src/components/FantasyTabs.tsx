@@ -14,6 +14,7 @@ import { PitchPicker } from "./PitchPicker";
 import { PlaySwitcher } from "./PlaySwitcher";
 import { TeamCrest } from "./TeamCrest";
 import { TiloMoment } from "./TiloMoment";
+import { AccountAvatar } from "./AccountAvatar";
 
 type FantasyTab = "set" | "standings" | "history";
 
@@ -83,7 +84,7 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void | Prom
         />
       ) : null}
       <FantasyGamePreview game={game} data={data} statusLabel={statusLabel} locked={locked} />
-      {lineups.length ? <PitchPicker players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the available players have not been confirmed yet." />}
+      {lineups.length ? <PitchPicker gameId={game.id} players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the available players have not been confirmed yet." />}
     </div>
   );
 }
@@ -133,7 +134,8 @@ function Standings({ data }: { data: LeagueData }) {
   }
 
   return (
-    <section className="mx-auto max-w-3xl overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
+    <div className="mx-auto max-w-3xl space-y-4">
+    <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-league-gold/15 p-4 sm:p-5">
         <div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Fantasy table</div><h2 className="mt-1 font-display text-3xl uppercase">Standings</h2><p className="mt-1 text-sm text-chalk/45">{selectedSeason ? `${selectedSeason.name} season points` : "All-time fantasy points"}</p></div>
         <Select value={seasonScope || "all"} onChange={event => chooseSeason(event.target.value)} className="w-full rounded-xl border-league-gold/15 py-2 text-sm sm:w-56" aria-label="Standings season">
@@ -142,10 +144,12 @@ function Standings({ data }: { data: LeagueData }) {
           {data.seasons.filter(season => season.id !== selectedCurrentSeason?.id).map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
         </Select>
       </div>
-      <ol className="gold-dividers divide-y">
-        {board.map(row => <li key={row.userId} className={`grid grid-cols-[2.4rem_1fr_auto] items-center gap-3 px-4 py-3.5 sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold ${row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-chalk/[.035] text-chalk/35"}`}>#{row.rank}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span></li>)}
-      </ol>
+      {board.length ? <ol className="gold-dividers divide-y">
+        {board.map(row => <li key={row.userId} className={`grid grid-cols-[2.4rem_2rem_minmax(0,1fr)_auto] items-center gap-2.5 px-4 py-3.5 sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-bold ${row.rank <= 3 ? "bg-league-gold/10 text-league-gold" : "bg-chalk/[.035] text-chalk/55"}`}>#{row.rank}</span><AccountAvatar profile={data.profiles.find(profile => profile.id === row.userId)} name={row.username} className="h-8 w-8 text-[10px]" /><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[10px] font-normal uppercase text-chalk/55">pts</span></span></li>)}
+      </ol> : <p className="p-8 text-center text-sm text-chalk/60">No Fantasy points have been recorded for this period yet.</p>}
     </section>
+    <FantasyScoringGuide />
+    </div>
   );
 }
 
@@ -154,14 +158,16 @@ function History({ data }: { data: LeagueData }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const games = data.games.filter(game => game.status === "final").sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
+  const selectedCurrentSeason = currentSeason(data);
+  const requestedSeason = searchParams.get("season");
+  const seasonScope = requestedSeason && (requestedSeason === "all" || data.seasons.some(season => season.id === requestedSeason))
+    ? requestedSeason
+    : selectedCurrentSeason?.id || "all";
+  const games = data.games
+    .filter(game => game.status === "final" && (seasonScope === "all" || game.season_id === seasonScope))
+    .sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
   const requestedGameId = searchParams.get("game");
   const game = games.find(item => item.id === requestedGameId) || games[0];
-
-  if (!game) return <EmptyState title="No fantasy history yet" text="Completed matchweeks and their fantasy results will appear here." />;
-
-  const board = weeklyLeaderboard({ ...data, game });
-  const personalResult = user ? board.find(row => row.userId === user.id) : undefined;
 
   function chooseGame(gameId: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -170,8 +176,43 @@ function History({ data }: { data: LeagueData }) {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
+  function chooseSeason(seasonId: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "history");
+    params.set("season", seasonId);
+    params.delete("game");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  if (!game) {
+    return (
+      <div className="space-y-4">
+        <section className="flex flex-col gap-3 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div><div className="font-semibold">History period</div><div className="mt-0.5 text-xs text-chalk/55">Choose a season or complete league history.</div></div>
+          <Select value={seasonScope} onChange={event => chooseSeason(event.target.value)} className="rounded-xl py-2.5 sm:w-56" aria-label="Fantasy history season">
+            {selectedCurrentSeason ? <option value={selectedCurrentSeason.id}>{selectedCurrentSeason.name} · current</option> : null}
+            <option value="all">All-time</option>
+            {data.seasons.filter(season => season.id !== selectedCurrentSeason?.id).map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
+          </Select>
+        </section>
+        <EmptyState title="No fantasy history in this period" text="Choose another season, or wait for a completed matchweek." />
+      </div>
+    );
+  }
+
+  const board = weeklyLeaderboard({ ...data, game });
+  const personalResult = user ? board.find(row => row.userId === user.id) : undefined;
+
   return (
     <div className="space-y-4">
+      <section className="flex flex-col gap-3 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><div className="font-semibold">History period</div><div className="mt-0.5 text-xs text-chalk/55">Choose a season or complete league history.</div></div>
+        <Select value={seasonScope} onChange={event => chooseSeason(event.target.value)} className="rounded-xl py-2.5 sm:w-56" aria-label="Fantasy history season">
+          {selectedCurrentSeason ? <option value={selectedCurrentSeason.id}>{selectedCurrentSeason.name} · current</option> : null}
+          <option value="all">All-time</option>
+          {data.seasons.filter(season => season.id !== selectedCurrentSeason?.id).map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
+        </Select>
+      </section>
       <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="border-b border-league-gold/15 px-4 py-3 sm:px-5"><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Matchweeks</div><h2 className="mt-0.5 font-display text-2xl uppercase">Fantasy history</h2></div>
         <div className="gold-dividers divide-y">
@@ -211,9 +252,22 @@ function History({ data }: { data: LeagueData }) {
 
       <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
         <div className="flex items-center justify-between gap-3 border-b border-league-gold/15 px-4 py-3 sm:px-5"><div><div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/70">Selected week</div><h2 className="mt-0.5 font-display text-2xl uppercase">Weekly leaderboard</h2></div><Trophy size={23} className="text-league-gold" /></div>
-        {board.length ? <ol className="gold-dividers divide-y">{board.map(row => <li key={row.userId}><Link href={`/fantasy/history/${game.id}/${row.userId}`} className={`group grid grid-cols-[2.4rem_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-league-gold/[.075] focus:outline-none focus-visible:bg-league-gold/[.075] sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg ${row.rank === 1 ? "bg-league-gold text-gold-ink" : "bg-chalk/[.035] text-chalk/40"}`}>{row.rank === 1 ? <Crown size={15} /> : <span className="font-mono text-xs">#{row.rank}</span>}</span><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[9px] font-normal uppercase text-chalk/35">pts</span></span><ChevronRight size={16} className="text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" /></Link></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/40">No squads were saved for this matchweek.</p>}
+        {board.length ? <ol className="gold-dividers divide-y">{board.map(row => <li key={row.userId}><Link href={`/fantasy/history/${game.id}/${row.userId}`} className={`group grid grid-cols-[2.4rem_2rem_minmax(0,1fr)_auto_auto] items-center gap-2.5 px-4 py-3.5 transition hover:bg-league-gold/[.075] focus:outline-none focus-visible:bg-league-gold/[.075] sm:px-5 ${row.userId === user?.id ? "bg-league-gold/[.055]" : ""}`}><span className={`grid h-8 w-8 place-items-center rounded-lg ${row.rank === 1 ? "bg-league-gold text-gold-ink" : "bg-chalk/[.035] text-chalk/60"}`}>{row.rank === 1 ? <Crown size={15} /> : <span className="font-mono text-xs">#{row.rank}</span>}</span><AccountAvatar profile={data.profiles.find(profile => profile.id === row.userId)} name={row.username} className="h-8 w-8 text-[10px]" /><span className="truncate font-semibold">{row.username}{row.userId === user?.id ? <span className="ml-2 text-xs font-normal text-league-gold">you</span> : null}</span><span className="font-mono text-xl font-bold">{row.points}<span className="ml-1 text-[10px] font-normal uppercase text-chalk/55">pts</span></span><ChevronRight size={16} className="text-chalk/40 transition group-hover:translate-x-0.5 group-hover:text-league-gold" /></Link></li>)}</ol> : <p className="p-8 text-center text-sm text-chalk/60">No squads were saved for this matchweek.</p>}
       </section>
     </div>
+  );
+}
+
+function FantasyScoringGuide() {
+  return (
+    <details className="rounded-[1.2rem] border border-league-gold/20 bg-ink-850 px-4 py-3.5">
+      <summary className="cursor-pointer font-bold text-chalk/75">How Fantasy points work</summary>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-chalk/65 sm:grid-cols-3">
+        {["Goal +4", "Assist +2", "Win +2", "Draw +1", "POTM +3", "GK clean sheet +4", "Every 2 saves +1", "Hat-trick +3", "Own goal −2", "Heavy defeat −1", "Captain doubles"].map(rule => (
+          <span key={rule} className="rounded-lg border border-league-gold/10 bg-black/15 px-2.5 py-2">{rule}</span>
+        ))}
+      </div>
+    </details>
   );
 }
 
