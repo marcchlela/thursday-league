@@ -14,7 +14,10 @@
     "test:e2e:ui": "playwright test --ui",
     "invite:generate": "node scripts/generate-invite-code.mjs",
     "db:backup": "node scripts/backup-supabase.mjs",
-    "db:backup:verify": "node scripts/verify-supabase-backup.mjs"
+    "db:backup:verify": "node scripts/verify-supabase-backup.mjs",
+    "storage:backup": "node scripts/backup-supabase-storage.mjs",
+    "storage:backup:verify": "node scripts/verify-supabase-backup.mjs",
+    "smoke:production": "node scripts/smoke-production.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

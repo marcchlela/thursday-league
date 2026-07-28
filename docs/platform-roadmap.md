@@ -2,6 +2,19 @@
 
 This document separates hardening that belongs in the current private, single-league app from architecture that should arrive with a public, multi-league release.
 
+## Delivery order
+
+The agreed product sequence is:
+
+1. stabilize and observe the current private league;
+2. improve model evaluation and modelling as real completed games accumulate;
+3. polish and upgrade the product interface;
+4. build the multi-league tenancy system;
+5. prepare the resulting platform for public release.
+
+Synthetic data may verify modelling code and simulations, but it must not be
+treated as evidence that a trained model is better for this league.
+
 ## Decisions already applied
 
 - Signup is performed by a server route using a server-only invite code.

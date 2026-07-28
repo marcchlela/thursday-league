@@ -1,4 +1,4 @@
-name: Encrypted database backup
+name: Supabase backup
 
 on:
   schedule:
@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 15
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,9 +30,22 @@ jobs:
         run: |
           latest="$(find backups/supabase -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
           npm run db:backup:verify -- "$latest"
+      - name: Back up Storage object bytes
+        if: env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != ''
+        run: npm run storage:backup
+      - name: Verify the Storage backup
+        if: env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != ''
+        run: |
+          latest="$(find backups/storage -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
+          npm run storage:backup:verify -- "$latest"
+      - name: Warn when Storage backup is not configured
+        if: env.SUPABASE_URL == '' || env.SUPABASE_SERVICE_ROLE_KEY == ''
+        run: echo "::warning::Storage object backup skipped. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY repository secrets."
       - uses: actions/upload-artifact@v4
         with:
-          name: supabase-logical-backup-${{ github.run_id }}
-          path: backups/supabase/
+          name: supabase-backup-${{ github.run_id }}
+          path: |
+            backups/supabase/
+            backups/storage/
           if-no-files-found: error
           retention-days: 7
