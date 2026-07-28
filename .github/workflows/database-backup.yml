@@ -1,0 +1,36 @@
+name: Encrypted database backup
+
+on:
+  schedule:
+    - cron: "30 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logical-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Require the database secret
+        run: test -n "$SUPABASE_DB_URL"
+      - run: npm run db:backup
+      - name: Verify the new backup
+        run: |
+          latest="$(find backups/supabase -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
+          npm run db:backup:verify -- "$latest"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supabase-logical-backup-${{ github.run_id }}
+          path: backups/supabase/
+          if-no-files-found: error
+          retention-days: 7

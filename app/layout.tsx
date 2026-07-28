@@ -28,10 +28,43 @@ const themeBootScript = `
 })();
 `;
 
+function metadataUrl() {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+  } catch {
+    return new URL("http://localhost:3000");
+  }
+}
+
 export const metadata: Metadata = {
-  title: "Thursday League",
+  metadataBase: metadataUrl(),
+  title: {
+    default: "Thursday League",
+    template: "%s · Thursday League"
+  },
   applicationName: "Thursday League",
-  description: "Weekly 5-a-side match tracker and fantasy league",
+  description: "Your weekly five-a-side league in one place: lineups, Fantasy, virtual betting, results, player stats, and match history.",
+  keywords: ["five-a-side", "football league", "fantasy football", "match tracker"],
+  category: "sports",
+  creator: "Thursday League",
+  openGraph: {
+    type: "website",
+    title: "Thursday League",
+    description: "Lineups, Fantasy, virtual betting, results, and league history built around your weekly five-a-side game.",
+    siteName: "Thursday League",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Thursday League" }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Thursday League",
+    description: "Your weekly five-a-side league in one place.",
+    images: ["/opengraph-image"]
+  },
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false }
+  },
   icons: {
     icon: [
       { url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" },

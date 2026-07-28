@@ -46,6 +46,17 @@ Create one backup:
 
 Copy the completed directory to encrypted off-device storage. A backup kept only on the same laptop is not disaster recovery.
 
+## Free scheduled backups with GitHub Actions
+
+The repository includes `.github/workflows/database-backup.yml`. It creates and verifies a logical backup every Monday and retains the private workflow artifact for seven days.
+
+1. In the GitHub repository, open **Settings → Secrets and variables → Actions**.
+2. Add a repository secret named `SUPABASE_DB_URL` using the Session pooler connection string.
+3. Open **Actions → Scheduled database backup → Run workflow** once.
+4. Download the artifact, verify it locally, and copy it to encrypted off-device storage.
+
+GitHub workflow artifacts are a short-retention safety net, not the only backup location. Keep the repository access restricted, rotate the database password if the secret is ever exposed, and remember that Storage object bytes such as avatars still require a separate export.
+
 ## Verify a backup
 
 ```powershell

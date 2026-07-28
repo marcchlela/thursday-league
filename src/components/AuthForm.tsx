@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, BellRing, Coins, Eye, EyeOff, LockKeyhole, Shirt, Smartphone, UserPlus } from "lucide-react";
@@ -9,8 +10,6 @@ import { cleanUsername, supabase, supabaseConfigError, usernameToEmail } from "@
 import { cn } from "@/lib/utils";
 import { PrimaryButton, TextInput } from "./ui";
 import leagueLogo from "../../Thursday League logo (no bg).png";
-
-const inviteCode = process.env.NEXT_PUBLIC_LEAGUE_INVITE_CODE?.trim();
 
 function friendlyAuthError(message: string) {
   if (message.toLowerCase().includes("email rate limit")) {
@@ -41,18 +40,31 @@ export function AuthForm() {
     setMessage(null);
     const cleaned = cleanUsername(username);
     if (cleaned.length < 2) return setMessage("Username needs at least 2 letters/numbers.");
-    if (password.length < 6) return setMessage("Password needs at least 6 characters.");
+    if (password.length < 8) return setMessage("Password needs at least 8 characters.");
     if (mode === "signup" && password !== confirmPassword) return setMessage("Passwords do not match.");
-    if (mode === "signup" && inviteCode && enteredInviteCode.trim() !== inviteCode) return setMessage("Invite code is not valid.");
     if (supabaseConfigError) return setMessage(supabaseConfigError);
 
     setLoading(true);
     const email = usernameToEmail(cleaned);
     try {
-      const result =
-        mode === "login"
-          ? await supabase.auth.signInWithPassword({ email, password })
-          : await supabase.auth.signUp({ email, password, options: { data: { username: cleaned } } });
+      if (mode === "signup") {
+        const response = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: cleaned,
+            password,
+            inviteCode: enteredInviteCode
+          })
+        });
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) {
+          setMessage(body?.error || "The account could not be created.");
+          return;
+        }
+      }
+
+      const result = await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
         setMessage(friendlyAuthError(result.error.message));
@@ -126,7 +138,10 @@ export function AuthForm() {
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Password</span>
+              <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-wider text-chalk/45">
+                <span>Password</span>
+                {mode === "login" ? <Link href="/forgot-password" className="normal-case tracking-normal text-league-gold/75 underline-offset-4 hover:underline">Forgot password?</Link> : null}
+              </span>
               <span className="relative block">
                 <TextInput type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" autoComplete={mode === "login" ? "current-password" : "new-password"} className="rounded-xl border-league-gold/15 py-3 pr-12" />
                 <button type="button" onClick={() => setShowPassword(value => !value)} className="absolute right-2.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-chalk/35 transition hover:bg-league-gold/[.06] hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold" aria-label={showPassword ? "Hide password" : "Show password"}>
@@ -141,12 +156,10 @@ export function AuthForm() {
                   <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Confirm password</span>
                   <TextInput type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Password again" autoComplete="new-password" className="rounded-xl border-league-gold/15 py-3" />
                 </label>
-                {inviteCode ? (
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Invite code</span>
-                    <TextInput value={enteredInviteCode} onChange={e => setEnteredInviteCode(e.target.value)} placeholder="League code" autoComplete="off" autoCapitalize="none" className="rounded-xl border-league-gold/15 py-3" />
-                  </label>
-                ) : null}
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Invite code</span>
+                  <TextInput value={enteredInviteCode} onChange={e => setEnteredInviteCode(e.target.value)} placeholder="League code" autoComplete="off" autoCapitalize="none" className="rounded-xl border-league-gold/15 py-3" />
+                </label>
               </>
             ) : null}
           </div>
@@ -156,7 +169,7 @@ export function AuthForm() {
           <PrimaryButton disabled={loading} className="mt-6 w-full rounded-xl py-3">
             {loading ? "Working…" : mode === "login" ? "Enter Thursday League" : "Create account"}
           </PrimaryButton>
-          <p className="mt-4 text-center text-xs text-chalk/30">{mode === "login" ? "Use the username and password linked to your league account." : inviteCode ? "An invite code is required to join this league." : "Your username is also used when signing in."}</p>
+          <p className="mt-4 text-center text-xs text-chalk/30">{mode === "login" ? "Use the username and password linked to your league account." : "The league code is verified securely before your account is created."}</p>
         </form>
       </div>
     </div>

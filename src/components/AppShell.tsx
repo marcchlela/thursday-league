@@ -25,7 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, profile, loading } = useAuthProfile();
   const balanceUnits = useCoinBalance(user?.id);
-  const isLogin = pathname === "/login";
+  const isAuthPage = pathname === "/login" || pathname === "/forgot-password";
   const [launchReady, setLaunchReady] = useState(false);
 
   useEffect(() => {
@@ -35,15 +35,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && !isLogin) router.replace("/login");
-    if (!loading && user && isLogin) router.replace("/");
-  }, [loading, user, isLogin, router]);
+    if (!loading && !user && !isAuthPage) router.replace("/login");
+    if (!loading && user && isAuthPage) router.replace("/");
+  }, [loading, user, isAuthPage, router]);
 
   if (loading || !launchReady) {
     return <LaunchScreen />;
   }
 
-  if (isLogin) return <>{children}</>;
+  if (isAuthPage) return <>{children}</>;
   if (!user) return null;
 
   const links = profile?.is_admin ? [...baseLinks, { href: "/admin", label: "Admin", icon: Shield }] : baseLinks;

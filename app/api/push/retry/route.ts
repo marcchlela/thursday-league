@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { retryFailedDispatch } from "@/lib/pushNotifications";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { serverRateLimitDecision } from "@/lib/serverRateLimit";
 
 export const runtime = "nodejs";
 
@@ -15,8 +16,16 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
   if (authError || !user) return NextResponse.json({ error: "Invalid authentication." }, { status: 401 });
 
-  const { data: profile } = await supabaseAdmin.from("profiles").select("is_admin").eq("id", user.id).single();
-  if (!profile?.is_admin) return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+  const { data: profile } = await supabaseAdmin.from("profiles").select("is_admin, account_status").eq("id", user.id).single();
+  if (!profile?.is_admin || profile.account_status !== "active") return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+
+  const limit = await serverRateLimitDecision({
+    scope: "push-retry",
+    identifier: user.id,
+    maximumAttempts: 10,
+    windowSeconds: 60
+  });
+  if (!limit.allowed) return NextResponse.json({ error: limit.error }, { status: limit.status });
 
   const body = await request.json().catch(() => null) as { dispatchId?: unknown } | null;
   const dispatchId = typeof body?.dispatchId === "string" ? body.dispatchId : "";

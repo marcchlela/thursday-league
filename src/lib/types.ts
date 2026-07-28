@@ -157,6 +157,10 @@ export type BettingSettings = {
   single_margin: number;
   builder_margin: number;
   model_version: string;
+  max_builder_selections?: number;
+  max_total_odds?: number;
+  max_potential_payout_units?: number;
+  max_bets_per_minute?: number;
   updated_at?: string;
 };
 
