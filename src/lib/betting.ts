@@ -12,7 +12,7 @@ import {
   TeamCode
 } from "./types";
 
-export const BETTING_MODEL_VERSION = "player-lineup-v1";
+export const BETTING_MODEL_VERSION = "player-lineup-v1.1";
 const PRIOR_APPEARANCES = 5;
 const RECENCY_HALF_LIFE_DAYS = 56;
 const DEFAULT_TEAM_GOALS = 4;
@@ -177,6 +177,7 @@ function playerLabel(player: Player | undefined) {
 }
 
 export function generatePlayerLineupMarkets(data: LeagueData, game: Game, singleMargin = 0.06): BettingModelResult {
+  const generatedAt = new Date().toISOString();
   const targetLineups = data.lineups.filter(lineup => lineup.game_id === game.id);
   const teamA = targetLineups.filter(lineup => lineup.team === "A");
   const teamB = targetLineups.filter(lineup => lineup.team === "B");
@@ -400,15 +401,29 @@ export function generatePlayerLineupMarkets(data: LeagueData, game: Game, single
   return {
     markets,
     snapshot: {
+      snapshot_schema_version: 2,
       model_version: BETTING_MODEL_VERSION,
       generated_for_game_id: game.id,
-      generated_at: new Date().toISOString(),
+      generated_at: generatedAt,
+      kickoff_at: game.game_date,
       methodology: "Bayesian-smoothed player rates with recency weighting, goalkeeper opposition adjustment, lineup strength, and teammate-pair performance",
-      synthetic_data_policy: "Synthetic matches are used only as probabilistic priors/simulation calibration, never as observed league results",
+      synthetic_data_policy: "No synthetic matches or external match results are used. Fixed neutral constants are used only when real history is unavailable.",
       priors: { appearances: PRIOR_APPEARANCES, recency_half_life_days: RECENCY_HALF_LIFE_DAYS },
-      history: { completed_games: historicalGames.length, effective_game_weight: round(weightedGameSamples) },
+      history: {
+        completed_games: historicalGames.length,
+        effective_game_weight: round(weightedGameSamples),
+        game_ids: historicalGames.map(item => item.id),
+        latest_game_date: historicalGames.at(-1)?.game_date || null
+      },
       league_averages: { team_goals: round(leagueTeamGoals), player_goals: round(leaguePlayerGoals), player_assists: round(leaguePlayerAssists), goalkeeper_saves: round(leagueKeeperSaves) },
-      predictions: { expected_goals_A: round(expectedA), expected_goals_B: round(expectedB), total: round(expectedTotal) },
+      predictions: {
+        expected_goals_A: round(expectedA),
+        expected_goals_B: round(expectedB),
+        total: round(expectedTotal),
+        probability_A: round(matchResult.A, 8),
+        probability_draw: round(matchResult.draw, 8),
+        probability_B: round(matchResult.B, 8)
+      },
       team_A: serializeTeam(teamA),
       team_B: serializeTeam(teamB),
       pair_key_example: targetLineups.length > 1 ? pairKey(targetLineups[0].player_id, targetLineups[1].player_id) : null

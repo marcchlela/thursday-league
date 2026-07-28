@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude=e2e/**",
+    "test:model": "python -m unittest discover -s model/tests",
     "test:db": "node scripts/test-database.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

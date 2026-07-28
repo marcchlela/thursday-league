@@ -5,6 +5,7 @@ import { AlertTriangle, BarChart3, CheckCircle2, CircleDollarSign, Cpu, Download
 import { useBettingData } from "@/hooks/useBettingData";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { BETTING_MODEL_VERSION, formatCoins, generatePlayerLineupMarkets } from "@/lib/betting";
+import { evaluateScoreForecasts } from "@/lib/modelEvaluation";
 import { buildModelExport, downloadModelExport } from "@/lib/modelExport";
 import { supabase } from "@/lib/supabase";
 import { BettingData, BettingMarket, BettingOutcome, Game, LeagueData, Player } from "@/lib/types";
@@ -341,7 +342,7 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
         </div>
       )}
 
-      <PredictionReview games={data.games} betting={betting.data} />
+      <PredictionReview data={data} betting={betting.data} />
 
       {run ? <Card><details><summary className="cursor-pointer font-bold text-chalk/75">Model input snapshot</summary><p className="mt-2 text-sm text-chalk/50">Stored with this generation run for auditability and future calibration.</p><pre className="mt-3 max-h-96 overflow-auto rounded-2xl bg-black/30 p-3 text-xs text-chalk/60">{JSON.stringify(run.input_snapshot, null, 2)}</pre></details></Card> : null}
 
@@ -383,49 +384,15 @@ function AdminReadiness({ game, data, betting }: { game: Game; data: LeagueData;
   );
 }
 
-function PredictionReview({ games, betting }: { games: Game[]; betting: BettingData }) {
-  const newestGenerationByGame = new Map<string, BettingData["generations"][number]>();
-  for (const generation of betting.generations) {
-    if (!newestGenerationByGame.has(generation.game_id)) newestGenerationByGame.set(generation.game_id, generation);
-  }
-  const newestResultByGame = new Map<string, BettingData["resultVersions"][number]>();
-  for (const result of betting.resultVersions) {
-    const current = newestResultByGame.get(result.game_id);
-    if (!current || result.version_number > current.version_number) newestResultByGame.set(result.game_id, result);
-  }
-
-  const rows = games
-    .filter(game => game.status === "final")
-    .map(game => {
-      const generation = newestGenerationByGame.get(game.id);
-      const result = newestResultByGame.get(game.id);
-      const predictions = generation?.input_snapshot?.predictions as Record<string, unknown> | undefined;
-      const expectedA = Number(predictions?.expected_goals_A);
-      const expectedB = Number(predictions?.expected_goals_B);
-      if (!generation || !result || !Number.isFinite(expectedA) || !Number.isFinite(expectedB)) return null;
-      const predictedWinner = expectedA === expectedB ? "draw" : expectedA > expectedB ? "A" : "B";
-      const actualWinner = result.score_a === result.score_b ? "draw" : result.score_a > result.score_b ? "A" : "B";
-      return {
-        game,
-        result,
-        expectedA,
-        expectedB,
-        absoluteError: (Math.abs(expectedA - result.score_a) + Math.abs(expectedB - result.score_b)) / 2,
-        winnerCorrect: predictedWinner === actualWinner
-      };
-    })
-    .filter(Boolean) as Array<{
-      game: Game;
-      result: BettingData["resultVersions"][number];
-      expectedA: number;
-      expectedB: number;
-      absoluteError: number;
-      winnerCorrect: boolean;
-    }>;
-
-  if (!rows.length) return null;
-  const averageError = rows.reduce((total, row) => total + row.absoluteError, 0) / rows.length;
-  const correctWinners = rows.filter(row => row.winnerCorrect).length;
+function PredictionReview({ data, betting }: { data: LeagueData; betting: BettingData }) {
+  const evaluation = evaluateScoreForecasts(buildModelExport(data, betting));
+  const readinessLabel = {
+    pipeline_only: "Pipeline only",
+    early_evaluation: "Early evidence",
+    candidate_review: "Candidate review",
+    needs_revision: "Needs revision"
+  }[evaluation.readiness];
+  const brierSkill = evaluation.skillVsUniform.brier;
 
   return (
     <Card>
@@ -433,31 +400,42 @@ function PredictionReview({ games, betting }: { games: Game[]; betting: BettingD
         <div>
           <div className="flex items-center gap-2 text-league-gold"><BarChart3 size={18} /><span className="text-xs font-bold uppercase tracking-[.18em]">Model review</span></div>
           <h3 className="mt-2 font-display text-3xl uppercase">Prediction vs result</h3>
-          <p className="mt-1 text-sm text-chalk/50">A simple operational check; reliable calibration still needs many more finalized games.</p>
+          <p className="mt-1 text-sm text-chalk/50">Only retained pre-kickoff forecasts are scored. Lower Brier, log loss, and goal error are better.</p>
         </div>
-        <div className="flex gap-2">
-          <Pill>{averageError.toFixed(2)} avg goal error</Pill>
-          <Pill>{correctWinners}/{rows.length} winners</Pill>
+        <div className="flex flex-wrap gap-2">
+          <Pill>{readinessLabel}</Pill>
+          <Pill>{evaluation.evaluatedGames}/{evaluation.finalizedGames} covered</Pill>
+          <Pill>{evaluation.correctOutcomes}/{evaluation.evaluatedGames} outcomes</Pill>
         </div>
       </div>
-      <div className="mt-4 overflow-x-auto rounded-xl border border-league-gold/12">
-        <table className="w-full min-w-[36rem] text-left text-sm">
-          <thead className="bg-black/20 text-[10px] uppercase tracking-wider text-chalk/40">
-            <tr><th className="px-3 py-2.5">Game</th><th className="px-3 py-2.5">Expected</th><th className="px-3 py-2.5">Actual</th><th className="px-3 py-2.5">Avg error</th><th className="px-3 py-2.5">Winner</th></tr>
-          </thead>
-          <tbody>
-            {rows.slice(0, 8).map(row => (
-              <tr key={row.game.id} className="border-t border-league-gold/10">
-                <td className="whitespace-nowrap px-3 py-2.5 text-chalk/60">{formatDateTime(row.game.game_date)}</td>
-                <td className="px-3 py-2.5 font-mono">{row.expectedA.toFixed(2)}–{row.expectedB.toFixed(2)}</td>
-                <td className="px-3 py-2.5 font-mono font-bold">{row.result.score_a}–{row.result.score_b}</td>
-                <td className="px-3 py-2.5 font-mono">{row.absoluteError.toFixed(2)}</td>
-                <td className={cn("px-3 py-2.5 font-bold", row.winnerCorrect ? "text-turf-400" : "text-red-300")}>{row.winnerCorrect ? "Correct" : "Missed"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {evaluation.evaluatedGames ? <>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border border-league-gold/12 bg-black/15 p-3"><div className="text-[10px] font-bold uppercase tracking-wider text-chalk/40">Brier score</div><div className="mt-1 font-mono text-lg">{evaluation.brier?.toFixed(3)}</div><div className="text-xs text-chalk/40">Uniform baseline {evaluation.uniformBaseline.brier?.toFixed(3)}</div></div>
+          <div className="rounded-xl border border-league-gold/12 bg-black/15 p-3"><div className="text-[10px] font-bold uppercase tracking-wider text-chalk/40">Log loss</div><div className="mt-1 font-mono text-lg">{evaluation.logLoss?.toFixed(3)}</div><div className="text-xs text-chalk/40">Uniform baseline {evaluation.uniformBaseline.logLoss?.toFixed(3)}</div></div>
+          <div className="rounded-xl border border-league-gold/12 bg-black/15 p-3"><div className="text-[10px] font-bold uppercase tracking-wider text-chalk/40">Team-goal MAE</div><div className="mt-1 font-mono text-lg">{evaluation.goalMae?.toFixed(2)}</div><div className="text-xs text-chalk/40">{brierSkill == null ? "No baseline comparison" : `${brierSkill >= 0 ? "+" : ""}${(brierSkill * 100).toFixed(1)}% Brier skill`}</div></div>
+        </div>
+        <div className="mt-4 overflow-x-auto rounded-xl border border-league-gold/12">
+          <table className="w-full min-w-[44rem] text-left text-sm">
+            <thead className="bg-black/20 text-[10px] uppercase tracking-wider text-chalk/40">
+              <tr><th className="px-3 py-2.5">Game</th><th className="px-3 py-2.5">Expected</th><th className="px-3 py-2.5">Actual</th><th className="px-3 py-2.5">A / Draw / B</th><th className="px-3 py-2.5">Brier</th><th className="px-3 py-2.5">Outcome</th></tr>
+            </thead>
+            <tbody>
+              {evaluation.rows.slice(0, 8).map(row => {
+                const outcomeCorrect = row.predictedOutcome === row.actualOutcome;
+                return <tr key={row.gameId} className="border-t border-league-gold/10">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-chalk/60">{formatDateTime(row.gameDate)}</td>
+                  <td className="px-3 py-2.5 font-mono">{row.expectedA.toFixed(2)}–{row.expectedB.toFixed(2)}</td>
+                  <td className="px-3 py-2.5 font-mono font-bold">{row.actualA}–{row.actualB}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs">{(row.probabilities.A * 100).toFixed(0)} / {(row.probabilities.draw * 100).toFixed(0)} / {(row.probabilities.B * 100).toFixed(0)}</td>
+                  <td className="px-3 py-2.5 font-mono">{row.brier.toFixed(3)}</td>
+                  <td className={cn("px-3 py-2.5 font-bold", outcomeCorrect ? "text-turf-400" : "text-red-300")}>{outcomeCorrect ? "Correct" : "Missed"}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+      </> : <div className="mt-4 rounded-2xl border border-league-gold/25 bg-league-gold/[.06] p-4 text-sm text-league-gold">No finalized game has a complete retained pre-kickoff probability forecast yet. The next finalized game will start this evaluation record.</div>}
+      <p className="mt-3 text-xs text-chalk/40">Promotion stays blocked until at least 20 genuine walk-forward games exist and the candidate beats its baselines. Synthetic matches never count.</p>
     </Card>
   );
 }

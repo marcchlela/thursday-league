@@ -15,6 +15,10 @@ The agreed product sequence is:
 Synthetic data may verify modelling code and simulations, but it must not be
 treated as evidence that a trained model is better for this league.
 
+Current phase: model evidence collection. The readiness pipeline is implemented
+and the production engine remains unchanged; see
+`docs/model-readiness-2026-07-28.md`.
+
 ## Decisions already applied
 
 - Signup is performed by a server route using a server-only invite code.

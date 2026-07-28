@@ -33,7 +33,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
-      - run: python -m unittest discover -s model/tests
+      - run: npm run test:model
       - run: npm run build
 
   database-protections:
