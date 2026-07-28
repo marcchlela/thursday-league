@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync
 } from "node:fs";
@@ -42,8 +44,43 @@ const supabaseCli = path.join(
   "supabase.js"
 );
 
+class DumpError extends Error {
+  constructor(file, diagnostics) {
+    super(`Backup command failed while creating ${file}.`);
+    this.name = "DumpError";
+    this.diagnostics = diagnostics;
+  }
+}
+
+function redactDiagnostics(value) {
+  let result = String(value || "");
+  result = result.split(databaseUrl).join("postgresql://[redacted]");
+  let decodedPassword = "";
+  try {
+    decodedPassword = decodeURIComponent(parsedUrl.password || "");
+  } catch {
+    decodedPassword = "";
+  }
+  const passwordValues = new Set([parsedUrl.password, decodedPassword]);
+  for (const password of passwordValues) {
+    if (password) result = result.split(password).join("[redacted]");
+  }
+  result = result.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "").trim();
+  const maximumLength = 12_000;
+  return result.length > maximumLength
+    ? `[Earlier CLI output truncated]\n${result.slice(-maximumLength)}`
+    : result;
+}
+
 function runDump(file, extraArguments) {
   const output = path.join(target, file);
+  if (!existsSync(supabaseCli)) {
+    throw new DumpError(
+      file,
+      `Supabase CLI was not found at ${supabaseCli}. Run npm ci before the backup.`
+    );
+  }
+
   const result = spawnSync(
     process.execPath,
     [
@@ -62,21 +99,63 @@ function runDump(file, extraArguments) {
       env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "true" }
     }
   );
-  if (result.status !== 0) {
-    writeFileSync(
-      path.join(target, "INCOMPLETE.txt"),
-      `${result.stderr || result.stdout || "Supabase CLI backup failed."}\n`,
-      "utf8"
-    );
-    throw new Error(
-      `Backup failed while creating ${file}. The incomplete directory was kept for diagnosis.`
+  if (result.status !== 0 || result.error) {
+    rmSync(output, { force: true });
+    const diagnostics = [
+      `Dump: ${file}`,
+      `Exit code: ${result.status ?? "process did not start"}`,
+      result.error ? `Process error: ${result.error.message}` : "",
+      result.stdout ? `stdout:\n${result.stdout}` : "",
+      result.stderr ? `stderr:\n${result.stderr}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    throw new DumpError(
+      file,
+      redactDiagnostics(
+        diagnostics || "The Supabase CLI returned no diagnostic output."
+      )
     );
   }
 }
 
-runDump("roles.sql", ["--role-only"]);
-runDump("schema.sql", []);
-runDump("data.sql", [
+const backupWarnings = [];
+let rolesIncluded = true;
+try {
+  runDump("roles.sql", ["--role-only"]);
+} catch (error) {
+  if (!(error instanceof DumpError)) throw error;
+  rolesIncluded = false;
+  const warningSummary =
+    "Managed database roles were not included. A new Supabase project already provides anon, authenticated, service_role, and other managed roles.";
+  const warning = [
+    warningSummary,
+    error.diagnostics
+  ].join("\n\n");
+  backupWarnings.push(warningSummary);
+  writeFileSync(path.join(target, "roles-not-included.txt"), `${warning}\n`, "utf8");
+  console.warn(`::warning::${warning.replace(/\r?\n/g, " ")}`);
+}
+
+function runRequiredDump(file, extraArguments) {
+  try {
+    runDump(file, extraArguments);
+  } catch (error) {
+    if (!(error instanceof DumpError)) throw error;
+    writeFileSync(
+      path.join(target, "INCOMPLETE.txt"),
+      `${error.diagnostics}\n`,
+      "utf8"
+    );
+    console.error(error.diagnostics);
+    throw new Error(
+      `Backup failed while creating ${file}. Redacted diagnostics were printed and saved.`
+    );
+  }
+}
+
+runRequiredDump("schema.sql", []);
+runRequiredDump("data.sql", [
   "--use-copy",
   "--data-only",
   "-x",
@@ -93,7 +172,12 @@ function gitValue(...arguments_) {
   return result.status === 0 ? result.stdout.trim() : null;
 }
 
-const files = ["roles.sql", "schema.sql", "data.sql"].map(file => {
+const backupFiles = [
+  ...(rolesIncluded ? ["roles.sql"] : ["roles-not-included.txt"]),
+  "schema.sql",
+  "data.sql"
+];
+const files = backupFiles.map(file => {
   const contents = readFileSync(path.join(target, file));
   return {
     file,
@@ -109,8 +193,11 @@ const manifest = {
   git_commit: gitValue("rev-parse", "HEAD"),
   git_branch: gitValue("branch", "--show-current"),
   files,
+  warnings: backupWarnings,
   coverage: {
-    database: "Supabase-filtered logical roles, public schema, and table data.",
+    database: rolesIncluded
+      ? "Supabase-filtered logical roles, public schema, and table data."
+      : "Public schema and table data. Managed roles were not included; see roles-not-included.txt.",
     storage_objects:
       "Not included. Supabase database backups contain Storage metadata, not uploaded object bytes."
   },
