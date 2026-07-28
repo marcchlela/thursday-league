@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, CircleDollarSign, Cpu, Download, Eye, LockKeyhole, PauseCircle, Pencil, RefreshCw, Settings2, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, CircleDollarSign, Cpu, Download, Eye, LockKeyhole, PauseCircle, Pencil, RefreshCw, Settings2, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import { useBettingData } from "@/hooks/useBettingData";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { BETTING_MODEL_VERSION, formatCoins, generatePlayerLineupMarkets } from "@/lib/betting";
 import { buildModelExport, downloadModelExport } from "@/lib/modelExport";
 import { supabase } from "@/lib/supabase";
-import { BettingMarket, BettingOutcome, LeagueData } from "@/lib/types";
+import { BettingData, BettingMarket, BettingOutcome, Game, LeagueData } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 import { bettingCategoryOrder } from "./BettingMarketComponents";
 import { Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Pill, PrimaryButton, SecondaryButton, Select, TextArea, TextInput, Toast, ToastTone } from "./ui";
@@ -222,17 +222,19 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
       </Card>
 
       <Card>
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <details>
+        <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">
           <div>
             <div className="flex items-center gap-2 text-league-gold"><CircleDollarSign size={18} /><span className="text-xs font-bold uppercase tracking-[.2em]">Controlled correction</span></div>
             <h3 className="mt-2 font-display text-3xl uppercase">Adjust wallet</h3>
-            <p className="mt-1 max-w-2xl text-sm text-chalk/55">Correct a virtual-coin balance without rewriting its history. A reason, ledger entry, and admin audit entry are always required.</p>
+            <p className="mt-1 max-w-2xl text-sm text-chalk/55">Open only when a balance needs an audited correction.</p>
           </div>
           <div className="rounded-xl border border-league-gold/20 bg-league-gold/[.055] px-4 py-2 text-right">
             <div className="text-[9px] font-black uppercase tracking-wider text-chalk/40">Current balance</div>
             <div className="font-mono text-xl font-black text-league-gold">{formatCoins(selectedWalletBalance)} coins</div>
           </div>
-        </div>
+        </summary>
+        <p className="mt-5 max-w-2xl text-sm text-chalk/55">Correct a virtual-coin balance without rewriting its history. A reason, ledger entry, and admin audit entry are always required.</p>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           <label><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-chalk/45">User</span><Select value={walletUserId} onChange={event => setWalletUserId(event.target.value)}>{data.profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.username}</option>)}</Select></label>
           <label><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-chalk/45">Season</span><Select value={walletSeasonId} onChange={event => setWalletSeasonId(event.target.value)}>{data.seasons.map(season => <option key={season.id} value={season.id}>{season.name}</option>)}</Select></label>
@@ -244,6 +246,7 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
           <p className="text-xs text-chalk/40">{selectedWallet ? "Existing seasonal wallet selected." : "The seasonal wallet will be initialized before applying this correction."}</p>
           <PrimaryButton type="button" disabled={busy || !walletUserId || !walletSeasonId} onClick={requestWalletAdjustment}>Review adjustment</PrimaryButton>
         </div>
+        </details>
       </Card>
 
       {game ? <div className="grid gap-3 md:grid-cols-4">
@@ -267,6 +270,8 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
         {invalidated ? <div className="mt-4 flex items-start gap-3 rounded-2xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200"><AlertTriangle className="mt-0.5 shrink-0" size={18} /><span>The lineup or kick-off changed after generation. These prices cannot be reopened. {slips.length ? "Existing slips keep their accepted odds; affected removed-player legs will be void." : "Generate fresh drafts before opening betting."}</span></div> : null}
       </Card>
 
+      {game ? <AdminReadiness game={game} data={data} betting={betting.data} /> : null}
+
       {!markets.length ? <EmptyState title="No markets generated" text="Once the full lineup is saved, generate draft probabilities here. Nothing is visible to players until you approve it." /> : (
         <div className="space-y-3">
           {bettingCategoryOrder.map(category => {
@@ -277,10 +282,124 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
         </div>
       )}
 
+      <PredictionReview games={data.games} betting={betting.data} />
+
       {run ? <Card><details><summary className="cursor-pointer font-bold text-chalk/75">Model input snapshot</summary><p className="mt-2 text-sm text-chalk/50">Stored with this generation run for auditability and future calibration.</p><pre className="mt-3 max-h-96 overflow-auto rounded-2xl bg-black/30 p-3 text-xs text-chalk/60">{JSON.stringify(run.input_snapshot, null, 2)}</pre></details></Card> : null}
 
       {resultVersions.length ? <Card><h3 className="font-display text-3xl uppercase">Settlement history</h3><p className="mt-1 text-sm text-chalk/50">Corrections create a new result version and append only the wallet difference.</p><div className="mt-4 space-y-2">{resultVersions.map(version => { const settlement = settlementRuns.find(item => item.result_version_id === version.id); return <div key={version.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-league-gold/15 bg-black/20 p-3"><div><div className="font-semibold">Version {version.version_number} · Team A {version.score_a}–{version.score_b} Team B</div><div className="mt-1 text-xs text-chalk/45">{new Date(version.created_at).toLocaleString()}{version.correction_reason ? ` · ${version.correction_reason}` : ""}</div></div><div className="text-right text-sm"><div>{settlement?.slips_processed || 0} slips processed</div><div className={cn("font-mono", Number(settlement?.total_adjustment_units || 0) >= 0 ? "text-turf-400" : "text-red-300")}>{Number(settlement?.total_adjustment_units || 0) >= 0 ? "+" : ""}{formatCoins(Number(settlement?.total_adjustment_units || 0))} coins</div></div></div>; })}</div></Card> : null}
     </div>
+  );
+}
+
+function AdminReadiness({ game, data, betting }: { game: Game; data: LeagueData; betting: BettingData }) {
+  const activeProfiles = data.profiles.filter(profile => profile.account_status !== "deactivated" && profile.account_status !== "deleted");
+  const fantasyUsers = new Set(data.squads.filter(squad => squad.game_id === game.id).map(squad => squad.user_id));
+  const bettingUsers = new Set(betting.slips.filter(slip => slip.game_id === game.id && slip.status !== "cashed_out").map(slip => slip.user_id));
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-league-gold"><UsersRound size={18} /><span className="text-xs font-bold uppercase tracking-[.18em]">Private readiness</span></div>
+          <h3 className="mt-2 font-display text-3xl uppercase">Matchweek participation</h3>
+          <p className="mt-1 text-sm text-chalk/50">Submission status only. Fantasy teams and bet details are not shown here.</p>
+        </div>
+        <div className="flex gap-2">
+          <Pill>{fantasyUsers.size}/{activeProfiles.length} Fantasy</Pill>
+          <Pill>{bettingUsers.size}/{activeProfiles.length} bettors</Pill>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {activeProfiles.map(profile => (
+          <div key={profile.id} className="flex items-center justify-between gap-3 rounded-xl border border-league-gold/12 bg-black/15 px-3 py-2.5">
+            <span className="min-w-0 truncate text-sm font-semibold">{profile.username}</span>
+            <span className="flex shrink-0 gap-1.5 text-[9px] font-black uppercase tracking-wider">
+              <span className={cn("rounded-md px-2 py-1", fantasyUsers.has(profile.id) ? "bg-turf-400/10 text-turf-400" : "bg-chalk/[.04] text-chalk/30")}>F {fantasyUsers.has(profile.id) ? "Set" : "—"}</span>
+              <span className={cn("rounded-md px-2 py-1", bettingUsers.has(profile.id) ? "bg-league-gold/10 text-league-gold" : "bg-chalk/[.04] text-chalk/30")}>B {bettingUsers.has(profile.id) ? "Set" : "—"}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function PredictionReview({ games, betting }: { games: Game[]; betting: BettingData }) {
+  const newestGenerationByGame = new Map<string, BettingData["generations"][number]>();
+  for (const generation of betting.generations) {
+    if (!newestGenerationByGame.has(generation.game_id)) newestGenerationByGame.set(generation.game_id, generation);
+  }
+  const newestResultByGame = new Map<string, BettingData["resultVersions"][number]>();
+  for (const result of betting.resultVersions) {
+    const current = newestResultByGame.get(result.game_id);
+    if (!current || result.version_number > current.version_number) newestResultByGame.set(result.game_id, result);
+  }
+
+  const rows = games
+    .filter(game => game.status === "final")
+    .map(game => {
+      const generation = newestGenerationByGame.get(game.id);
+      const result = newestResultByGame.get(game.id);
+      const predictions = generation?.input_snapshot?.predictions as Record<string, unknown> | undefined;
+      const expectedA = Number(predictions?.expected_goals_A);
+      const expectedB = Number(predictions?.expected_goals_B);
+      if (!generation || !result || !Number.isFinite(expectedA) || !Number.isFinite(expectedB)) return null;
+      const predictedWinner = expectedA === expectedB ? "draw" : expectedA > expectedB ? "A" : "B";
+      const actualWinner = result.score_a === result.score_b ? "draw" : result.score_a > result.score_b ? "A" : "B";
+      return {
+        game,
+        result,
+        expectedA,
+        expectedB,
+        absoluteError: (Math.abs(expectedA - result.score_a) + Math.abs(expectedB - result.score_b)) / 2,
+        winnerCorrect: predictedWinner === actualWinner
+      };
+    })
+    .filter(Boolean) as Array<{
+      game: Game;
+      result: BettingData["resultVersions"][number];
+      expectedA: number;
+      expectedB: number;
+      absoluteError: number;
+      winnerCorrect: boolean;
+    }>;
+
+  if (!rows.length) return null;
+  const averageError = rows.reduce((total, row) => total + row.absoluteError, 0) / rows.length;
+  const correctWinners = rows.filter(row => row.winnerCorrect).length;
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-league-gold"><BarChart3 size={18} /><span className="text-xs font-bold uppercase tracking-[.18em]">Model review</span></div>
+          <h3 className="mt-2 font-display text-3xl uppercase">Prediction vs result</h3>
+          <p className="mt-1 text-sm text-chalk/50">A simple operational check; reliable calibration still needs many more finalized games.</p>
+        </div>
+        <div className="flex gap-2">
+          <Pill>{averageError.toFixed(2)} avg goal error</Pill>
+          <Pill>{correctWinners}/{rows.length} winners</Pill>
+        </div>
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-xl border border-league-gold/12">
+        <table className="w-full min-w-[36rem] text-left text-sm">
+          <thead className="bg-black/20 text-[10px] uppercase tracking-wider text-chalk/40">
+            <tr><th className="px-3 py-2.5">Game</th><th className="px-3 py-2.5">Expected</th><th className="px-3 py-2.5">Actual</th><th className="px-3 py-2.5">Avg error</th><th className="px-3 py-2.5">Winner</th></tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, 8).map(row => (
+              <tr key={row.game.id} className="border-t border-league-gold/10">
+                <td className="whitespace-nowrap px-3 py-2.5 text-chalk/60">{formatDateTime(row.game.game_date)}</td>
+                <td className="px-3 py-2.5 font-mono">{row.expectedA.toFixed(2)}–{row.expectedB.toFixed(2)}</td>
+                <td className="px-3 py-2.5 font-mono font-bold">{row.result.score_a}–{row.result.score_b}</td>
+                <td className="px-3 py-2.5 font-mono">{row.absoluteError.toFixed(2)}</td>
+                <td className={cn("px-3 py-2.5 font-bold", row.winnerCorrect ? "text-turf-400" : "text-red-300")}>{row.winnerCorrect ? "Correct" : "Missed"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 

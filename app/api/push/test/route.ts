@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendPushToUser } from "@/lib/pushNotifications";
+import { serverRateLimitDecision } from "@/lib/serverRateLimit";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,24 @@ export async function POST(request: Request) {
       { error: "Invalid authentication." },
       { status: 401 }
     );
+  }
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("account_status")
+    .eq("id", user.id)
+    .single();
+  if (profile?.account_status !== "active") {
+    return NextResponse.json({ error: "Account is not active." }, { status: 403 });
+  }
+
+  const limit = await serverRateLimitDecision({
+    scope: "push-test",
+    identifier: user.id,
+    maximumAttempts: 3,
+    windowSeconds: 60
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limit.error }, { status: limit.status });
   }
 
   const result = await sendPushToUser(user.id, {

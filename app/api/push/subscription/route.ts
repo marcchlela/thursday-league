@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { serverRateLimitDecision } from "@/lib/serverRateLimit";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,12 @@ async function authenticatedUser(request: Request) {
   } = await supabaseAdmin.auth.getUser(token);
 
   if (error || !user) return null;
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("account_status")
+    .eq("id", user.id)
+    .single();
+  if (profile?.account_status !== "active") return null;
 
   return {
     user,
@@ -41,6 +48,16 @@ export async function POST(request: Request) {
       { error: "Authentication required." },
       { status: 401 }
     );
+  }
+
+  const limit = await serverRateLimitDecision({
+    scope: "push-subscription-write",
+    identifier: authentication.user.id,
+    maximumAttempts: 20,
+    windowSeconds: 60
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limit.error }, { status: limit.status });
   }
 
   let body: SubscriptionBody;
@@ -63,7 +80,14 @@ export async function POST(request: Request) {
   const authKey =
     typeof body.keys?.auth === "string" ? body.keys.auth : "";
 
-  if (!endpoint || !p256dhKey || !authKey) {
+  if (
+    !endpoint ||
+    endpoint.length > 2048 ||
+    !p256dhKey ||
+    p256dhKey.length > 256 ||
+    !authKey ||
+    authKey.length > 128
+  ) {
     return NextResponse.json(
       { error: "Invalid push subscription." },
       { status: 400 }
@@ -91,7 +115,7 @@ export async function POST(request: Request) {
         endpoint,
         p256dh_key: p256dhKey,
         auth_key: authKey,
-        user_agent: request.headers.get("user-agent"),
+        user_agent: request.headers.get("user-agent")?.slice(0, 512) || null,
         updated_at: new Date().toISOString()
       },
       {
@@ -117,6 +141,16 @@ export async function DELETE(request: Request) {
       { error: "Authentication required." },
       { status: 401 }
     );
+  }
+
+  const limit = await serverRateLimitDecision({
+    scope: "push-subscription-write",
+    identifier: authentication.user.id,
+    maximumAttempts: 20,
+    windowSeconds: 60
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limit.error }, { status: limit.status });
   }
 
   let body: { endpoint?: unknown };

@@ -115,7 +115,7 @@ function MarketGroup({ title, markets, outcomes, selected, disabled, onToggle }:
                 {marketOutcomes.map(outcome => {
                   const active = selected.includes(outcome.id);
                   const compactLabel = market.line == null ? outcome.label : outcome.label.split(" ")[0];
-                  return <button key={outcome.id} type="button" disabled={disabled} aria-pressed={active} aria-label={`${title}: ${outcome.label}`} onClick={() => onToggle(outcome)} className={cn("min-w-0 rounded-lg border px-2 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold disabled:cursor-not-allowed disabled:opacity-45", active ? "border-league-gold/55 bg-league-gold/[.11]" : "border-chalk/[.065] bg-chalk/[.025] hover:border-league-gold/30 hover:bg-league-gold/[.045]")}><span className={cn("block truncate text-[10px]", active ? "text-league-gold/75" : "text-chalk/45")}>{compactLabel}</span><span className={cn("mt-0.5 block font-mono text-sm font-bold sm:text-base", active ? "text-league-gold" : "text-chalk/85")}>{Number(outcome.offered_odds).toFixed(2)}</span></button>;
+                  return <button key={outcome.id} type="button" disabled={disabled} aria-pressed={active} aria-label={`${title}: ${outcome.label}`} onClick={() => onToggle(outcome)} className={cn("min-h-11 min-w-0 rounded-lg border px-2 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold disabled:cursor-not-allowed disabled:opacity-45", active ? "border-league-gold/55 bg-league-gold/[.11]" : "border-chalk/[.065] bg-chalk/[.025] hover:border-league-gold/30 hover:bg-league-gold/[.045]")}><span className={cn("block truncate text-[10px]", active ? "text-league-gold/75" : "text-chalk/45")}>{compactLabel}</span><span className={cn("mt-0.5 block font-mono text-sm font-bold sm:text-base", active ? "text-league-gold" : "text-chalk/85")}>{Number(outcome.offered_odds).toFixed(2)}</span></button>;
                 })}
               </div>
             </div>
@@ -144,6 +144,7 @@ export function BetSlipCard({ markets, outcomes, odds, stake, potentialReturn, b
         )}
         <div className="mt-3 grid grid-cols-2 gap-2"><div className="rounded-xl border border-chalk/[.055] bg-chalk/[.02] p-3"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Accepted odds</div><div className="mt-1 font-mono text-xl">{outcomes.length ? odds.toFixed(2) : "—"}</div></div><div className="rounded-xl border border-chalk/[.055] bg-chalk/[.02] p-3"><div className="text-[9px] uppercase tracking-wider text-chalk/30">Potential return</div><div className="mt-1 text-league-gold">{potentialReturn ? <CoinAmount units={Math.round(potentialReturn * 100)} iconSize={18} className="text-lg" /> : <span className="font-mono text-xl">—</span>}</div></div></div>
         <label className="mt-3 block"><span className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-chalk/40"><span>Stake</span><CoinAmount units={balanceUnits} iconSize={14} /></span><TextInput type="number" min="0.01" step="0.01" inputMode="decimal" value={stake} onChange={event => onStake(event.target.value)} placeholder="Coins" className="rounded-xl border-league-gold/15 py-2.5 focus:border-league-gold focus:ring-league-gold" /></label>
+        <QuickStakeButtons stake={stake} balanceUnits={balanceUnits} onStake={onStake} />
         <PrimaryButton type="button" className="mt-3 w-full rounded-xl bg-league-gold py-3 shadow-none" disabled={disabled || placing || !outcomes.length || Number(stake) <= 0} onClick={onPlace}>{placing ? "Placing…" : outcomes.length > 1 ? "Place bet builder" : "Place bet"}</PrimaryButton>
         <p className="mt-3 text-center text-[10px] text-chalk/30">Your available coin balance is the stake limit.</p>
       </div>
@@ -182,10 +183,34 @@ export function BetSlipDrawer({ markets, outcomes, odds, stake, potentialReturn,
               <label className="min-w-0"><span className="sr-only">Bet stake in coins</span><TextInput type="number" min="0.01" step="0.01" inputMode="decimal" value={stake} onChange={event => onStake(event.target.value)} placeholder="Stake in coins" className="h-11 rounded-xl py-2" /></label>
               <PrimaryButton type="button" className="h-11 rounded-xl px-4" disabled={disabled || placing || Number(stake) <= 0} onClick={onPlace}>{placing ? "Placing…" : "Place bet"}</PrimaryButton>
             </div>
+            <QuickStakeButtons stake={stake} balanceUnits={balanceUnits} onStake={onStake} compact />
             <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-chalk/35"><span>Balance <CoinAmount units={balanceUnits} iconSize={12} className="text-chalk/60" /></span><span>Potential <CoinAmount units={Math.round(potentialReturn * 100)} iconSize={12} className="text-league-gold" /></span></div>
           </div>
         ) : null}
       </div>
     </aside>
+  );
+}
+
+function QuickStakeButtons({ stake, balanceUnits, onStake, compact = false }: { stake: string; balanceUnits: number; onStake: (value: string) => void; compact?: boolean }) {
+  const balance = balanceUnits / 100;
+
+  function setAmount(amount: number) {
+    const bounded = Math.max(0, Math.min(balance, Math.round(amount * 100) / 100));
+    onStake(bounded ? String(bounded) : "");
+  }
+
+  function add(amount: number) {
+    const current = Number(stake);
+    setAmount((Number.isFinite(current) ? current : 0) + amount);
+  }
+
+  return (
+    <div className={cn("grid grid-cols-4 gap-1.5", compact ? "mt-2" : "mt-2.5")} aria-label="Quick stake controls">
+      {[5, 10, 25].map(amount => (
+        <button key={amount} type="button" disabled={balance <= 0} onClick={() => add(amount)} className="min-h-11 rounded-lg border border-league-gold/15 bg-league-gold/[.045] px-2 text-xs font-bold text-league-gold/80 transition hover:border-league-gold/35 hover:bg-league-gold/[.09] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold disabled:opacity-40" aria-label={`Add ${amount} coins to stake`}>+{amount}</button>
+      ))}
+      <button type="button" disabled={balance <= 0} onClick={() => setAmount(balance)} className="min-h-11 rounded-lg border border-league-gold/15 bg-league-gold/[.045] px-2 text-xs font-bold text-league-gold/80 transition hover:border-league-gold/35 hover:bg-league-gold/[.09] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold disabled:opacity-40">Max</button>
+    </div>
   );
 }

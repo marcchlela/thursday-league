@@ -49,10 +49,18 @@ cp .env.example .env.local
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-NEXT_PUBLIC_LEAGUE_INVITE_CODE=
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Set `NEXT_PUBLIC_LEAGUE_INVITE_CODE` to a shared league code if you want signup to require an invite code. Leave it empty to keep signup open.
+`LEAGUE_INVITE_CODE` is checked only on the server and must never use the `NEXT_PUBLIC_` prefix. Use a long random code and set the same server-only variables in Vercel. `NEXT_PUBLIC_APP_URL` should be the deployed HTTPS origin in production. The service-role key is required only by server routes and must never be exposed to browser code.
+
+Generate a strong human-friendly code with:
+
+```bash
+npm run invite:generate
+```
 
 ### 3) Run the database SQL
 
@@ -76,13 +84,24 @@ supabase/migrations/20260722020000_add_custom_notifications.sql
 supabase/migrations/20260722030000_add_bet_cashout_and_final_privacy.sql
 supabase/migrations/20260723010000_add_profile_avatars.sql
 supabase/migrations/20260723020000_add_account_lifecycle.sql
+supabase/migrations/20260724010000_rotating_goalkeepers_and_stat_grid.sql
+supabase/migrations/20260725010000_player_eligibility_and_controlled_writes.sql
+supabase/migrations/20260726010000_admin_wallet_adjustments.sql
+supabase/migrations/20260727010000_restore_lineup_publication_status.sql
+supabase/migrations/20260727020000_remove_public_bet_slips.sql
+supabase/migrations/20260728010000_security_betting_and_fantasy_privacy.sql
 ```
 
 Run all migrations in filename order. The virtual betting migration depends on the integrity, seasons, and controlled-corrections migrations. The expanded betting migration adds alternate lines, safe admin edit/delete controls, and privacy-aware league picks and standings. The competition-eligibility migration adds reusable guest players that can play in a match without entering fantasy, personal betting markets, league statistics, or player-model history. The custom-notification migration adds opted-in admin announcements to the existing delivery history and retry workflow. The profile-avatar migration creates the avatar bucket and controlled profile update function. The account-lifecycle migration adds safe deactivation and anonymized deletion without removing historical fantasy or betting results.
 
-### 4) Auth setting
+### 4) Auth settings
 
-Because the app uses usernames and internally maps them to fake local emails, go to Supabase → Authentication → Providers → Email and turn off email confirmation for this private app. Otherwise new users will be asked to confirm an email address that does not really exist.
+Because the app uses usernames and internally maps them to fake local emails:
+
+1. Go to **Supabase → Authentication → Providers → Email** and turn off email confirmation.
+2. Disable direct public signup after configuring `LEAGUE_INVITE_CODE` and `SUPABASE_SERVICE_ROLE_KEY`.
+
+Account creation now goes through `/api/auth/signup`, which validates and rate-limits the league code on the server before using the service role to create the user. If direct Supabase signup remains enabled, someone could bypass the app route by calling the public Auth endpoint directly.
 
 ### 5) Enable Realtime
 

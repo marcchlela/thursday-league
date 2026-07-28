@@ -71,23 +71,21 @@ Users never see or enter an email.
 - Username
 - Password
 - Confirm password
-- Optional invite code, if configured
+- League invite code
 
 ### Invite Code
 
-The app supports a simple invite code gate:
+The app validates the invite code in a rate-limited server route:
 
 ```env
-NEXT_PUBLIC_LEAGUE_INVITE_CODE=your-code-here
+LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
 ```
 
-If this value is set, signup shows an invite-code field. The account is only created if the entered code matches the configured code.
-
-Important security note: this is a friendly privacy gate, not high-security access control. Because the code is exposed as a `NEXT_PUBLIC_` value, a technical user could inspect the browser bundle and find it. For a friend league, this is usually enough. For stronger security, invite codes should be checked server-side against a database table or API route.
+The browser never receives the configured value. The server verifies the submitted code, applies an IP-based attempt limit, and uses the server-only Supabase service role to create the account. Direct public signup must be disabled in Supabase Auth so the server route cannot be bypassed.
 
 ### Supabase Auth Setting
 
-Email confirmation should be disabled in Supabase because the app uses generated internal email addresses.
+Email confirmation and direct public signup should be disabled in Supabase because the app uses generated internal email addresses and server-controlled account creation.
 
 Supabase path:
 
@@ -935,12 +933,9 @@ Required:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-```
-
-Optional:
-
-```env
-NEXT_PUBLIC_LEAGUE_INVITE_CODE=your-code-here
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
+NEXT_PUBLIC_APP_URL=https://app.example.com
 ```
 
 Notes:
@@ -961,7 +956,9 @@ npm install
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-NEXT_PUBLIC_LEAGUE_INVITE_CODE=
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 3. Run Supabase schema.

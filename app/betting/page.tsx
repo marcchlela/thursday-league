@@ -98,6 +98,7 @@ export default function BettingPage() {
   if (betting.error) return <ErrorState message={`${betting.error} Run the virtual betting migration in Supabase if it has not been applied yet.`} onRetry={betting.reload} />;
 
   const settings = betting.data.settings;
+  const maxBuilderSelections = Number(settings?.max_builder_selections ?? 5);
   const markets = betting.data.markets.filter(market => market.game_id === gameId && market.status !== "draft");
   const outcomes = betting.data.outcomes.filter(outcome => markets.some(market => market.id === outcome.market_id));
   const selectedOutcomes = selectedOutcomeIds.map(id => outcomes.find(outcome => outcome.id === id)).filter(Boolean) as BettingOutcome[];
@@ -153,8 +154,8 @@ export default function BettingPage() {
         const existingMarket = markets.find(item => item.id === existingOutcome?.market_id);
         return !existingMarket || bettingSelectionGroup(existingMarket) !== selectedGroup;
       });
-      if (withoutSameGroup.length >= 5) {
-        showToast("A same-game builder can contain up to five selections.", "warning");
+      if (withoutSameGroup.length >= maxBuilderSelections) {
+        showToast(`A same-game builder can contain up to ${maxBuilderSelections} selections.`, "warning");
         return current;
       }
       return [...withoutSameGroup, outcome.id];

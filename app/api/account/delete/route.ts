@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { serverRateLimitDecision } from "@/lib/serverRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,16 @@ export async function POST(request: Request) {
   const authentication = await supabaseAdmin.auth.getUser(token);
   if (authentication.error || !authentication.data.user) {
     return NextResponse.json({ error: "Invalid authentication." }, { status: 401 });
+  }
+
+  const limit = await serverRateLimitDecision({
+    scope: "account-delete",
+    identifier: authentication.data.user.id,
+    maximumAttempts: 3,
+    windowSeconds: 60 * 60
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limit.error }, { status: limit.status });
   }
 
   const body = await request.json().catch(() => null) as { confirmation?: string } | null;

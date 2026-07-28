@@ -7,6 +7,7 @@ import {
   PushPayload,
   sendTrackedPush
 } from "@/lib/pushNotifications";
+import { serverRateLimitDecision } from "@/lib/serverRateLimit";
 
 export const runtime = "nodejs";
 
@@ -112,15 +113,25 @@ export async function POST(request: Request) {
   const { data: profile, error: profileError } =
     await supabaseAdmin
       .from("profiles")
-      .select("is_admin")
+      .select("is_admin, account_status")
       .eq("id", user.id)
       .single();
 
-  if (profileError || !profile?.is_admin) {
+  if (profileError || !profile?.is_admin || profile.account_status !== "active") {
     return NextResponse.json(
       { error: "Admin access required." },
       { status: 403 }
     );
+  }
+
+  const limit = await serverRateLimitDecision({
+    scope: "push-admin-event",
+    identifier: user.id,
+    maximumAttempts: 10,
+    windowSeconds: 60
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limit.error }, { status: limit.status });
   }
 
   let body: RequestBody;

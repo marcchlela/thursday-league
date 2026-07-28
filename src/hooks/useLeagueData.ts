@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { FantasyPick, FantasySquad, Game, GameLineup, GamePlayerStat, LeagueData, LeagueSettings, MatchEvent, Player, Profile, Season } from "@/lib/types";
 
@@ -29,6 +29,7 @@ export function useLeagueData() {
   const [data, setData] = useState<LeagueData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -69,21 +70,29 @@ export function useLeagueData() {
 
   useEffect(() => {
     load();
+    const scheduleLoad = () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      reloadTimer.current = setTimeout(() => {
+        reloadTimer.current = null;
+        void load();
+      }, 150);
+    };
     const channel = supabase
       .channel("league-data")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "players" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "games" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "game_lineups" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "game_player_stats" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_squads" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_picks" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "seasons" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "league_settings" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "players" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "games" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_lineups" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_player_stats" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_squads" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_picks" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "seasons" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "league_settings" }, scheduleLoad)
       .subscribe();
 
     return () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
       supabase.removeChannel(channel);
     };
   }, [load]);

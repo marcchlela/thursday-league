@@ -35,6 +35,7 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
   if (betting.error) return <ErrorState message={betting.error} onRetry={betting.reload} />;
 
   const settings = betting.data.settings;
+  const maxBuilderSelections = Number(settings?.max_builder_selections ?? 5);
   const markets = betting.data.markets.filter(market => market.game_id === game.id && market.status !== "draft");
   const outcomes = betting.data.outcomes.filter(outcome => markets.some(market => market.id === outcome.market_id));
   const selectedOutcomes = selectedOutcomeIds.map(id => outcomes.find(outcome => outcome.id === id)).filter(Boolean) as BettingOutcome[];
@@ -56,8 +57,8 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
         const existingMarket = existingOutcome ? marketForOutcome(existingOutcome, markets) : undefined;
         return !existingMarket || bettingSelectionGroup(existingMarket) !== targetGroup;
       });
-      if (withoutSameGroup.length >= 5) {
-        setToast({ message: "A same-game builder can contain up to five selections.", tone: "warning" });
+      if (withoutSameGroup.length >= maxBuilderSelections) {
+        setToast({ message: `A same-game builder can contain up to ${maxBuilderSelections} selections.`, tone: "warning" });
         return current;
       }
       return [...withoutSameGroup, outcome.id];

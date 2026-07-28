@@ -8,6 +8,7 @@ test("admin wallet adjustment creates a visible audited correction", async ({ pa
 
   await page.getByRole("tab", { name: "Betting" }).click();
   await expect(page.getByRole("heading", { name: "Adjust wallet" })).toBeVisible();
+  await page.getByText("Adjust wallet", { exact: true }).click();
 
   await page.getByLabel("User").selectOption({ label: "alex" });
   await page.getByLabel("Adjustment").selectOption("credit");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   BetLeg,
@@ -33,6 +33,7 @@ export function useBettingData() {
   const [data, setData] = useState<BettingData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -72,18 +73,28 @@ export function useBettingData() {
 
   useEffect(() => {
     load();
+    const scheduleLoad = () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      reloadTimer.current = setTimeout(() => {
+        reloadTimer.current = null;
+        void load();
+      }, 150);
+    };
     const channel = supabase
       .channel("betting-data")
-      .on("postgres_changes", { event: "*", schema: "public", table: "betting_markets" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "betting_outcomes" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "betting_wallets" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "bet_slips" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "bet_legs" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "coin_ledger" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "game_result_versions" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "bet_settlement_runs" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "betting_markets" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "betting_outcomes" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "betting_wallets" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bet_slips" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bet_legs" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "coin_ledger" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_result_versions" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bet_settlement_runs" }, scheduleLoad)
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      void supabase.removeChannel(channel);
+    };
   }, [load]);
 
   return { data, loading, error, reload: load };
