@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, CircleDollarSign, Cpu, Download, Eye, LockKeyhole, PauseCircle, Pencil, RefreshCw, Settings2, ShieldCheck, Trash2, UsersRound } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, CircleDollarSign, Cpu, Download, Eye, LockKeyhole, PauseCircle, Pencil, RefreshCw, Settings2, ShieldCheck, Trash2, UsersRound, Wrench } from "lucide-react";
 import { useBettingData } from "@/hooks/useBettingData";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { BETTING_MODEL_VERSION, formatCoins, generatePlayerLineupMarkets } from "@/lib/betting";
 import { buildModelExport, downloadModelExport } from "@/lib/modelExport";
 import { supabase } from "@/lib/supabase";
-import { BettingData, BettingMarket, BettingOutcome, Game, LeagueData } from "@/lib/types";
+import { BettingData, BettingMarket, BettingOutcome, Game, LeagueData, Player } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 import { bettingCategoryOrder } from "./BettingMarketComponents";
 import { Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Modal, Pill, PrimaryButton, SecondaryButton, Select, TextArea, TextInput, Toast, ToastTone } from "./ui";
@@ -21,6 +21,7 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
   const [approveOpen, setApproveOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [repairPlayerId, setRepairPlayerId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [walletUserId, setWalletUserId] = useState("");
   const [walletSeasonId, setWalletSeasonId] = useState("");
@@ -74,6 +75,29 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
   const selectedWalletSeason = data.seasons.find(season => season.id === walletSeasonId);
   const selectedWallet = betting.data.wallets.find(wallet => wallet.user_id === walletUserId && wallet.season_id === walletSeasonId);
   const selectedWalletBalance = Number(selectedWallet?.balance_units ?? betting.data.settings?.starting_balance_units ?? 10000);
+  let repairGeneration: ReturnType<typeof generatePlayerLineupMarkets> | null = null;
+  if (game && lineups.length === 10 && markets.length && invalidated && lockAt && now < lockAt.getTime()) {
+    try {
+      repairGeneration = generatePlayerLineupMarkets(data, game, Number(settings?.single_margin ?? 0.06));
+    } catch {
+      repairGeneration = null;
+    }
+  }
+  const repairPlayerIds = [...new Set(
+    (repairGeneration?.markets || [])
+      .filter(market => (
+        market.subject_player_id
+        && !markets.some(existing => (
+          existing.subject_player_id === market.subject_player_id
+          && existing.market_type === market.market_type
+        ))
+      ))
+      .map(market => market.subject_player_id as string)
+  )];
+  const repairPlayers = repairPlayerIds
+    .map(playerId => data.players.find(player => player.id === playerId))
+    .filter((player): player is Player => Boolean(player));
+  const repairPlayer = data.players.find(player => player.id === repairPlayerId);
 
   function walletAdjustmentUnits() {
     const cleanAmount = walletAmount.trim();
@@ -170,6 +194,30 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
     await betting.reload();
   }
 
+  async function repairMissingPlayerMarkets() {
+    if (!game || !repairPlayerId) return;
+    setBusy(true);
+    try {
+      const generated = generatePlayerLineupMarkets(data, game, Number(settings?.single_margin ?? 0.06));
+      const { data: result, error } = await supabase.rpc("admin_repair_missing_player_markets", {
+        target_game_id: game.id,
+        target_player_id: repairPlayerId,
+        target_model_version: BETTING_MODEL_VERSION,
+        target_input_snapshot: generated.snapshot,
+        submitted_markets: generated.markets
+      });
+      if (error) throw error;
+      const addedCount = Number((result as { added_market_count?: number } | null)?.added_market_count || 0);
+      notify(`${addedCount} missing ${repairPlayer?.name || "player"} market${addedCount === 1 ? "" : "s"} added. Existing odds and accepted bets were preserved. Review them, then use Manage to reopen betting.`);
+      setRepairPlayerId(null);
+      await betting.reload();
+    } catch (error) {
+      notify(friendlyActionError(error, "The missing markets could not be repaired safely."), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateOdds(outcome: BettingOutcome, rawValue: string) {
     const nextOdds = Number(rawValue);
     if (!Number.isFinite(nextOdds) || nextOdds < 1.01 || nextOdds === Number(outcome.offered_odds)) return;
@@ -190,6 +238,16 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
       <Toast message={toast?.message || null} tone={toast?.tone} onDone={() => setToast(null)} />
       <ConfirmDialog open={approveOpen} title="Approve and open these markets?" text={`You are approving ${markets.length} markets generated from the confirmed player lineups. Users can place bets immediately and every accepted price becomes immutable. Betting locks automatically ${settings?.lock_minutes ?? 5} minutes before kick-off.`} confirmLabel="Approve markets" confirmTone="primary" cancelLabel="Keep reviewing" onCancel={() => setApproveOpen(false)} onConfirm={() => setStatus("open")} />
       <ConfirmDialog open={deleteOpen} title="Delete all markets for this game?" text="This removes the generated set so you can create it again. It is allowed only when nobody has placed a bet." confirmLabel="Delete markets" onCancel={() => setDeleteOpen(false)} onConfirm={deleteMarkets} />
+      <ConfirmDialog
+        open={Boolean(repairPlayerId)}
+        title={`Add ${repairPlayer?.name || "this player"}'s missing markets?`}
+        text="This appends only entirely missing personal market families. Existing markets, offered odds, accepted slips, stakes, and payouts are not changed. Betting stays suspended until you review the additions and reopen it."
+        confirmLabel={busy ? "Adding..." : "Add missing markets"}
+        confirmTone="primary"
+        cancelLabel="Cancel"
+        onCancel={() => { if (!busy) setRepairPlayerId(null); }}
+        onConfirm={repairMissingPlayerMarkets}
+      />
       <ConfirmDialog
         open={walletConfirmOpen}
         title={`${walletDirection === "credit" ? "Add" : "Remove"} ${formatCoins(Math.abs(walletAdjustmentUnits() || 0))} coins?`}
@@ -261,13 +319,14 @@ export function AdminBettingManager({ data }: { data: LeagueData }) {
           <div><h3 className="font-display text-3xl uppercase">Workflow</h3><p className="text-sm text-chalk/55">{lineups.length}/10 lineup places saved · {markets.length} markets · {slips.length} accepted slips</p></div>
           <div className="flex flex-wrap gap-2">
             <SecondaryButton type="button" disabled={!data.games.some(item => item.status === "final")} onClick={exportModelData}><span className="flex items-center gap-2"><Download size={16} />Export model data</span></SecondaryButton>
+            {repairPlayers.map(player => <SecondaryButton key={player.id} type="button" disabled={busy} onClick={() => setRepairPlayerId(player.id)}><span className="flex items-center gap-2"><Wrench size={16} />Add {player.name}&apos;s missing markets</span></SecondaryButton>)}
             <SecondaryButton type="button" disabled={!canGenerate || busy} onClick={generate}><span className="flex items-center gap-2"><RefreshCw size={16} />{markets.length ? "Regenerate drafts" : "Generate drafts"}</span></SecondaryButton>
             {status === "draft" ? <PrimaryButton type="button" disabled={busy} onClick={() => setApproveOpen(true)}><span className="flex items-center gap-2"><CheckCircle2 size={16} />Review complete — approve</span></PrimaryButton> : null}
             {markets.length ? <SecondaryButton type="button" disabled={busy} onClick={() => setManageOpen(true)}><span className="flex items-center gap-2"><Settings2 size={16} />Manage</span></SecondaryButton> : null}
           </div>
         </div>
         {!canGenerate && !markets.length ? <div className="mt-4 flex items-start gap-3 rounded-2xl border border-league-gold/30 bg-league-gold/[.07] p-3 text-sm text-league-gold"><AlertTriangle className="mt-0.5 shrink-0" size={18} /><span>{lineups.length !== 10 ? "Save both complete lineups first." : slips.length ? "Accepted bets prevent regeneration." : "This game is no longer eligible for new odds."}</span></div> : null}
-        {invalidated ? <div className="mt-4 flex items-start gap-3 rounded-2xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200"><AlertTriangle className="mt-0.5 shrink-0" size={18} /><span>The lineup or kick-off changed after generation. These prices cannot be reopened. {slips.length ? "Existing slips keep their accepted odds; affected removed-player legs will be void." : "Generate fresh drafts before opening betting."}</span></div> : null}
+        {invalidated ? <div className="mt-4 flex items-start gap-3 rounded-2xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200"><AlertTriangle className="mt-0.5 shrink-0" size={18} /><span>{repairPlayers.length ? `A player's betting eligibility changed after generation. Use the missing-markets repair above; it will preserve all ${slips.length} accepted slip${slips.length === 1 ? "" : "s"} and every existing price.` : `The lineup, kick-off, or player eligibility changed after generation. These prices cannot be reopened automatically. ${slips.length ? "Existing slips keep their accepted odds; affected removed-player legs will be void." : "Generate fresh drafts before opening betting."}`}</span></div> : null}
       </Card>
 
       {game ? <AdminReadiness game={game} data={data} betting={betting.data} /> : null}
