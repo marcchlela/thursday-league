@@ -48,7 +48,11 @@ test("code approval and owner-admin-member transitions work end to end", async (
 
   try {
     await inviteePage.goto(`/invite/${invitation.token}`, { waitUntil: "domcontentloaded" });
-    await expect(inviteePage).toHaveURL(/\/login$/);
+    await expect(inviteePage).toHaveURL(new RegExp(`/invite/${invitation.token}$`));
+    await expect(inviteePage.getByRole("heading", { name: "You've been invited" })).toBeVisible();
+    await expect(inviteePage.getByRole("heading", { name: "Acceptance League" })).toBeVisible();
+    await inviteePage.getByRole("button", { name: "Sign in" }).click();
+    await expect(inviteePage).toHaveURL(/\/login\?mode=login$/);
     await inviteePage.getByLabel("Username").fill("omar");
     await inviteePage.locator('input[autocomplete="current-password"]').fill("LocalTest123!");
     const signInResponse = inviteePage.waitForResponse(response =>
@@ -76,6 +80,8 @@ test("code approval and owner-admin-member transitions work end to end", async (
     await expectNoHorizontalOverflow(memberPage);
 
     await page.goto(`${leaguePath}/admin?section=league`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("0/3 · 3 games left to unlock betting.")).toBeVisible();
+    await expect(page.getByLabel("Unlock betting after final games")).toHaveCount(0);
     const requestRow = page.getByRole("group", { name: "Join request from lina" });
     await requestRow.getByRole("button", { name: "Approve" }).click();
     const approvalDialog = page.getByRole("dialog");

@@ -27,12 +27,19 @@ import { useCoinBalance } from "@/hooks/useCoinBalance";
 import { LeagueDataProvider } from "@/hooks/useLeagueData";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { copyText } from "@/lib/clipboard";
+import {
+  introductionWasSeen,
+  POST_AUTH_PATH_KEY
+} from "@/lib/onboarding";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import type { LoadProblem } from "@/lib/loadProblems";
 import { CoinAmount, LeagueCoin } from "./LeagueCoin";
 import { LaunchScreen } from "./LaunchScreen";
-import { NotificationNudge } from "./NotificationOnboarding";
+import {
+  NotificationNudge,
+  NotificationOnboarding
+} from "./NotificationOnboarding";
 import { ErrorState, Toast, type ToastTone } from "./ui";
 import leagueLogo from "../../Thursday League logo (no bg).png";
 
@@ -44,12 +51,15 @@ const baseLinks = [
 ];
 
 const authPaths = ["/login", "/forgot-password"];
+const publicPaths = ["/welcome", "/invite"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, loading, error, reloadProfile } = useAuthProfile();
   const isAuthPage = authPaths.some(path => pathname === path);
+  const isPublicPage = publicPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
+  const isWelcomePage = pathname === "/welcome";
   const [launchReady, setLaunchReady] = useState(false);
 
   useEffect(() => {
@@ -66,25 +76,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && !isAuthPage) {
+    if (!loading && !user && !isAuthPage && !isPublicPage) {
+      if (pathname === "/" && !introductionWasSeen()) {
+        router.replace("/welcome");
+        return;
+      }
       window.sessionStorage.setItem(
-        "thursday-league-post-auth-path",
+        POST_AUTH_PATH_KEY,
         `${window.location.pathname}${window.location.search}`
       );
       router.replace("/login");
     }
     if (!loading && user && isAuthPage) {
       const intendedPath = window.sessionStorage.getItem(
-        "thursday-league-post-auth-path"
+        POST_AUTH_PATH_KEY
       );
-      window.sessionStorage.removeItem("thursday-league-post-auth-path");
+      window.sessionStorage.removeItem(POST_AUTH_PATH_KEY);
       router.replace(intendedPath?.startsWith("/") ? intendedPath : "/");
     }
-  }, [loading, user, isAuthPage, router]);
+    if (!loading && user && isWelcomePage) {
+      router.replace("/");
+    }
+  }, [
+    isAuthPage,
+    isPublicPage,
+    isWelcomePage,
+    loading,
+    pathname,
+    router,
+    user
+  ]);
 
   if (loading || !launchReady) return <LaunchScreen />;
   if (error) return <StartupFailure problem={error} onRetry={reloadProfile} />;
-  if (isAuthPage) return <>{children}</>;
+  if (isAuthPage || (isPublicPage && !user)) return <>{children}</>;
+  if (isWelcomePage) return <LaunchScreen />;
   if (!user || !profile) return <LaunchScreen />;
 
   return (
@@ -118,6 +144,7 @@ function AuthenticatedShell({
   } = useLeagueContext();
   const balanceUnits = useCoinBalance(userId, league?.id);
   const relativePath = leagueRelativePath(pathname);
+  const isFocusedFlow = pathname.startsWith("/onboarding") || pathname.startsWith("/invite/");
   const isLeaguePage = pathname.startsWith("/l/") || [
     "/",
     "/games",
@@ -146,6 +173,15 @@ function AuthenticatedShell({
   if (loading) return <LaunchScreen />;
   if (error) return <StartupFailure problem={error} onRetry={reloadLeagues} />;
   if (!league && isLeaguePage) return <LaunchScreen />;
+
+  if (isFocusedFlow) {
+    return (
+      <div className="min-h-[100svh] bg-ink-900 bg-turfMuted text-chalk">
+        <NotificationOnboarding userId={userId} />
+        {children}
+      </div>
+    );
+  }
 
   async function createInviteLink() {
     if (!league || inviteBusy) return;
@@ -205,6 +241,7 @@ function AuthenticatedShell({
 
   return (
     <div className="min-h-screen bg-ink-900 bg-turfMuted text-chalk">
+      <NotificationOnboarding userId={userId} />
       <a href="#main-content" className="fixed left-3 top-3 z-[100] -translate-y-24 rounded-xl bg-league-gold px-4 py-2 font-bold text-gold-ink transition focus:translate-y-0">
         Skip to content
       </a>

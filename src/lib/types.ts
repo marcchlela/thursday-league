@@ -58,6 +58,27 @@ export type Profile = {
   created_at?: string;
 };
 
+export type UserOnboarding = {
+  user_id: string;
+  onboarding_version: number;
+  introduction_completed_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MyLeagueJoinRequest = {
+  id: string;
+  league_id: string;
+  league_name: string;
+  league_slug: string;
+  status: "pending" | "rejected";
+  fantasy_enabled: boolean;
+  betting_enabled: boolean;
+  requested_at: string;
+  updated_at: string;
+};
+
 export type Player = {
   id: string;
   league_id?: string;

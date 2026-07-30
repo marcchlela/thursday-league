@@ -11,6 +11,7 @@ declare
     'league_memberships',
     'league_join_requests',
     'league_invite_links',
+    'user_onboarding',
     'players',
     'seasons',
     'league_settings',
@@ -90,7 +91,6 @@ begin
         ('public.request_to_join_league(text)'),
         ('public.review_league_join_request(uuid,boolean)'),
         ('public.create_league_invite_link(uuid,integer)'),
-        ('public.preview_league_invite_link(text)'),
         ('public.accept_league_invite_link(text)'),
         ('public.rotate_league_join_code(uuid)'),
         ('public.update_league_options(uuid,text,boolean,boolean,integer)'),
@@ -140,7 +140,7 @@ insert into public.leagues(
     'TL-AAAA-2222',
     true,
     true,
-    0,
+    3,
     'b0000000-0000-4000-8000-000000000001'
   ),
   (
@@ -150,7 +150,7 @@ insert into public.leagues(
     'TL-BBBB-3333',
     true,
     true,
-    0,
+    3,
     'b0000000-0000-4000-8000-000000000003'
   );
 
@@ -342,6 +342,24 @@ values (
   now() + interval '3 days',
   'upcoming'
 );
+select public.update_league_options(
+  'b1000000-0000-4000-8000-000000000001',
+  'Isolation League A',
+  true,
+  true,
+  0
+);
+do $$
+begin
+  if (
+    select betting_unlock_after_games
+    from public.leagues
+    where id = 'b1000000-0000-4000-8000-000000000001'
+  ) <> 3 then
+    raise exception 'A league owner changed the fixed betting unlock threshold';
+  end if;
+end;
+$$;
 reset role;
 select public.set_league_member_role(
   'b1000000-0000-4000-8000-000000000001',

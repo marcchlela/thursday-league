@@ -15,7 +15,6 @@ import {
 import { FaFutbol } from "react-icons/fa6";
 import { GiSoccerKick } from "react-icons/gi";
 import type { IconType } from "react-icons";
-import { NotificationOnboarding } from "@/components/NotificationOnboarding";
 import { TeamCrest } from "@/components/TeamCrest";
 import { ErrorState } from "@/components/ui";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
@@ -84,8 +83,6 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
-      <NotificationOnboarding />
-
       {!data.games.length ? <NewLeagueGuide isLeagueAdmin={isLeagueAdmin} hasPlayers={data.players.some(player => player.active && !player.archived_at)} /> : null}
 
       {nextGame ? <NextMatch game={nextGame} lineupsReady={lineupsReady} /> : <NoUpcomingMatch />}

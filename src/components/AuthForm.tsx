@@ -20,6 +20,40 @@ function friendlyAuthError(message: string) {
   return friendlyActionError(message, "Login could not be completed. Check your details and try again.");
 }
 
+function retryableAuthMessage(message: string, freshAccount: boolean) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("failed to fetch")
+    || normalized.includes("network")
+    || normalized.includes("timeout")
+    || normalized.includes("connection")
+    || normalized.includes("service unavailable")
+    || freshAccount && normalized.includes("invalid login credentials");
+}
+
+async function signInWithRetry(
+  email: string,
+  password: string,
+  freshAccount: boolean
+) {
+  const waits = [250, 800];
+  for (let attempt = 0; attempt <= waits.length; attempt += 1) {
+    try {
+      const result = await supabase.auth.signInWithPassword({ email, password });
+      if (
+        !result.error
+        || !retryableAuthMessage(result.error.message, freshAccount)
+        || attempt === waits.length
+      ) {
+        return result;
+      }
+    } catch (error) {
+      if (attempt === waits.length) throw error;
+    }
+    await new Promise(resolve => window.setTimeout(resolve, waits[attempt]));
+  }
+  throw new Error("The authentication service did not respond.");
+}
+
 export function AuthForm() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -33,6 +67,10 @@ export function AuthForm() {
 
   useEffect(() => {
     setInstalledApp(isInstalledApp());
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    if (requestedMode === "signup" || requestedMode === "login") {
+      setMode(requestedMode);
+    }
   }, []);
 
   async function submit(e: React.FormEvent) {
@@ -46,6 +84,7 @@ export function AuthForm() {
 
     setLoading(true);
     const email = usernameToEmail(cleaned);
+    let accountWasCreated = false;
     try {
       if (mode === "signup") {
         const response = await fetch("/api/auth/signup", {
@@ -61,12 +100,22 @@ export function AuthForm() {
           setMessage(body?.error || "The account could not be created.");
           return;
         }
+        accountWasCreated = true;
       }
 
-      const result = await supabase.auth.signInWithPassword({ email, password });
+      const result = await signInWithRetry(
+        email,
+        password,
+        accountWasCreated
+      );
 
       if (result.error) {
-        setMessage(friendlyAuthError(result.error.message));
+        if (accountWasCreated) {
+          setMode("login");
+          setMessage("Your account was created, but automatic sign-in did not finish. Press Log in with the same username and password.");
+        } else {
+          setMessage(friendlyAuthError(result.error.message));
+        }
         return;
       }
 
@@ -74,7 +123,12 @@ export function AuthForm() {
       // racing the saved invitation/deep-link path against a fallback home URL.
       router.refresh();
     } catch {
-      setMessage("Could not reach the service. Check your internet connection and try again.");
+      if (accountWasCreated) {
+        setMode("login");
+        setMessage("Your account was created, but automatic sign-in could not finish. Press Log in with the same username and password.");
+      } else {
+        setMessage("Could not reach the service. Check your internet connection and try again.");
+      }
     } finally {
       setLoading(false);
     }

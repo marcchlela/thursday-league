@@ -41,6 +41,8 @@ type ReadinessRow = {
   betting_ready: boolean;
 };
 
+const BETTING_UNLOCK_GAMES = 3;
+
 export function LeagueManagementPanel({ games }: { games: Game[] }) {
   const router = useRouter();
   const {
@@ -56,7 +58,6 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
   const [name, setName] = useState(league?.name || "");
   const [fantasyEnabled, setFantasyEnabled] = useState(league?.fantasy_enabled ?? true);
   const [bettingEnabled, setBettingEnabled] = useState(league?.betting_enabled ?? true);
-  const [unlockAfter, setUnlockAfter] = useState(league?.betting_unlock_after_games ?? 3);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{
@@ -72,7 +73,7 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
     .filter(game => game.status !== "final")
     .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0], [games]);
   const completedGames = games.filter(game => game.status === "final").length;
-  const remainingUnlockGames = Math.max(unlockAfter - completedGames, 0);
+  const remainingUnlockGames = Math.max(BETTING_UNLOCK_GAMES - completedGames, 0);
 
   const load = useCallback(async () => {
     if (!league) return;
@@ -130,7 +131,6 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
     setName(league?.name || "");
     setFantasyEnabled(league?.fantasy_enabled ?? true);
     setBettingEnabled(league?.betting_enabled ?? true);
-    setUnlockAfter(league?.betting_unlock_after_games ?? 3);
   }, [league]);
 
   function profileName(userId: string) {
@@ -145,7 +145,7 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
       league_name: name.trim(),
       enable_fantasy: fantasyEnabled,
       enable_betting: bettingEnabled,
-      unlock_betting_after_games: unlockAfter
+      unlock_betting_after_games: BETTING_UNLOCK_GAMES
     });
     setBusy(null);
     if (error) {
@@ -303,7 +303,7 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
           <div>
             <div className="text-[9px] font-black uppercase tracking-[.18em] text-league-gold/60">League setup</div>
             <h2 className="mt-1 font-display text-3xl uppercase">Options</h2>
-            <p className="mt-1 text-sm text-chalk/45">Members get Fantasy immediately. Betting waits for the configured number of final games.</p>
+            <p className="mt-1 text-sm text-chalk/45">Members get Fantasy immediately. Betting unlocks automatically after three final games.</p>
           </div>
           <Shield className="text-league-gold" size={22} />
         </div>
@@ -317,15 +317,14 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
             <OptionToggle label="Virtual betting" checked={bettingEnabled} onChange={setBettingEnabled} />
           </div>
           {bettingEnabled ? (
-            <label>
-              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Unlock betting after final games</span>
-              <TextInput type="number" min={0} max={50} value={unlockAfter} onChange={event => setUnlockAfter(Number(event.target.value))} />
-              <span className="mt-1 block text-xs text-chalk/35">
+            <div className="rounded-xl border border-league-gold/18 bg-league-gold/[.035] p-3">
+              <span className="block text-xs font-bold uppercase tracking-wider text-league-gold/75">Betting unlock</span>
+              <span className="mt-1 block text-xs text-chalk/45">
                 {remainingUnlockGames
-                  ? `${completedGames}/${unlockAfter} · ${remainingUnlockGames} game${remainingUnlockGames === 1 ? "" : "s"} left to unlock betting.`
-                  : `Unlocked with ${completedGames} completed game${completedGames === 1 ? "" : "s"}.`} Set 0 to unlock immediately.
+                  ? `${completedGames}/${BETTING_UNLOCK_GAMES} · ${remainingUnlockGames} game${remainingUnlockGames === 1 ? "" : "s"} left to unlock betting.`
+                  : `${completedGames}/${BETTING_UNLOCK_GAMES} · Betting is unlocked.`}
               </span>
-            </label>
+            </div>
           ) : null}
           <PrimaryButton type="button" disabled={busy === "options" || name.trim().length < 2} onClick={() => void saveOptions()} className="w-full sm:w-fit">
             {busy === "options" ? "Saving…" : "Save options"}
@@ -363,11 +362,11 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
               </SecondaryButton>
             </div>
           </div>
-          <div className="rounded-xl border border-turf-400/18 bg-turf-400/[.035] p-4">
+          <div className="rounded-xl border border-league-gold/25 bg-league-gold/[.035] p-4">
             <div className="text-xs font-bold uppercase tracking-wider text-chalk/40">One-tap invite</div>
             <p className="mt-2 text-sm leading-relaxed text-chalk/50">Creates a single-use link that joins immediately after the recipient accepts.</p>
             <PrimaryButton type="button" disabled={busy === "invite"} onClick={() => void createInviteLink()} className="mt-3 inline-flex items-center gap-2"><Link2 size={15} /> {busy === "invite" ? "Creating…" : "Create 72-hour link"}</PrimaryButton>
-            {inviteLink ? <button type="button" onClick={() => void copy(inviteLink, "Invite link copied.")} className="mt-3 block max-w-full truncate text-left text-xs font-bold text-turf-400 underline-offset-4 hover:underline">{inviteLink}</button> : null}
+            {inviteLink ? <button type="button" onClick={() => void copy(inviteLink, "Invite link copied.")} className="mt-3 block max-w-full truncate text-left text-xs font-bold text-league-gold underline-offset-4 hover:underline">{inviteLink}</button> : null}
           </div>
         </div>
       </Card>

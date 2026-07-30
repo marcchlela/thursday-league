@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import type { League, LeagueMembership } from "@/lib/types";
 
 type LeagueContextValue = {
+  userId: string;
   memberships: LeagueMembership[];
   leagues: League[];
   league: League | null;
@@ -34,6 +35,7 @@ const LeagueContext = createContext<LeagueContextValue | null>(null);
 const globalPaths = [
   "/login",
   "/forgot-password",
+  "/onboarding",
   "/leagues",
   "/invite",
   "/settings",
@@ -170,8 +172,14 @@ export function LeagueContextProvider({
       router.replace("/leagues?notice=unavailable");
       return;
     }
-    if (!leagues.length && !isGlobalPath(pathname)) {
-      router.replace("/leagues");
+    if (
+      !leagues.length
+      && !pathname.startsWith("/onboarding")
+      && !pathname.startsWith("/invite")
+      && !pathname.startsWith("/settings")
+      && !pathname.startsWith("/platform-admin")
+    ) {
+      router.replace("/onboarding/league");
       return;
     }
     if (
@@ -229,6 +237,7 @@ export function LeagueContextProvider({
   }, [leagues, pathname, preferredLeague?.id, queryString, requestedSlug, router]);
 
   const value = useMemo<LeagueContextValue>(() => ({
+    userId,
     memberships,
     leagues,
     league: preferredLeague,
@@ -243,6 +252,7 @@ export function LeagueContextProvider({
     reloadLeagues: load
   }), [
     memberships,
+    userId,
     leagues,
     preferredLeague,
     membership,

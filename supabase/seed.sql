@@ -141,6 +141,11 @@ update public.profiles
 set last_active_league_id = '00000000-0000-4000-8000-000000000001'
 where id::text like '20000000-0000-4000-8000-%';
 
+update public.user_onboarding
+set introduction_completed_at = coalesce(introduction_completed_at, now()),
+    completed_at = coalesce(completed_at, now())
+where user_id::text like '20000000-0000-4000-8000-%';
+
 update public.leagues
 set created_by = '20000000-0000-4000-8000-000000000001'
 where id = '00000000-0000-4000-8000-000000000001';
