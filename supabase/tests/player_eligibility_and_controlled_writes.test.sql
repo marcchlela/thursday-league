@@ -7,6 +7,9 @@ update public.profiles
 set is_admin = true
 where id = '80000000-0000-4000-8000-000000000001';
 
+insert into public.league_memberships(league_id, user_id, role)
+values ('00000000-0000-4000-8000-000000000001', '80000000-0000-4000-8000-000000000001', 'admin');
+
 insert into public.players(id, name, default_position)
 values ('81000000-0000-4000-8000-000000000001', 'Eligibility Test Player', 'outfield');
 

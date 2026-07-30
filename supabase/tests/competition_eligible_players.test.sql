@@ -8,6 +8,10 @@ update public.profiles
 set is_admin = true
 where id = '00000000-0000-4000-8000-000000000001';
 
+insert into public.league_memberships(league_id, user_id, role) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'admin'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', 'member');
+
 insert into public.players(id, name, default_position) values
   ('10000000-0000-4000-8000-000000000001', 'Anonymous', 'outfield'),
   ('10000000-0000-4000-8000-000000000002', 'Player 2', 'goalkeeper'),
@@ -117,6 +121,7 @@ select public.save_fantasy_squad(
   ]'::jsonb
 );
 
+select set_config('request.jwt.claim.role', 'service_role', true);
 insert into public.game_result_versions(
   id, game_id, version_number, score_a, score_b, own_goal_count, player_totals
 ) values (

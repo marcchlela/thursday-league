@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { LeagueLink as Link } from "./LeagueLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, CheckCircle2, CircleDashed, Clock3, Crown } from "lucide-react";
 import { FaFutbol } from "react-icons/fa6";

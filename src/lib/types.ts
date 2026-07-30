@@ -5,10 +5,52 @@ export type GoalkeeperMode = "fixed" | "rotating";
 export type GameStatus = "upcoming" | "draft" | "live" | "final";
 export type EventKind = "goal" | "own_goal";
 
+export type League = {
+  id: string;
+  name: string;
+  slug: string;
+  join_code: string;
+  timezone: string;
+  fantasy_enabled: boolean;
+  betting_enabled: boolean;
+  betting_unlock_after_games: number;
+  status: "active" | "archived";
+  created_by: string | null;
+  archived_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type LeagueMembership = {
+  id: string;
+  league_id: string;
+  user_id: string;
+  role: "owner" | "admin" | "member";
+  status: "active" | "left" | "removed";
+  invited_by?: string | null;
+  joined_at: string;
+  ended_at?: string | null;
+  updated_at?: string;
+  league?: League;
+};
+
+export type LeagueJoinRequest = {
+  id: string;
+  league_id: string;
+  user_id: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  requested_via: "code";
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+
 export type Profile = {
   id: string;
   username: string;
   is_admin: boolean;
+  last_active_league_id?: string | null;
   avatar_path?: string | null;
   account_status?: "active" | "deactivated" | "deleted";
   deactivated_at?: string | null;
@@ -18,6 +60,7 @@ export type Profile = {
 
 export type Player = {
   id: string;
+  league_id?: string;
   name: string;
   default_position: PlayerPosition;
   active: boolean;
@@ -32,6 +75,7 @@ export type Player = {
 
 export type Game = {
   id: string;
+  league_id?: string;
   game_date: string;
   status: GameStatus;
   potm_player_id: string | null;
@@ -47,6 +91,7 @@ export type Game = {
 
 export type Season = {
   id: string;
+  league_id?: string;
   name: string;
   format: "yearly" | "custom";
   start_date: string;
@@ -56,6 +101,7 @@ export type Season = {
 
 export type LeagueSettings = {
   id: number;
+  league_id?: string;
   season_mode: "yearly" | "custom";
   current_season_id: string | null;
   updated_at?: string;
@@ -63,6 +109,7 @@ export type LeagueSettings = {
 
 export type GameLineup = {
   id: string;
+  league_id?: string;
   game_id: string;
   player_id: string;
   team: TeamCode;
@@ -73,6 +120,7 @@ export type GameLineup = {
 
 export type MatchEvent = {
   id: string;
+  league_id?: string;
   game_id: string;
   event_type: EventKind;
   player_id: string;
@@ -83,6 +131,7 @@ export type MatchEvent = {
 
 export type GamePlayerStat = {
   id: string;
+  league_id?: string;
   game_id: string;
   player_id: string;
   team: TeamCode;
@@ -97,6 +146,7 @@ export type GamePlayerStat = {
 
 export type AdminAuditLog = {
   id: string;
+  league_id?: string;
   admin_user_id: string | null;
   game_id: string | null;
   action: string;
@@ -108,6 +158,7 @@ export type AdminAuditLog = {
 
 export type FantasySquad = {
   id: string;
+  league_id?: string;
   user_id: string;
   game_id: string;
   created_at?: string;
@@ -116,6 +167,7 @@ export type FantasySquad = {
 
 export type FantasyPick = {
   id: string;
+  league_id?: string;
   squad_id: string;
   player_id: string;
   role: PlayerPosition;
@@ -152,11 +204,12 @@ export type BetSlipStatus = BetLegStatus | "cashed_out";
 
 export type BettingSettings = {
   id: number;
+  league_id?: string;
   starting_balance_units: number;
   lock_minutes: number;
-  single_margin: number;
+  single_margin?: number;
   builder_margin: number;
-  model_version: string;
+  model_version?: string;
   max_builder_selections?: number;
   max_total_odds?: number;
   max_potential_payout_units?: number;
@@ -166,6 +219,7 @@ export type BettingSettings = {
 
 export type OddsGenerationRun = {
   id: string;
+  league_id?: string;
   game_id: string;
   model_version: string;
   input_snapshot: Record<string, unknown>;
@@ -175,6 +229,7 @@ export type OddsGenerationRun = {
 
 export type BettingMarket = {
   id: string;
+  league_id?: string;
   game_id: string;
   generation_run_id: string;
   market_key: string;
@@ -191,6 +246,7 @@ export type BettingMarket = {
 
 export type BettingOutcome = {
   id: string;
+  league_id?: string;
   market_id: string;
   outcome_key: string;
   label: string;
@@ -202,6 +258,7 @@ export type BettingOutcome = {
 
 export type BettingWallet = {
   id: string;
+  league_id?: string;
   user_id: string;
   season_id: string;
   balance_units: number;
@@ -211,6 +268,7 @@ export type BettingWallet = {
 
 export type BetSlip = {
   id: string;
+  league_id?: string;
   user_id: string;
   wallet_id: string;
   game_id: string;
@@ -229,6 +287,7 @@ export type BetSlip = {
 
 export type BetLeg = {
   id: string;
+  league_id?: string;
   slip_id: string;
   market_id: string;
   outcome_id: string;
@@ -241,6 +300,7 @@ export type BetLeg = {
 
 export type CoinLedgerEntry = {
   id: string;
+  league_id?: string;
   wallet_id: string;
   slip_id: string | null;
   entry_type: "initial_grant" | "stake" | "cashout" | "payout" | "settlement_correction" | "admin_adjustment";
@@ -252,6 +312,7 @@ export type CoinLedgerEntry = {
 
 export type GameResultVersion = {
   id: string;
+  league_id?: string;
   game_id: string;
   version_number: number;
   score_a: number;
@@ -265,6 +326,7 @@ export type GameResultVersion = {
 
 export type BetSettlementRun = {
   id: string;
+  league_id?: string;
   game_id: string;
   result_version_id: string;
   settled_by: string | null;

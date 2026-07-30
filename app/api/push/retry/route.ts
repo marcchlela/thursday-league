@@ -16,8 +16,11 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
   if (authError || !user) return NextResponse.json({ error: "Invalid authentication." }, { status: 401 });
 
-  const { data: profile } = await supabaseAdmin.from("profiles").select("is_admin, account_status").eq("id", user.id).single();
-  if (!profile?.is_admin || profile.account_status !== "active") return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+  const [{ data: profile }, { data: appRole }] = await Promise.all([
+    supabaseAdmin.from("profiles").select("account_status").eq("id", user.id).single(),
+    supabaseAdmin.from("app_roles").select("role").eq("user_id", user.id).eq("role", "platform_admin").maybeSingle()
+  ]);
+  if (profile?.account_status !== "active" || !appRole) return NextResponse.json({ error: "Platform admin access required." }, { status: 403 });
 
   const limit = await serverRateLimitDecision({
     scope: "push-retry",

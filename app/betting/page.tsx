@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CalendarDays, Check, ChevronRight, HandCoins, Search, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronRight, HandCoins, LockKeyhole, Search, ShieldCheck, X } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useBettingData } from "@/hooks/useBettingData";
 import { useBettingSocial } from "@/hooks/useBettingSocial";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { bettingSelectionGroup, coinsFromUnits, formatCoins, quoteBuilderOdds } from "@/lib/betting";
 import { calculateScore } from "@/lib/scoring";
@@ -25,6 +26,7 @@ type PageTab = "markets" | "mine" | "standings";
 
 export default function BettingPage() {
   const league = useLeagueData();
+  const { league: activeLeague, leaguePath } = useLeagueContext();
   const betting = useBettingData();
   const { user } = useAuthProfile();
   const router = useRouter();
@@ -45,6 +47,22 @@ export default function BettingPage() {
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [toastLinksToMyBets, setToastLinksToMyBets] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [availability, setAvailability] = useState<{
+    enabled: boolean;
+    unlocked: boolean;
+    completed_games: number;
+    required_games: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!activeLeague) return;
+    void supabase.rpc("league_betting_availability", {
+      target_league_id: activeLeague.id
+    }).then(({ data }) => {
+      const row = Array.isArray(data) ? data[0] : data;
+      setAvailability(row || null);
+    });
+  }, [activeLeague]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -99,6 +117,26 @@ export default function BettingPage() {
   if (league.loading || betting.loading) return <LoadingState label="Loading betting markets" cards={4} />;
   if (league.error) return <ErrorState message={league.error} onRetry={league.reload} />;
   if (betting.error) return <ErrorState message={`${betting.error} Run the virtual betting migration in Supabase if it has not been applied yet.`} onRetry={betting.reload} />;
+  if (!activeLeague?.betting_enabled) {
+    return <EmptyState title="Betting is turned off" text="This league is using match tracking and Fantasy without virtual betting." />;
+  }
+  if (availability && !availability.unlocked) {
+    return (
+      <div className="mx-auto max-w-xl py-8">
+        <div className="rounded-[1.4rem] border border-league-gold/25 bg-ink-850 p-6 text-center shadow-[0_14px_34px_rgba(0,0,0,.18)]">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-league-gold/[.09] text-league-gold"><LockKeyhole size={22} /></span>
+          <h1 className="mt-4 font-display text-4xl uppercase">Betting unlocks soon</h1>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-chalk/48">
+            This league needs {availability.required_games} completed game{availability.required_games === 1 ? "" : "s"} so the model has a useful baseline. {availability.completed_games} completed so far.
+          </p>
+          <div className="mx-auto mt-5 h-2 max-w-sm overflow-hidden rounded-full bg-chalk/[.06]">
+            <div className="h-full rounded-full bg-league-gold" style={{ width: `${Math.min(100, availability.required_games ? availability.completed_games / availability.required_games * 100 : 100)}%` }} />
+          </div>
+          <button type="button" onClick={() => router.push(leaguePath("/games"))} className="mt-5 text-sm font-bold text-turf-400 hover:text-turf-100">View league games</button>
+        </div>
+      </div>
+    );
+  }
 
   const settings = betting.data.settings;
   const maxBuilderSelections = Number(settings?.max_builder_selections ?? 5);
@@ -170,7 +208,7 @@ export default function BettingPage() {
     if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return showToast("Enter a positive stake with up to two decimals.", "warning");
     if (!wallet || stakeCoins > coinsFromUnits(wallet.balance_units)) return showToast("You do not have enough coins for that stake.", "warning");
     setPlacing(true);
-    const { error } = await supabase.rpc("place_bet", {
+    const { error } = await supabase.rpc("place_league_bet", {
       target_game_id: game.id,
       selected_outcome_ids: selectedOutcomeIds,
       stake_coins: stakeCoins,

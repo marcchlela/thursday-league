@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
+import { LeagueLink as Link } from "./LeagueLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, ChevronRight, Crown, Trophy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -66,7 +66,7 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void | Prom
   const locked = game.status === "live" || game.status === "final" || Date.now() >= new Date(game.game_date).getTime();
   const statusLabel = locked ? "Picks locked" : initialPicks.length === 5 ? "Picks saved" : "Picks open";
 
-  async function savePicks(draft: Omit<FantasyPick, "id" | "squad_id" | "created_at">[]) {
+  async function savePicks(draft: Pick<FantasyPick, "player_id" | "role" | "is_captain" | "slot_index">[]) {
     const submittedPicks = draft.map(({ player_id, role, is_captain, slot_index }) => ({ player_id, role, is_captain, slot_index }));
     const { error } = await supabase.rpc("save_fantasy_squad", { target_game_id: game!.id, submitted_picks: submittedPicks });
     if (error) throw error;

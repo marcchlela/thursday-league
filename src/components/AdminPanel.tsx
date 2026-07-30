@@ -2,23 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Search, Trash2, UsersRound, X } from "lucide-react";
+import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Gamepad2, GripVertical, History, Search, Settings2, Trash2, UsersRound, X } from "lucide-react";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { calculateScore } from "@/lib/scoring";
 import { isFantasyEligible, isGuestPlayer, isIndividualBettingEligible } from "@/lib/playerEligibility";
 import { cn, formatDateTime, gameLineupIsReady, goalkeeperMode, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
 import { Game, GoalkeeperMode, LeagueData, Player, PlayerPosition, PlayerType, TeamCode } from "@/lib/types";
 import { AdminMatchStatsGrid } from "./AdminMatchStatsGrid";
 import { AdminAuditHistory } from "./AdminAuditHistory";
-import { AdminBettingManager } from "./AdminBettingManager";
-import { AdminNotificationHistory } from "./AdminNotificationHistory";
+import { LeagueManagementPanel } from "./LeagueManagementPanel";
 import { AdminSeasonManager } from "./AdminSeasonManager";
-import { AdminStatsPanel } from "./AdminStatsPanel";
 import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TextInput, Toast, ToastTone } from "./ui";
 
-type AdminTab = "games" | "roster" | "betting" | "seasons" | "notifications" | "audit";
+type AdminTab = "league" | "games" | "roster" | "seasons" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
 type PushSendResult = { total: number; sent: number; failed: number; removed: number; skipped?: boolean };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
@@ -46,6 +45,28 @@ async function sendAdminGameNotification(gameId: string, event: AdminPushEvent) 
   return body?.result;
 }
 
+async function generateAutomaticBettingMarkets(gameId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Your login session could not be found.");
+  const response = await fetch("/api/betting/generate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ gameId })
+  });
+  const body = await response.json().catch(() => null) as {
+    error?: string;
+    generated?: boolean;
+    market_count?: number;
+    reason?: string;
+    requires_review?: boolean;
+  } | null;
+  if (!response.ok) throw new Error(body?.error || "Automatic betting setup failed.");
+  return body;
+}
+
 function deliveryMessage(action: string, result?: PushSendResult) {
   const delivered = result?.sent || 0;
   const failed = result?.failed || 0;
@@ -59,11 +80,12 @@ function deliveryMessage(action: string, result?: PushSendResult) {
 }
 
 export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => void }) {
+  const { league } = useLeagueContext();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestedSection = searchParams.get("section");
-  const activeTab: AdminTab = ["games", "roster", "betting", "seasons", "notifications", "audit"].includes(requestedSection || "")
+  const activeTab: AdminTab = ["league", "games", "roster", "seasons", "audit"].includes(requestedSection || "")
     ? requestedSection as AdminTab
     : "games";
   const [focusGameId, setFocusGameId] = useState<string | null>(null);
@@ -151,6 +173,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
     if (!playerNameInput.trim() || addingPlayer) return;
     setAddingPlayer(true);
     const { error } = await supabase.from("players").insert({
+      league_id: league?.id,
       name: playerNameInput.trim(),
       default_position: playerPosition,
       player_type: newPlayerType,
@@ -190,7 +213,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
     setCreatingGame(true);
     const { data: createdGame, error } = await supabase
       .from("games")
-      .insert({ game_date: new Date(gameDate).toISOString(), status: "upcoming" })
+      .insert({ league_id: league?.id, game_date: new Date(gameDate).toISOString(), status: "upcoming" })
       .select("id")
       .single();
     if (error) {
@@ -226,19 +249,18 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       <header>
         <div className="text-[10px] font-black uppercase tracking-[.2em] text-league-gold/65">League operations</div>
         <h1 className="mt-1 font-display text-4xl uppercase sm:text-5xl">Admin Control Room</h1>
-        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-chalk/40">Manage games, players, seasons, betting, notifications, and controlled corrections.</p>
+        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-chalk/40">Manage the league, roster, matchweeks, seasons, and controlled corrections. Betting and notifications run automatically.</p>
       </header>
 
       <AdminMatchweekPulse data={data} onOpenGame={openGameControls} />
 
-      <details className="rounded-[1.2rem] border border-league-gold/20 bg-ink-850 p-3.5">
-        <summary className="cursor-pointer text-sm font-bold text-chalk/70">League totals and notification adoption</summary>
-        <div className="mt-3"><AdminStatsPanel data={data} /></div>
-      </details>
-
       <AdminSectionTabs active={activeTab} onChange={changeAdminTab} />
 
-      {activeTab === "games" ? (
+      {activeTab === "league" ? (
+        <div id="admin-league-panel" role="tabpanel" aria-labelledby="admin-league-tab">
+          <LeagueManagementPanel games={data.games} />
+        </div>
+      ) : activeTab === "games" ? (
         <div id="admin-games-panel" role="tabpanel" aria-labelledby="admin-games-tab" className="space-y-6">
           <QuickStartChecklist data={data} />
           <Card className="overflow-hidden p-0">
@@ -331,17 +353,9 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
             return matchesQuery && matchesFilter;
           }) ? <EmptyState title="No matching players" text="Try a different search or roster filter." /> : null}
         </Card>
-      ) : activeTab === "betting" ? (
-        <div id="admin-betting-panel" role="tabpanel" aria-labelledby="admin-betting-tab">
-          <AdminBettingManager data={data} />
-        </div>
       ) : activeTab === "seasons" ? (
         <div id="admin-seasons-panel" role="tabpanel" aria-labelledby="admin-seasons-tab">
           <AdminSeasonManager data={data} reload={reload} />
-        </div>
-      ) : activeTab === "notifications" ? (
-        <div id="admin-notifications-panel" role="tabpanel" aria-labelledby="admin-notifications-tab">
-          <AdminNotificationHistory profiles={data.profiles} games={data.games} />
         </div>
       ) : (
         <div id="admin-audit-panel" role="tabpanel" aria-labelledby="admin-audit-tab">
@@ -353,11 +367,10 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 }
 
 const adminTabs: { id: AdminTab; label: string; icon: typeof Gamepad2 }[] = [
+  { id: "league", label: "League", icon: Settings2 },
   { id: "games", label: "Games", icon: Gamepad2 },
   { id: "roster", label: "Roster", icon: UsersRound },
-  { id: "betting", label: "Betting", icon: Coins },
   { id: "seasons", label: "Seasons", icon: CalendarRange },
-  { id: "notifications", label: "Notifications", icon: BellRing },
   { id: "audit", label: "Audit", icon: History }
 ];
 
@@ -376,7 +389,7 @@ function AdminSectionTabs({ active, onChange }: { active: AdminTab; onChange: (t
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)] sm:grid-cols-6" role="tablist" aria-label="Admin sections">
+    <div className="grid grid-cols-5 gap-1 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)]" role="tablist" aria-label="Admin sections">
       {adminTabs.map(tab => {
         const Icon = tab.icon;
         return (
@@ -397,15 +410,7 @@ function AdminMatchweekPulse({ data, onOpenGame }: { data: LeagueData; onOpenGam
       .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0];
 
   if (!game) {
-    return (
-      <Card className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="text-xs font-black uppercase tracking-[.18em] text-league-gold">Current matchweek</div>
-          <h2 className="mt-1 font-display text-3xl uppercase">No active game</h2>
-          <p className="mt-1 text-sm text-chalk/60">Create the next game when its date is confirmed.</p>
-        </div>
-      </Card>
-    );
+    return null;
   }
 
   const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
@@ -795,17 +800,28 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
     });
     if (error) return notify(friendlyActionError(error, "The lineup could not be saved. Please try again."), "error");
     setLineupOpen(false);
+    let bettingMessage = "";
+    try {
+      const betting = await generateAutomaticBettingMarkets(game.id);
+      if (betting?.generated) {
+        bettingMessage = ` ${betting.market_count || 0} betting markets were prepared and opened automatically.`;
+      } else if (betting?.requires_review) {
+        bettingMessage = " Existing bets and their odds were preserved; betting remains suspended because this edit needs review.";
+      }
+    } catch (bettingError) {
+      bettingMessage = ` Betting setup needs attention: ${friendlyActionError(bettingError, "automatic setup failed.")}`;
+    }
     if (firstPublication) {
       try {
         const result = await sendAdminGameNotification(game.id, "lineups_ready");
-        notify(deliveryMessage("Lineup saved.", result));
+        notify(`${deliveryMessage("Lineup saved.", result)}${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
       } catch (notificationError) {
-        notify(`Lineup saved, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
+        notify(`Lineup saved, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}${bettingMessage}`, "warning");
       }
     } else {
-      notify("Lineup saved. No new notification was sent for this edit.");
+      notify(`Lineup saved. No new notification was sent for this edit.${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
     }
-    reload();
+    await reload();
   }
 
   async function sendLineupNotification() {
@@ -1082,6 +1098,7 @@ function SavedLineupSummary({ game, players, lineups }: { game: Game; players: P
 function SavedTeam({ title, mode, players, lineups }: { title: string; mode: GoalkeeperMode; players: Player[]; lineups: { player_id: string; role: PlayerPosition }[] }) {
   const sorted = sortLineupsByRole(players, lineups.map((lineup, index) => ({
     id: `${lineup.player_id}-${index}`,
+    league_id: "",
     game_id: "",
     team: "A",
     player_id: lineup.player_id,

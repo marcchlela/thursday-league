@@ -14,8 +14,10 @@ const safeDomainMessages = [
   "betting closed",
   "betting closes",
   "betting is ",
+  "betting settings are",
   "cash-out closes",
   "choose ",
+  "cross-league records",
   "combined odds exceed",
   "custom season",
   "fantasy is locked",
@@ -24,6 +26,8 @@ const safeDomainMessages = [
   "game is already final",
   "generate markets first",
   "guest players cannot",
+  "invite links can",
+  "league names must",
   "lineups can only",
   "markets cannot",
   "markets with accepted bets",
@@ -41,6 +45,7 @@ const safeDomainMessages = [
   "pick exactly five",
   "player name is required",
   "potential return exceeds",
+  "promote another",
   "reason must be",
   "reopen the final game",
   "save ",
@@ -55,10 +60,17 @@ const safeDomainMessages = [
   "there are no existing markets",
   "these markets were invalidated",
   "this game has no season",
+  "this invitation link",
+  "this join request",
+  "this league is not available",
   "this player is not eligible",
   "too many bets",
   "type delete",
-  "wallet could not"
+  "use leave league",
+  "wallet could not",
+  "you can create up to",
+  "you are not an active member",
+  "you can only change your own"
 ];
 
 export function friendlyActionError(

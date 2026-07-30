@@ -72,13 +72,14 @@ async function deliverOne(subscription: PushSubscriptionRow, payload: PushPayloa
   }
 }
 
-async function preferenceMap(userIds: string[], type: NotificationType) {
+async function preferenceMap(leagueId: string, userIds: string[], type: NotificationType) {
   if (!userIds.length) return new Map<string, boolean>();
   const supabaseAdmin = createSupabaseAdmin();
   const preferenceColumn = type === "announcement" ? "announcements" : type;
   const { data, error } = await supabaseAdmin
     .from("notification_preferences")
     .select(`user_id, ${preferenceColumn}`)
+    .eq("league_id", leagueId)
     .in("user_id", userIds);
   if (error) throw new Error("Could not load notification preferences.");
 
@@ -90,15 +91,24 @@ async function preferenceMap(userIds: string[], type: NotificationType) {
   return result;
 }
 
-export async function countPushRecipients(type: NotificationType) {
+export async function countPushRecipients(leagueId: string, type: NotificationType) {
   const supabaseAdmin = createSupabaseAdmin();
+  const { data: memberRows, error: memberError } = await supabaseAdmin
+    .from("league_memberships")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("status", "active");
+  if (memberError) throw new Error("Could not load league members.");
+  const memberIds = (memberRows || []).map(row => row.user_id);
+  if (!memberIds.length) return { users: 0, devices: 0 };
   const { data, error } = await supabaseAdmin
     .from("push_subscriptions")
-    .select("user_id");
+    .select("user_id")
+    .in("user_id", memberIds);
   if (error) throw new Error("Could not load push subscriptions.");
 
   const subscriptions = data || [];
-  const preferences = await preferenceMap([...new Set(subscriptions.map(item => item.user_id))], type);
+  const preferences = await preferenceMap(leagueId, [...new Set(subscriptions.map(item => item.user_id))], type);
   const enabled = subscriptions.filter(item => preferences.get(item.user_id) !== false);
   return {
     users: new Set(enabled.map(item => item.user_id)).size,
@@ -124,6 +134,7 @@ async function dispatchSummary(dispatchId: string): Promise<PushSendResult> {
 }
 
 export async function sendTrackedPush(args: {
+  leagueId: string;
   type: NotificationType;
   payload: PushPayload;
   gameId?: string;
@@ -137,6 +148,7 @@ export async function sendTrackedPush(args: {
   const { data: dispatch, error: dispatchError } = await supabaseAdmin
     .from("notification_dispatches")
     .insert({
+      league_id: args.leagueId,
       notification_type: args.type,
       game_id: args.gameId || null,
       title: payload.title,
@@ -155,6 +167,7 @@ export async function sendTrackedPush(args: {
       const { data: existing } = await supabaseAdmin
         .from("notification_dispatches")
         .select("id")
+        .eq("league_id", args.leagueId)
         .eq("dedupe_key", args.dedupeKey)
         .single();
       if (existing) return dispatchSummary(existing.id);
@@ -162,20 +175,29 @@ export async function sendTrackedPush(args: {
     throw new Error("Could not create the notification delivery record.");
   }
 
-  let subscriptionsQuery = supabaseAdmin
-    .from("push_subscriptions")
-    .select("id, user_id, endpoint, p256dh_key, auth_key");
-  if (args.targetUserIds) {
-    if (!args.targetUserIds.length) {
-      return { dispatchId: dispatch.id, total: 0, sent: 0, failed: 0, removed: 0 };
-    }
-    subscriptionsQuery = subscriptionsQuery.in("user_id", args.targetUserIds);
+  const { data: memberRows, error: memberError } = await supabaseAdmin
+    .from("league_memberships")
+    .select("user_id")
+    .eq("league_id", args.leagueId)
+    .eq("status", "active");
+  if (memberError) throw new Error("Could not load league notification recipients.");
+  const activeMemberIds = new Set((memberRows || []).map(row => row.user_id));
+  const requestedUserIds = args.targetUserIds
+    ? args.targetUserIds.filter(userId => activeMemberIds.has(userId))
+    : [...activeMemberIds];
+  if (!requestedUserIds.length) {
+    return { dispatchId: dispatch.id, total: 0, sent: 0, failed: 0, removed: 0 };
   }
+
+  const subscriptionsQuery = supabaseAdmin
+    .from("push_subscriptions")
+    .select("id, user_id, endpoint, p256dh_key, auth_key")
+    .in("user_id", requestedUserIds);
 
   const { data: subscriptionData, error: subscriptionError } = await subscriptionsQuery;
   if (subscriptionError) throw new Error("Could not load push subscriptions.");
   const subscriptions = (subscriptionData || []) as PushSubscriptionRow[];
-  const preferences = await preferenceMap([...new Set(subscriptions.map(item => item.user_id))], args.type);
+  const preferences = await preferenceMap(args.leagueId, [...new Set(subscriptions.map(item => item.user_id))], args.type);
   const enabledSubscriptions = subscriptions.filter(item => preferences.get(item.user_id) !== false);
 
   if (!enabledSubscriptions.length) {
@@ -185,6 +207,7 @@ export async function sendTrackedPush(args: {
   const { data: deliveries, error: deliveryInsertError } = await supabaseAdmin
     .from("notification_deliveries")
     .insert(enabledSubscriptions.map(subscription => ({
+      league_id: args.leagueId,
       dispatch_id: dispatch.id,
       user_id: subscription.user_id,
       subscription_id: subscription.id
@@ -257,7 +280,7 @@ export async function retryFailedDispatch(dispatchId: string): Promise<PushSendR
   const supabaseAdmin = createSupabaseAdmin();
   const { data: dispatch, error: dispatchError } = await supabaseAdmin
     .from("notification_dispatches")
-    .select("id, notification_type, title, body, target_url, tag")
+    .select("id, league_id, notification_type, title, body, target_url, tag")
     .eq("id", dispatchId)
     .single();
   if (dispatchError || !dispatch) throw new Error("Notification dispatch not found.");
@@ -278,7 +301,7 @@ export async function retryFailedDispatch(dispatchId: string): Promise<PushSendR
   if (subscriptionError) throw new Error("Could not reload push subscriptions.");
   const subscriptions = (subscriptionData || []) as PushSubscriptionRow[];
   const subscriptionMap = new Map(subscriptions.map(subscription => [subscription.id, subscription]));
-  const preferences = await preferenceMap([...new Set(failedRows.map(row => row.user_id))], dispatch.notification_type as NotificationType);
+  const preferences = await preferenceMap(dispatch.league_id, [...new Set(failedRows.map(row => row.user_id))], dispatch.notification_type as NotificationType);
   const payload: PushPayload = { title: dispatch.title, body: dispatch.body, url: dispatch.target_url, tag: dispatch.tag || undefined };
   let sent = 0;
   let failed = 0;

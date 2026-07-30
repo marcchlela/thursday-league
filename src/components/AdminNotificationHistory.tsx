@@ -39,7 +39,7 @@ const TYPE_LABELS: Record<string, string> = {
   fantasy_deadline: "Fantasy deadline"
 };
 
-export function AdminNotificationHistory({ profiles, games }: { profiles: Profile[]; games: Game[] }) {
+export function AdminNotificationHistory({ leagueId, profiles, games }: { leagueId: string; profiles: Profile[]; games: Game[] }) {
   const [rows, setRows] = useState<DispatchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +53,7 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
     const { data, error: requestError } = await supabase
       .from("notification_dispatches")
       .select("id, notification_type, game_id, title, body, source, created_by, created_at, notification_deliveries(id, user_id, status, attempt_count, error_message)")
+      .eq("league_id", leagueId)
       .order("created_at", { ascending: false })
       .limit(100);
     if (requestError) {
@@ -62,7 +63,7 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
       setRows((data || []) as DispatchRow[]);
     }
     setLoading(false);
-  }, []);
+  }, [leagueId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -90,12 +91,12 @@ export function AdminNotificationHistory({ profiles, games }: { profiles: Profil
     await load();
   }
 
-  if (loading && !rows.length) return <div className="space-y-4"><AdminNotificationComposer games={games} onSent={load} /><LoadingState label="Loading notification delivery history" cards={3} /></div>;
-  if (error) return <div className="space-y-4"><AdminNotificationComposer games={games} onSent={load} /><ErrorState message={error} onRetry={load} /></div>;
+  if (loading && !rows.length) return <div className="space-y-4"><AdminNotificationComposer leagueId={leagueId} games={games} onSent={load} /><LoadingState label="Loading notification delivery history" cards={3} /></div>;
+  if (error) return <div className="space-y-4"><AdminNotificationComposer leagueId={leagueId} games={games} onSent={load} /><ErrorState message={error} onRetry={load} /></div>;
 
   return (
     <div className="space-y-4">
-      <AdminNotificationComposer games={games} onSent={load} />
+      <AdminNotificationComposer leagueId={leagueId} games={games} onSent={load} />
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><div className="flex items-center gap-3"><BellRing className="text-league-gold" /><h2 className="font-display text-3xl uppercase">Notification delivery</h2></div><p className="mt-1 text-sm text-chalk/55">The latest 100 sends, delivery totals, errors, and retryable failures.</p></div>

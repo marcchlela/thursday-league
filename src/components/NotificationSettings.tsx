@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BellOff, BellRing, Clock3, SlidersHorizontal } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { supabase } from "@/lib/supabase";
 import { friendlyActionError } from "@/lib/actionErrors";
 import {
@@ -44,6 +45,7 @@ const defaultPreferences: NotificationPreferences = {
 
 export function NotificationSettings() {
   const { user } = useAuthProfile();
+  const { league } = useLeagueContext();
   const [state, setState] = useState<PushDeviceState>(initialState);
   const [detecting, setDetecting] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -64,7 +66,8 @@ export function NotificationSettings() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !league) return;
+    const leagueId = league.id;
     let cancelled = false;
     async function loadPreferences() {
       setPreferencesLoading(true);
@@ -72,6 +75,7 @@ export function NotificationSettings() {
         .from("notification_preferences")
         .select("announcements, new_game, lineups_ready, final_results, fantasy_deadline, fantasy_reminder_minutes")
         .eq("user_id", user!.id)
+        .eq("league_id", leagueId)
         .maybeSingle();
       if (!cancelled) {
         setPreferences(data ? data as NotificationPreferences : defaultPreferences);
@@ -80,16 +84,17 @@ export function NotificationSettings() {
     }
     void loadPreferences();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [league, user]);
 
   async function savePreferences() {
-    if (!user) return;
+    if (!user || !league) return;
     setPreferencesSaving(true);
     setMessage(null);
     const { error } = await supabase.from("notification_preferences").upsert({
       user_id: user.id,
+      league_id: league.id,
       ...preferences
-    }, { onConflict: "user_id" });
+    }, { onConflict: "league_id,user_id" });
     setMessage(error ? friendlyActionError(error, "Notification preferences could not be saved.") : "Notification preferences saved.");
     setPreferencesSaving(false);
   }
@@ -185,7 +190,7 @@ export function NotificationSettings() {
       <div className="border-t border-league-gold/12 p-4 sm:p-5">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-league-gold/20 bg-league-gold/[.055] text-league-gold"><SlidersHorizontal size={18} /></span>
-          <div><h3 className="font-display text-2xl uppercase">What should we send?</h3><p className="text-xs text-chalk/38">These choices apply across all your subscribed devices.</p></div>
+          <div><h3 className="font-display text-2xl uppercase">What should we send?</h3><p className="text-xs text-chalk/38">These choices apply to {league?.name || "this league"} across your subscribed devices.</p></div>
         </div>
 
         {preferencesLoading ? (
@@ -193,7 +198,7 @@ export function NotificationSettings() {
         ) : (
           <>
             <div className="mt-4 grid gap-2 md:grid-cols-2">
-              <PreferenceToggle label="League announcements" detail="Custom updates sent by the admin" checked={preferences.announcements} onChange={value => setPreference("announcements", value)} />
+              <PreferenceToggle label="App announcements" detail="Important updates sent by Thursday League" checked={preferences.announcements} onChange={value => setPreference("announcements", value)} />
               <PreferenceToggle label="New games" detail="When a game is scheduled" checked={preferences.new_game} onChange={value => setPreference("new_game", value)} />
               <PreferenceToggle label="Confirmed lineups" detail="When lineups and fantasy open" checked={preferences.lineups_ready} onChange={value => setPreference("lineups_ready", value)} />
               <PreferenceToggle label="Final results" detail="Score and fantasy result updates" checked={preferences.final_results} onChange={value => setPreference("final_results", value)} />

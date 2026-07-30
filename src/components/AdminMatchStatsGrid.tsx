@@ -218,7 +218,7 @@ function TeamStatTable({
                         onFocus={event => event.currentTarget.select()}
                         data-stat-cell={`${rowIndex}-${columnIndex}`}
                         aria-label={`${column.title} for ${playerName(data.players, lineup.player_id)}`}
-                        className="h-9 w-11 rounded-lg border border-chalk/[.065] bg-black/25 px-1 text-center font-mono text-sm text-chalk outline-none transition focus:border-league-gold/60 focus:bg-league-gold/[.055] focus:ring-1 focus:ring-league-gold/30 disabled:opacity-50"
+                        className="h-9 w-11 rounded-lg border border-league-gold/12 bg-black/25 px-1 text-center font-mono text-sm text-chalk outline-none transition focus:border-league-gold/60 focus:bg-league-gold/[.055] focus:ring-1 focus:ring-league-gold/30 disabled:opacity-50"
                       />
                     </td>
                   ))}

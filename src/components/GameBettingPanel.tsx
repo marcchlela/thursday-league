@@ -70,7 +70,7 @@ export function GameBettingPanel({ game, data }: { game: Game; data: LeagueData 
     if (!Number.isFinite(stakeCoins) || stakeCoins <= 0 || Math.round(stakeCoins * 100) !== stakeCoins * 100) return setToast({ message: "Enter a positive stake with up to two decimals.", tone: "warning" });
     if (stakeCoins > coinsFromUnits(balanceUnits)) return setToast({ message: "You do not have enough coins for that stake.", tone: "warning" });
     setPlacing(true);
-    const { error } = await supabase.rpc("place_bet", {
+    const { error } = await supabase.rpc("place_league_bet", {
       target_game_id: game.id,
       selected_outcome_ids: selectedOutcomeIds,
       stake_coins: stakeCoins,

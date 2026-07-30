@@ -1,52 +1,75 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./helpers";
+import { expectNoHorizontalOverflow, login } from "./helpers";
 
-test("admin wallet adjustment creates a visible audited correction", async ({ page }) => {
+test("league owners see the lightweight controls and confirmations", async ({ page }) => {
   await login(page);
   await page.goto("/admin", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Admin Control Room" })).toBeVisible();
 
-  await page.getByRole("tab", { name: "Betting" }).click();
-  await expect(page.getByRole("heading", { name: "Adjust wallet" })).toBeVisible();
-  await page.getByText("Adjust wallet", { exact: true }).click();
+  await expect(page.getByRole("tab", { name: "League" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Games" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Roster" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Seasons" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Audit" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Betting" })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Notifications" })).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
 
-  await page.getByLabel("User").selectOption({ label: "alex" });
-  await page.getByLabel("Adjustment").selectOption("credit");
-  await page.getByLabel("Amount in coins").fill("7.50");
-  await page.getByLabel("Mandatory reason").fill("E2E controlled wallet correction");
-  await page.getByRole("button", { name: "Review adjustment" }).click();
+  await page.getByRole("tab", { name: "League" }).click();
+  await expect(page.getByRole("heading", { name: "Options" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
+  await expect(page.getByLabel("League owner")).toBeVisible();
+  await expect(page.getByText("Only completion status is shown. Picks and bets stay private.")).toBeVisible();
 
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading", { name: "Add 7.5 coins?" })).toBeVisible();
-  await dialog.getByRole("button", { name: "Confirm adjustment" }).click();
-  const successToast = page.getByRole("status").filter({
-    hasText: /alex wallet adjusted\. New balance:/,
-  });
-  await expect(successToast).toBeVisible();
-  await expect(successToast.getByRole("button", { name: "Dismiss notification" })).toBeVisible();
+  await page.getByRole("button", { name: "Make admin" }).first().click();
+  const roleDialog = page.getByRole("dialog");
+  await expect(roleDialog.getByRole("heading", { name: "Promote this member to admin?" })).toBeVisible();
+  await roleDialog.getByRole("button", { name: "Cancel" }).click();
 
-  await page.getByRole("tab", { name: "Audit" }).click();
-  await expect(page.getByRole("heading", { name: "Wallet adjusted", exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/E2E controlled wallet correction/).first()).toBeVisible();
+  await page.getByRole("tab", { name: "Seasons" }).click();
+  await page.getByRole("button", { name: "Custom dates" }).click();
+  await expect(page.getByPlaceholder("Season name, e.g. 2026/27")).toBeFocused();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("the league owner can add a roster player and schedule a game", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin?section=roster", { waitUntil: "domcontentloaded" });
+
+  await page.getByPlaceholder("Player name").fill("E2E Permission Player");
+  await page.getByRole("button", { name: "Add player" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Player added." })).toBeVisible();
+  await expect(page.getByText("E2E Permission Player", { exact: true })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Games" }).click();
+  await page.locator('input[type="datetime-local"]').first().fill("2040-01-10T20:00");
+  await page.getByRole("button", { name: "Create game" }).click();
+  await expect(page.locator('[role="status"], [role="alert"]').filter({ hasText: "Game created" })).toBeVisible();
 });
 
 test("unsaved match statistics block accidental admin navigation", async ({ page }) => {
   await login(page);
   await page.goto("/admin", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Match statistics" }).first()).toBeVisible();
+  const lineupReadyGame = page.getByRole("button", { name: /Lineup ready/ }).first();
+  const matchStatistics = page.getByRole("heading", { name: "Match statistics" }).first();
+  await expect(lineupReadyGame).toBeVisible();
+  await expect(async () => {
+    if (!(await matchStatistics.isVisible())) await lineupReadyGame.click();
+    await expect(matchStatistics).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
 
   const goalsInput = page.getByLabel(/Goals for /).first();
   await goalsInput.fill("9");
   await expect(page.getByText("Unsaved changes", { exact: true }).first()).toBeVisible();
 
-  await page.getByRole("tab", { name: "Betting" }).click();
+  await page.getByRole("tab", { name: "Roster" }).click();
   const leaveDialog = page.getByRole("dialog");
   await expect(leaveDialog.getByRole("heading", { name: "Leave without saving statistics?" })).toBeVisible();
   await leaveDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("heading", { name: "Match statistics" }).first()).toBeVisible();
   await expect(goalsInput).toHaveValue("9");
 
-  await page.getByRole("tab", { name: "Betting" }).click();
+  await page.getByRole("tab", { name: "Roster" }).click();
   await leaveDialog.getByRole("button", { name: "Leave without saving" }).click();
-  await expect(page.getByRole("heading", { name: "Betting control" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Roster", exact: true })).toBeVisible();
 });

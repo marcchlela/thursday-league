@@ -4,22 +4,28 @@
 
 begin;
 
+-- Seed writes intentionally bypass member/admin triggers in the disposable
+-- local database only.
+select set_config('request.jwt.claim.role', 'service_role', true);
+
 -- Keep one previous season so seasonal and all-time views can both be exercised.
-insert into public.seasons(id, name, format, start_date, end_date)
+insert into public.seasons(id, league_id, name, format, start_date, end_date)
 values (
   '10000000-0000-4000-8000-000000000002',
+  '00000000-0000-4000-8000-000000000001',
   (extract(year from current_date)::integer - 1)::text,
   'yearly',
   make_date(extract(year from current_date)::integer - 1, 1, 1),
   make_date(extract(year from current_date)::integer - 1, 12, 31)
 )
-on conflict (format, start_date, end_date) do nothing;
+on conflict (league_id, format, start_date, end_date) do nothing;
 
 update public.league_settings
 set current_season_id = (
   select id
   from public.seasons
-  where format = 'yearly'
+where format = 'yearly'
+    and league_id = '00000000-0000-4000-8000-000000000001'
     and current_date between start_date and end_date
   order by start_date desc
   limit 1
@@ -112,6 +118,39 @@ from (values
 update public.profiles
 set is_admin = (id = '20000000-0000-4000-8000-000000000001')
 where id::text like '20000000-0000-4000-8000-%';
+
+insert into public.app_roles(user_id, role)
+values ('20000000-0000-4000-8000-000000000001', 'platform_admin')
+on conflict do nothing;
+
+insert into public.league_memberships(league_id, user_id, role, status)
+select
+  '00000000-0000-4000-8000-000000000001',
+  profile.id,
+  case
+    when profile.id = '20000000-0000-4000-8000-000000000001' then 'owner'
+    else 'member'
+  end,
+  'active'
+from public.profiles profile
+where profile.id::text like '20000000-0000-4000-8000-%'
+on conflict (league_id, user_id) do update
+set role = excluded.role, status = 'active', ended_at = null;
+
+update public.profiles
+set last_active_league_id = '00000000-0000-4000-8000-000000000001'
+where id::text like '20000000-0000-4000-8000-%';
+
+update public.leagues
+set created_by = '20000000-0000-4000-8000-000000000001'
+where id = '00000000-0000-4000-8000-000000000001';
+
+select set_config(
+  'request.jwt.claim.sub',
+  '20000000-0000-4000-8000-000000000001',
+  true
+);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 
 update public.notification_preferences
 set fantasy_reminder_minutes = case
@@ -551,7 +590,9 @@ begin
   select * into target_game from public.games where id = target_game_id;
   select * into target_wallet
   from public.betting_wallets
-  where user_id = target_user_id and season_id = target_game.season_id
+  where league_id = target_game.league_id
+    and user_id = target_user_id
+    and season_id = target_game.season_id
   for update;
 
   foreach selected_outcome_id in array selected_outcome_ids
@@ -563,12 +604,16 @@ begin
       outcome.fair_probability
     into target_outcome
     from public.betting_outcomes outcome
-    where outcome.id = selected_outcome_id;
+    where outcome.league_id = target_game.league_id
+      and outcome.id = selected_outcome_id;
     outcome_count := outcome_count + 1;
     product_odds := product_odds * target_outcome.offered_odds;
   end loop;
 
-  select builder_margin into builder_margin_value from public.betting_settings where id = 1;
+  select builder_margin
+  into builder_margin_value
+  from public.betting_settings
+  where league_id = target_game.league_id;
   accepted_total_odds := round(
     case
       when outcome_count = 1 then product_odds
@@ -578,6 +623,7 @@ begin
   );
 
   insert into public.bet_slips(
+    league_id,
     user_id,
     wallet_id,
     game_id,
@@ -591,6 +637,7 @@ begin
     placed_at
   )
   values (
+    target_game.league_id,
     target_user_id,
     target_wallet.id,
     target_game_id,
@@ -614,8 +661,10 @@ begin
       outcome.fair_probability
     into target_outcome
     from public.betting_outcomes outcome
-    where outcome.id = selected_outcome_id;
+    where outcome.league_id = target_game.league_id
+      and outcome.id = selected_outcome_id;
     insert into public.bet_legs(
+      league_id,
       slip_id,
       market_id,
       outcome_id,
@@ -623,6 +672,7 @@ begin
       fair_probability
     )
     values (
+      target_game.league_id,
       created_slip_id,
       target_outcome.market_id,
       target_outcome.id,
@@ -635,9 +685,11 @@ begin
   set balance_units = balance_units - target_stake_units,
       updated_at = now()
   where id = target_wallet.id
+    and league_id = target_game.league_id
   returning balance_units into balance_after;
 
   insert into public.coin_ledger(
+    league_id,
     wallet_id,
     slip_id,
     entry_type,
@@ -648,6 +700,7 @@ begin
     created_at
   )
   values (
+    target_game.league_id,
     target_wallet.id,
     created_slip_id,
     'stake',

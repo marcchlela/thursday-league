@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/LeagueLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { GameMatchHub } from "@/components/GameMatchHub";
 import { TeamCrest } from "@/components/TeamCrest";

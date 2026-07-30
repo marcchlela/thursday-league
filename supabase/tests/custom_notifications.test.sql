@@ -3,6 +3,9 @@ begin;
 insert into auth.users(id, email, raw_user_meta_data)
 values ('60000000-0000-4000-8000-000000000001', 'announcement-admin@example.test', '{"username":"announcement_admin"}');
 
+insert into public.league_memberships(league_id, user_id, role)
+values ('00000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'admin');
+
 do $$
 begin
   if not coalesce((

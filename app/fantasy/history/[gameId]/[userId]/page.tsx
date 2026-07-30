@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/LeagueLink";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, Crown, X } from "lucide-react";

@@ -37,11 +37,14 @@ Normal users cannot:
 - Access the admin page by manually typing `/admin`.
 - Create, edit, or delete games, players, lineups, events, or POTM.
 
-### Admin
+### League Owner and Admin
 
-The first account created becomes admin automatically through the database trigger.
+Any user can create a league and becomes that league's owner. A league has one
+active owner, who can promote members to admin, demote admins, transfer
+ownership, and archive the league. Admins act as co-owners for day-to-day league
+operations, but cannot change ownership or another admin's role.
 
-Admins can:
+Owners and admins can:
 
 - Do everything normal users can do.
 - Access the Admin page.
@@ -71,17 +74,10 @@ Users never see or enter an email.
 - Username
 - Password
 - Confirm password
-- League invite code
 
-### Invite Code
+### League access
 
-The app validates the invite code in a rate-limited server route:
-
-```env
-LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
-```
-
-The browser never receives the configured value. The server verifies the submitted code, applies an IP-based attempt limit, and uses the server-only Supabase service role to create the account. Direct public signup must be disabled in Supabase Auth so the server route cannot be bypassed.
+Account creation is server-side and rate-limited. After signup, a user can create a league, request access using its generated `TL-XXXX-XXXX` code, or accept a hashed single-use invitation link. Code requests require league-admin approval; accepted invitation links activate membership immediately.
 
 ### Supabase Auth Setting
 
@@ -934,7 +930,6 @@ Required:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
-LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
 NEXT_PUBLIC_APP_URL=https://app.example.com
 ```
 
@@ -957,7 +952,6 @@ npm install
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
-LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
@@ -983,7 +977,7 @@ npm run dev
 
 7. Create the first account.
 
-The first account becomes admin.
+A league creator becomes that league's owner.
 
 ## 26. Deployment
 

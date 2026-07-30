@@ -5,6 +5,11 @@ insert into auth.users(id, email, raw_user_meta_data) values
   ('70000000-0000-4000-8000-000000000002', 'bettor-one@example.test', '{"username":"bettor_one"}'),
   ('70000000-0000-4000-8000-000000000003', 'bettor-two@example.test', '{"username":"bettor_two"}');
 
+insert into public.league_memberships(league_id, user_id, role) values
+  ('00000000-0000-4000-8000-000000000001', '70000000-0000-4000-8000-000000000001', 'admin'),
+  ('00000000-0000-4000-8000-000000000001', '70000000-0000-4000-8000-000000000002', 'member'),
+  ('00000000-0000-4000-8000-000000000001', '70000000-0000-4000-8000-000000000003', 'member');
+
 insert into public.players(id, name, default_position) values
   ('71000000-0000-4000-8000-000000000001', 'Cashout Player 1', 'goalkeeper'),
   ('71000000-0000-4000-8000-000000000002', 'Cashout Player 2', 'outfield'),
@@ -93,6 +98,7 @@ begin
 end;
 $$;
 
+select set_config('request.jwt.claim.role', 'service_role', true);
 insert into public.game_result_versions(id, game_id, version_number, score_a, score_b, own_goal_count)
 values ('77000000-0000-4000-8000-000000000001', '72000000-0000-4000-8000-000000000001', 1, 1, 0, 0);
 select public.settle_game_bets('72000000-0000-4000-8000-000000000001', '77000000-0000-4000-8000-000000000001');

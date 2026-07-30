@@ -5,18 +5,18 @@ import { supabase } from "@/lib/supabase";
 import { currentSeason } from "@/lib/utils";
 import { LeagueSettings, Season } from "@/lib/types";
 
-export function useCoinBalance(userId?: string) {
+export function useCoinBalance(userId?: string, leagueId?: string) {
   const [balanceUnits, setBalanceUnits] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    if (!userId) {
+    if (!userId || !leagueId) {
       setBalanceUnits(null);
       return;
     }
 
     const [seasonsResult, settingsResult] = await Promise.all([
-      supabase.from("seasons").select("*").order("start_date", { ascending: false }),
-      supabase.from("league_settings").select("*").eq("id", 1).maybeSingle()
+      supabase.from("seasons").select("*").eq("league_id", leagueId).order("start_date", { ascending: false }),
+      supabase.from("league_settings").select("*").eq("league_id", leagueId).maybeSingle()
     ]);
 
     if (seasonsResult.error || settingsResult.error) {
@@ -38,23 +38,24 @@ export function useCoinBalance(userId?: string) {
       .from("betting_wallets")
       .select("balance_units")
       .eq("user_id", userId)
+      .eq("league_id", leagueId)
       .eq("season_id", season.id)
       .maybeSingle();
 
     setBalanceUnits(error ? null : Number(data?.balance_units ?? 0));
-  }, [userId]);
+  }, [leagueId, userId]);
 
   useEffect(() => {
     void load();
-    if (!userId) return;
+    if (!userId || !leagueId) return;
 
     const channel = supabase
-      .channel(`app-balance-${userId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "betting_wallets", filter: `user_id=eq.${userId}` }, load)
+      .channel(`app-balance-${leagueId}-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "betting_wallets", filter: `league_id=eq.${leagueId}` }, load)
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [load, userId]);
+  }, [leagueId, load, userId]);
 
   return balanceUnits;
 }

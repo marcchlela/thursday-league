@@ -27,7 +27,7 @@ function friendlyDataError(message: string) {
   return friendlyActionError({ message }, "League data could not be loaded. Check your connection and try again.");
 }
 
-function useLeagueDataStore() {
+function useLeagueDataStore(leagueId: string) {
   const [data, setData] = useState<LeagueData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,16 +36,16 @@ function useLeagueDataStore() {
   const load = useCallback(async () => {
     setError(null);
     const [profiles, players, games, lineups, events, playerStats, squads, picks, seasons, leagueSettings] = await Promise.all([
-      supabase.from("profiles").select("*").order("username"),
-      supabase.from("players").select("*").order("name"),
-      supabase.from("games").select("*").order("game_date", { ascending: false }),
-      supabase.from("game_lineups").select("*"),
-      supabase.from("events").select("*").order("created_at", { ascending: true }),
-      supabase.from("game_player_stats").select("*").order("created_at", { ascending: true }),
-      supabase.from("fantasy_squads").select("*"),
-      supabase.from("fantasy_picks").select("*").order("slot_index", { ascending: true }),
-      supabase.from("seasons").select("*").order("start_date", { ascending: false }),
-      supabase.from("league_settings").select("*").eq("id", 1).maybeSingle()
+      supabase.rpc("get_league_member_directory", { target_league_id: leagueId }),
+      supabase.from("players").select("*").eq("league_id", leagueId).order("name"),
+      supabase.from("games").select("*").eq("league_id", leagueId).order("game_date", { ascending: false }),
+      supabase.from("game_lineups").select("*").eq("league_id", leagueId),
+      supabase.from("events").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
+      supabase.from("game_player_stats").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
+      supabase.from("fantasy_squads").select("*").eq("league_id", leagueId),
+      supabase.from("fantasy_picks").select("*").eq("league_id", leagueId).order("slot_index", { ascending: true }),
+      supabase.from("seasons").select("*").eq("league_id", leagueId).order("start_date", { ascending: false }),
+      supabase.from("league_settings").select("*").eq("league_id", leagueId).maybeSingle()
     ]);
 
     const firstError = [profiles, players, games, lineups, events, playerStats, squads, picks, seasons, leagueSettings].find(r => r.error)?.error;
@@ -56,7 +56,10 @@ function useLeagueDataStore() {
     }
 
     setData({
-      profiles: (profiles.data || []) as Profile[],
+      profiles: (profiles.data || []).map((profile: { id: string; username: string; avatar_path: string | null }) => ({
+        ...profile,
+        is_admin: false
+      })) as Profile[],
       players: (players.data || []) as Player[],
       games: (games.data || []) as Game[],
       lineups: (lineups.data || []) as GameLineup[],
@@ -68,9 +71,11 @@ function useLeagueDataStore() {
       leagueSettings: (leagueSettings.data || null) as LeagueSettings | null
     });
     setLoading(false);
-  }, []);
+  }, [leagueId]);
 
   useEffect(() => {
+    setData(emptyData);
+    setLoading(true);
     load();
     const scheduleLoad = () => {
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
@@ -80,24 +85,23 @@ function useLeagueDataStore() {
       }, 150);
     };
     const channel = supabase
-      .channel("league-data")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "players" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "games" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "game_lineups" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "game_player_stats" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_squads" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_picks" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "seasons" }, scheduleLoad)
-      .on("postgres_changes", { event: "*", schema: "public", table: "league_settings" }, scheduleLoad)
+      .channel(`league-data-${leagueId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "players", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "games", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_lineups", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "events", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_player_stats", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_squads", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fantasy_picks", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "seasons", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "league_settings", filter: `league_id=eq.${leagueId}` }, scheduleLoad)
       .subscribe();
 
     return () => {
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
       supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, [leagueId, load]);
 
   return useMemo(() => ({ data, loading, error, reload: load }), [data, loading, error, load]);
 }
@@ -105,8 +109,8 @@ function useLeagueDataStore() {
 type LeagueDataState = ReturnType<typeof useLeagueDataStore>;
 const LeagueDataContext = createContext<LeagueDataState | null>(null);
 
-export function LeagueDataProvider({ children }: { children: ReactNode }) {
-  const value = useLeagueDataStore();
+export function LeagueDataProvider({ children, leagueId }: { children: ReactNode; leagueId: string }) {
+  const value = useLeagueDataStore(leagueId);
   return createElement(LeagueDataContext.Provider, { value }, children);
 }
 

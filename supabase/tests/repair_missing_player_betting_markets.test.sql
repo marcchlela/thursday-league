@@ -8,6 +8,10 @@ update public.profiles
 set is_admin = true
 where id = 'a0000000-0000-4000-8000-000000000001';
 
+insert into public.league_memberships(league_id, user_id, role) values
+  ('00000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001', 'admin'),
+  ('00000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002', 'member');
+
 insert into public.players(
   id,
   name,

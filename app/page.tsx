@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/LeagueLink";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -21,6 +21,7 @@ import { ErrorState } from "@/components/ui";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useHomeBetStatus } from "@/hooks/useHomeBetStatus";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { calculateScore, careerStats } from "@/lib/scoring";
 import { Game, LeagueData } from "@/lib/types";
 import { cn, gameLineupIsReady } from "@/lib/utils";
@@ -64,6 +65,7 @@ function lineupIsReady(data: LeagueData, gameId: string) {
 
 export default function HomePage() {
   const { data, loading, error, reload } = useLeagueData();
+  const { league } = useLeagueContext();
   const { user } = useAuthProfile();
   const nextGame = nextPlayableGame(data.games);
   const hasPlacedBet = useHomeBetStatus(user?.id, nextGame?.id);
@@ -85,8 +87,8 @@ export default function HomePage() {
 
       {nextGame ? <NextMatch game={nextGame} lineupsReady={lineupsReady} /> : <NoUpcomingMatch />}
 
-      <section aria-label="Match actions" className="grid grid-cols-2 gap-3 md:gap-4">
-        <HomeAction
+      {league?.fantasy_enabled || league?.betting_enabled ? <section aria-label="Match actions" className={cn("grid gap-3 md:gap-4", league.fantasy_enabled && league.betting_enabled ? "grid-cols-2" : "grid-cols-1")}>
+        {league.fantasy_enabled ? <HomeAction
           href="/fantasy?tab=set"
           title="Set fantasy team"
           description="Pick your five"
@@ -94,8 +96,8 @@ export default function HomePage() {
           completed={fantasyComplete}
           completedLabel="Team set"
           tone="green"
-        />
-        <HomeAction
+        /> : null}
+        {league.betting_enabled ? <HomeAction
           href={nextGame ? `/betting?tab=markets&game=${nextGame.id}` : "/betting?tab=markets"}
           title="Place your bet"
           description="Make your picks"
@@ -103,8 +105,8 @@ export default function HomePage() {
           completed={hasPlacedBet}
           completedLabel="Bet placed"
           tone="yellow"
-        />
-      </section>
+        /> : null}
+      </section> : null}
 
       <RecentMatch game={recentFinal} data={data} />
 

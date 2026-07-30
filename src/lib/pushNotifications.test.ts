@@ -46,8 +46,8 @@ describe("sendTrackedPush", () => {
       }
       if (table === "push_subscriptions") {
         return {
-          select: () =>
-            Promise.resolve({
+          select: () => ({
+            in: () => Promise.resolve({
               data: [
                 {
                   id: "subscription-1",
@@ -59,12 +59,27 @@ describe("sendTrackedPush", () => {
               ],
               error: null
             })
+          })
+        };
+      }
+      if (table === "league_memberships") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: async () => ({
+                data: [{ user_id: "user-1" }],
+                error: null
+              })
+            })
+          })
         };
       }
       if (table === "notification_preferences") {
         return {
           select: () => ({
-            in: async () => ({ data: [], error: null })
+            eq: () => ({
+              in: async () => ({ data: [], error: null })
+            })
           })
         };
       }
@@ -114,6 +129,7 @@ describe("sendTrackedPush", () => {
   it("records configuration failures as retryable delivery failures", async () => {
     await expect(
       sendTrackedPush({
+        leagueId: "league-1",
         type: "lineups_ready",
         payload: {
           title: "Lineups ready",

@@ -21,14 +21,14 @@ type RequestBody = {
   event?: unknown;
 };
 
-function gameTime(value: string) {
+function gameTime(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("en-LB", {
     weekday: "long",
     day: "numeric",
     month: "short",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: "Asia/Beirut"
+    timeZone
   }).format(new Date(value));
 }
 
@@ -39,15 +39,17 @@ function notificationFor(
     game_date: string;
     status: string;
   },
+  league: { slug: string; timezone: string },
   score?: { A: number; B: number }
 ): PushPayload | null {
-  const formattedTime = gameTime(game.game_date);
+  const formattedTime = gameTime(game.game_date, league.timezone);
+  const leagueRoot = `/l/${league.slug}`;
 
   if (event === "game_scheduled" && game.status === "upcoming") {
     return {
       title: "New game",
       body: `${formattedTime}. Tap to view the game details.`,
-      url: `/games/${game.id}`,
+      url: `${leagueRoot}/games/${game.id}`,
       tag: `game-scheduled-${game.id}`,
       ttl: 86400
     };
@@ -60,7 +62,7 @@ function notificationFor(
     return {
       title: "Lineups ready",
       body: `${formattedTime}. Tap to see the lineups and create your fantasy team.`,
-      url: "/fantasy?tab=set",
+      url: `${leagueRoot}/fantasy?tab=set`,
       tag: `lineups-ready-${game.id}`,
       ttl: 21600
     };
@@ -70,7 +72,7 @@ function notificationFor(
     return {
       title: "Final result",
       body: `Team A ${score.A}-${score.B} Team B. Tap to see game and fantasy details.`,
-      url: `/games/${game.id}`,
+      url: `${leagueRoot}/games/${game.id}`,
       tag: `result-finalized-${game.id}`,
       ttl: 86400
     };
@@ -113,25 +115,15 @@ export async function POST(request: Request) {
   const { data: profile, error: profileError } =
     await supabaseAdmin
       .from("profiles")
-      .select("is_admin, account_status")
+      .select("account_status")
       .eq("id", user.id)
       .single();
 
-  if (profileError || !profile?.is_admin || profile.account_status !== "active") {
+  if (profileError || profile?.account_status !== "active") {
     return NextResponse.json(
       { error: "Admin access required." },
       { status: 403 }
     );
-  }
-
-  const limit = await serverRateLimitDecision({
-    scope: "push-admin-event",
-    identifier: user.id,
-    maximumAttempts: 10,
-    windowSeconds: 60
-  });
-  if (!limit.allowed) {
-    return NextResponse.json({ error: limit.error }, { status: limit.status });
   }
 
   let body: RequestBody;
@@ -166,7 +158,7 @@ export async function POST(request: Request) {
 
   const { data: game, error: gameError } = await supabaseAdmin
     .from("games")
-    .select("id, game_date, status, finalized_at")
+    .select("id, league_id, game_date, status, finalized_at")
     .eq("id", gameId)
     .single();
 
@@ -175,6 +167,37 @@ export async function POST(request: Request) {
       { error: "Game not found." },
       { status: 404 }
     );
+  }
+
+  const [{ data: membership }, { data: league }] = await Promise.all([
+    supabaseAdmin
+      .from("league_memberships")
+      .select("role, status")
+      .eq("league_id", game.league_id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("leagues")
+      .select("slug, timezone")
+      .eq("id", game.league_id)
+      .single()
+  ]);
+  if (
+    membership?.status !== "active"
+    || !["owner", "admin"].includes(membership.role)
+    || !league
+  ) {
+    return NextResponse.json({ error: "League admin access required." }, { status: 403 });
+  }
+
+  const limit = await serverRateLimitDecision({
+    scope: `push-league-event:${game.league_id}`,
+    identifier: user.id,
+    maximumAttempts: 10,
+    windowSeconds: 60
+  });
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limit.error }, { status: limit.status });
   }
 
   let score: { A: number; B: number } | undefined;
@@ -199,7 +222,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const payload = notificationFor(event, game, score);
+  const payload = notificationFor(event, game, league, score);
 
   if (!payload) {
     return NextResponse.json(
@@ -212,6 +235,7 @@ export async function POST(request: Request) {
   try {
     const finalVersion = event === "result_finalized" ? game.finalized_at || "final" : "first";
     result = await sendTrackedPush({
+      leagueId: game.league_id,
       type: notificationType(event),
       payload,
       gameId: game.id,
