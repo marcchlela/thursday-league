@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { sendTrackedPush } from "@/lib/pushNotifications";
+import { retryFailedCustomDispatches, sendTrackedPush } from "@/lib/pushNotifications";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { fantasyDeadlineTarget } from "@/lib/leagueNotifications";
+import { isMatchdayMorning } from "@/lib/scheduledNotifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,17 +14,6 @@ type ReminderPreference = {
   fantasy_reminder_minutes: number;
 };
 
-function gameTime(value: string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-LB", {
-    weekday: "long",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone
-  }).format(new Date(value));
-}
-
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -31,12 +22,12 @@ export async function GET(request: Request) {
 
   const supabaseAdmin = createSupabaseAdmin();
   const now = new Date();
-  const latestGameTime = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const latestGameTime = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
   const [gamesResult, preferencesResult, leaguesResult] = await Promise.all([
     supabaseAdmin
       .from("games")
-      .select("id, league_id, game_date")
-      .eq("status", "draft")
+      .select("id, league_id, game_date, status")
+      .in("status", ["upcoming", "draft"])
       .gt("game_date", now.toISOString())
       .lte("game_date", latestGameTime),
     supabaseAdmin
@@ -45,7 +36,7 @@ export async function GET(request: Request) {
       .eq("fantasy_deadline", true),
     supabaseAdmin
       .from("leagues")
-      .select("id, slug, timezone, fantasy_enabled")
+      .select("id, name, slug, timezone, fantasy_enabled")
       .eq("status", "active")
   ]);
 
@@ -55,13 +46,40 @@ export async function GET(request: Request) {
 
   const preferences = (preferencesResult.data || []) as ReminderPreference[];
   const leagues = new Map((leaguesResult.data || []).map(league => [league.id, league]));
-  const results = [];
+  const fantasyResults = [];
+  const matchdayResults = [];
 
   for (const game of gamesResult.data || []) {
     const league = leagues.get(game.league_id);
-    if (!league?.fantasy_enabled) continue;
+    if (!league) continue;
+    const gameTime = new Date(game.game_date);
+    const gameTimeMs = gameTime.getTime();
+
+    if (isMatchdayMorning(now, gameTime, league.timezone || "UTC")) {
+      try {
+        const result = await sendTrackedPush({
+          leagueId: game.league_id,
+          type: "matchday_reminder",
+          gameId: game.id,
+          source: "scheduled",
+          dedupeKey: `matchday_reminder:${game.id}`,
+          payload: {
+            title: "It's matchday",
+            body: `${league.name} plays today. Tap to see kickoff in your local time.`,
+            url: `/l/${league.slug}/games/${game.id}`,
+            tag: `matchday-${game.id}`,
+            ttl: Math.max(Math.floor((gameTimeMs - now.getTime()) / 1000), 60)
+          }
+        });
+        matchdayResults.push({ gameId: game.id, ...result });
+      } catch (error) {
+        console.error("Matchday reminder delivery failed", { gameId: game.id, error });
+        matchdayResults.push({ gameId: game.id, error: "Reminder delivery failed." });
+      }
+    }
+
+    if (!league.fantasy_enabled || game.status !== "draft") continue;
     const leaguePreferences = preferences.filter(preference => preference.league_id === game.league_id);
-    const gameTimeMs = new Date(game.game_date).getTime();
     const { data: squads, error: squadsError } = await supabaseAdmin
       .from("fantasy_squads")
       .select("user_id")
@@ -88,19 +106,32 @@ export async function GET(request: Request) {
           targetUserIds: userIds,
           payload: {
             title: "Fantasy deadline",
-            body: `Your team is not saved yet. Fantasy locks at ${gameTime(game.game_date, league.timezone)}. Tap to make your picks.`,
-            url: `/l/${league.slug}/fantasy?tab=set`,
+            body: "Your team is not saved yet. Tap to make your picks before kickoff.",
+            url: fantasyDeadlineTarget(league.slug),
             tag: `fantasy-deadline-${game.id}`,
             ttl: Math.max(Math.floor((gameTimeMs - now.getTime()) / 1000), 60)
           }
         });
-        results.push({ gameId: game.id, minutes, ...result });
+        fantasyResults.push({ gameId: game.id, minutes, ...result });
       } catch (error) {
         console.error("Fantasy reminder delivery failed", { gameId: game.id, minutes, error });
-        results.push({ gameId: game.id, minutes, error: "Reminder delivery failed." });
+        fantasyResults.push({ gameId: game.id, minutes, error: "Reminder delivery failed." });
       }
     }
   }
 
-  return NextResponse.json({ success: true, checkedAt: now.toISOString(), reminders: results });
+  let automaticRetries: Awaited<ReturnType<typeof retryFailedCustomDispatches>> = [];
+  try {
+    automaticRetries = await retryFailedCustomDispatches(now);
+  } catch (error) {
+    console.error("Automatic custom notification recovery failed", error);
+  }
+
+  return NextResponse.json({
+    success: true,
+    checkedAt: now.toISOString(),
+    matchdayReminders: matchdayResults,
+    fantasyReminders: fantasyResults,
+    automaticRetries
+  });
 }

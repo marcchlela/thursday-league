@@ -65,6 +65,7 @@ const safeDomainMessages = [
   "this league is not available",
   "this player is not eligible",
   "too many bets",
+  "transfer league ownership",
   "type delete",
   "use leave league",
   "wallet could not",

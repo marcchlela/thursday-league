@@ -10,6 +10,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { friendlyActionError } from "@/lib/actionErrors";
+import { describeLoadProblem, LoadProblem, withLoadTimeout } from "@/lib/loadProblems";
 import { supabase } from "@/lib/supabase";
 import type { League, LeagueMembership } from "@/lib/types";
 
@@ -19,7 +20,7 @@ type LeagueContextValue = {
   league: League | null;
   membership: LeagueMembership | null;
   loading: boolean;
-  error: string | null;
+  error: LoadProblem | null;
   isLeagueAdmin: boolean;
   isLeagueOwner: boolean;
   isPlatformAdmin: boolean;
@@ -70,29 +71,40 @@ export function LeagueContextProvider({
   const [leagues, setLeagues] = useState<League[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LoadProblem | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
-    const [membershipResult, roleResult] = await Promise.all([
-      supabase
-        .from("league_memberships")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .order("joined_at", { ascending: true }),
-      supabase
-        .from("app_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "platform_admin")
-        .maybeSingle()
-    ]);
+    let membershipResult;
+    let roleResult;
+    try {
+      [membershipResult, roleResult] = await withLoadTimeout(Promise.all([
+        supabase
+          .from("league_memberships")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .order("joined_at", { ascending: true }),
+        supabase
+          .from("app_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "platform_admin")
+          .maybeSingle()
+      ]));
+    } catch (loadError) {
+      setError(describeLoadProblem(loadError, "Your leagues could not be loaded. Try again."));
+      setLoading(false);
+      return;
+    }
 
     if (membershipResult.error) {
-      setError(friendlyActionError(
+      setError(describeLoadProblem(
         membershipResult.error,
-        "Your leagues could not be loaded. Check your connection and try again."
+        friendlyActionError(
+          membershipResult.error,
+          "Your leagues could not be loaded. Check your connection and try again."
+        )
       ));
       setLoading(false);
       return;
@@ -100,19 +112,31 @@ export function LeagueContextProvider({
 
     const membershipRows = (membershipResult.data || []) as LeagueMembership[];
     const leagueIds = membershipRows.map(item => item.league_id);
-    const leagueResult = leagueIds.length
-      ? await supabase
-          .from("leagues")
-          .select("*")
-          .in("id", leagueIds)
-          .eq("status", "active")
-          .order("name")
-      : { data: [], error: null };
+    let leagueResult: { data: unknown[] | null; error: { message: string } | null };
+    try {
+      leagueResult = leagueIds.length
+        ? await withLoadTimeout(Promise.resolve(
+            supabase
+              .from("leagues")
+              .select("*")
+              .in("id", leagueIds)
+              .eq("status", "active")
+              .order("name")
+          ))
+        : { data: [], error: null };
+    } catch (loadError) {
+      setError(describeLoadProblem(loadError, "Your leagues could not be loaded. Try again."));
+      setLoading(false);
+      return;
+    }
 
     if (leagueResult.error) {
-      setError(friendlyActionError(
+      setError(describeLoadProblem(
         leagueResult.error,
-        "Your leagues could not be loaded. Check your connection and try again."
+        friendlyActionError(
+          leagueResult.error,
+          "Your leagues could not be loaded. Check your connection and try again."
+        )
       ));
       setLoading(false);
       return;

@@ -9,6 +9,7 @@ import { allTimeLeaderboard, calculateScore, weeklyLeaderboard } from "@/lib/sco
 import { currentSeason, formatDateTime } from "@/lib/utils";
 import { FantasyPick, Game, LeagueData } from "@/lib/types";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { EmptyState, Pill, Select, TabList } from "./ui";
 import { PitchPicker } from "./PitchPicker";
 import { PlaySwitcher } from "./PlaySwitcher";
@@ -55,13 +56,14 @@ function activeFantasyGame(data: LeagueData) {
 
 function SetTeam({ data, reload }: { data: LeagueData; reload: () => void | Promise<void> }) {
   const { user } = useAuthProfile();
+  const { isLeagueAdmin } = useLeagueContext();
   const game = activeFantasyGame(data);
   const lineups = useMemo(() => game ? data.lineups.filter(lineup => lineup.game_id === game.id) : [], [data.lineups, game]);
   const extraPlayers = useMemo(() => game ? data.playerStats.filter(stat => stat.game_id === game.id).map(stat => ({ player_id: stat.player_id, role: stat.role })) : [], [data.playerStats, game]);
   const squad = useMemo(() => game && user ? data.squads.find(item => item.game_id === game.id && item.user_id === user.id) : undefined, [data.squads, game, user]);
   const initialPicks = useMemo(() => squad ? data.picks.filter(pick => pick.squad_id === squad.id) : [], [data.picks, squad]);
 
-  if (!game || !user) return <EmptyState title="No fantasy game open" text="Once the admin sets a lineup, your pitch picker appears here." />;
+  if (!game || !user) return <EmptyState title="No fantasy game open" text={isLeagueAdmin ? "Schedule a game and save both valid lineups from Admin → Games. The pitch picker will open automatically." : "Fantasy opens after a league admin schedules a game and confirms both lineups."} />;
 
   const locked = game.status === "live" || game.status === "final" || Date.now() >= new Date(game.game_date).getTime();
   const statusLabel = locked ? "Picks locked" : initialPicks.length === 5 ? "Picks saved" : "Picks open";
@@ -84,7 +86,7 @@ function SetTeam({ data, reload }: { data: LeagueData; reload: () => void | Prom
         />
       ) : null}
       <FantasyGamePreview game={game} data={data} statusLabel={statusLabel} locked={locked} />
-      {lineups.length ? <PitchPicker gameId={game.id} players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text="This game exists, but the available players have not been confirmed yet." />}
+      {lineups.length ? <PitchPicker gameId={game.id} players={data.players} lineups={lineups} extraPlayers={extraPlayers} initialPicks={initialPicks} locked={locked} onSave={savePicks} /> : <EmptyState title="Lineup pending" text={isLeagueAdmin ? "Save both valid lineups from Admin → Games to open fantasy selection." : "The game is scheduled, but a league admin has not confirmed the available players yet."} />}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import leagueLogo from "../../Thursday League logo (no bg).png";
 
 function friendlyAuthError(message: string) {
   if (message.toLowerCase().includes("email rate limit")) {
-    return "Supabase is trying to send confirmation emails too often. Turn off email confirmation in Supabase Authentication > Providers > Email for this username-only app, then wait a few minutes and try again.";
+    return "Too many account attempts were made. Wait a few minutes and try again.";
   }
 
   return friendlyActionError(message, "Login could not be completed. Check your details and try again.");
@@ -42,7 +42,7 @@ export function AuthForm() {
     if (cleaned.length < 2) return setMessage("Username needs at least 2 letters/numbers.");
     if (password.length < 8) return setMessage("Password needs at least 8 characters.");
     if (mode === "signup" && password !== confirmPassword) return setMessage("Passwords do not match.");
-    if (supabaseConfigError) return setMessage(supabaseConfigError);
+    if (supabaseConfigError) return setMessage("The app is temporarily unavailable. Please try again shortly.");
 
     setLoading(true);
     const email = usernameToEmail(cleaned);
@@ -70,11 +70,11 @@ export function AuthForm() {
         return;
       }
 
-      const intendedPath = window.sessionStorage.getItem("thursday-league-post-auth-path");
-      window.sessionStorage.removeItem("thursday-league-post-auth-path");
-      router.replace(intendedPath?.startsWith("/") ? intendedPath : "/");
+      // AppShell owns the post-auth redirect. Keeping one redirect owner avoids
+      // racing the saved invitation/deep-link path against a fallback home URL.
+      router.refresh();
     } catch {
-      setMessage("Could not reach Supabase. Check your project URL, anon key, and internet connection, then try again.");
+      setMessage("Could not reach the service. Check your internet connection and try again.");
     } finally {
       setLoading(false);
     }

@@ -116,7 +116,7 @@ export default function BettingPage() {
 
   if (league.loading || betting.loading) return <LoadingState label="Loading betting markets" cards={4} />;
   if (league.error) return <ErrorState message={league.error} onRetry={league.reload} />;
-  if (betting.error) return <ErrorState message={`${betting.error} Run the virtual betting migration in Supabase if it has not been applied yet.`} onRetry={betting.reload} />;
+  if (betting.error) return <ErrorState message={betting.error} onRetry={betting.reload} />;
   if (!activeLeague?.betting_enabled) {
     return <EmptyState title="Betting is turned off" text="This league is using match tracking and Fantasy without virtual betting." />;
   }
@@ -127,7 +127,9 @@ export default function BettingPage() {
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-league-gold/[.09] text-league-gold"><LockKeyhole size={22} /></span>
           <h1 className="mt-4 font-display text-4xl uppercase">Betting unlocks soon</h1>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-chalk/48">
-            This league needs {availability.required_games} completed game{availability.required_games === 1 ? "" : "s"} so the model has a useful baseline. {availability.completed_games} completed so far.
+            <strong className="font-mono text-chalk">{availability.completed_games}/{availability.required_games}</strong>
+            {" · "}
+            {Math.max(availability.required_games - availability.completed_games, 0)} game{Math.max(availability.required_games - availability.completed_games, 0) === 1 ? "" : "s"} left to unlock betting
           </p>
           <div className="mx-auto mt-5 h-2 max-w-sm overflow-hidden rounded-full bg-chalk/[.06]">
             <div className="h-full rounded-full bg-league-gold" style={{ width: `${Math.min(100, availability.required_games ? availability.completed_games / availability.required_games * 100 : 100)}%` }} />
@@ -286,7 +288,7 @@ export default function BettingPage() {
                     return <MarketSection key={category.type} label={category.label} icon={category.icon} markets={categoryMarkets} outcomes={outcomes} lineups={lineups} selected={selectedOutcomeIds} disabled={!isOpen} onToggle={toggleOutcome} />;
                   })}
                   {marketQuery.trim() && !markets.some(market => market.title.toLowerCase().includes(marketQuery.trim().toLowerCase())) ? <EmptyState title="No matching markets" text="Try another player name or market type." /> : null}
-                  {!markets.length ? <EmptyState title="No markets for this game" text="The published markets may have been removed or returned to draft." /> : null}
+                  {!markets.length ? <EmptyState title="Markets are being prepared" text="Markets appear automatically after betting unlocks and both valid lineups are saved." /> : null}
                 </div>
                 <div className="hidden xl:block"><BetSlipCard markets={markets} outcomes={selectedOutcomes} odds={builderOdds} stake={stake} potentialReturn={potentialReturn} balanceUnits={balanceUnits} disabled={!isOpen} placing={placing} onStake={setStake} onRemove={id => setSelectedOutcomeIds(current => current.filter(item => item !== id))} onPlace={placeBet} /></div>
                 <div className="xl:hidden"><BetSlipDrawer markets={markets} outcomes={selectedOutcomes} odds={builderOdds} stake={stake} potentialReturn={potentialReturn} balanceUnits={balanceUnits} disabled={!isOpen} placing={placing} onStake={setStake} onRemove={id => setSelectedOutcomeIds(current => current.filter(item => item !== id))} onPlace={placeBet} /></div>
@@ -314,7 +316,7 @@ function bettingOpen(game: Game, markets: BettingMarket[], lockMinutes: number, 
 }
 
 function BetGameList({ games, data, allMarkets, lockMinutes, now, onGame }: { games: Game[]; data: LeagueData; allMarkets: BettingMarket[]; lockMinutes: number; now: number; onGame: (id: string) => void }) {
-  if (!games.length) return <EmptyState title="No betting markets yet" text="Games appear here after the lineups are confirmed and an admin publishes the odds." />;
+  if (!games.length) return <EmptyState title="No betting markets yet" text="Markets appear automatically after the league reaches its completed-game target and both lineups are confirmed." />;
   return (
     <section className="overflow-hidden rounded-[1.35rem] border border-league-gold/25 bg-ink-850 shadow-[0_9px_24px_rgba(0,0,0,.13)]">
       <div className="flex items-start gap-3 border-b border-league-gold/15 px-4 py-4 sm:px-5">

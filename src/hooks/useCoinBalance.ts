@@ -6,11 +6,14 @@ import { currentSeason } from "@/lib/utils";
 import { LeagueSettings, Season } from "@/lib/types";
 
 export function useCoinBalance(userId?: string, leagueId?: string) {
-  const [balanceUnits, setBalanceUnits] = useState<number | null>(null);
+  const [balanceState, setBalanceState] = useState<{
+    leagueId?: string;
+    units: number | null;
+  }>({ leagueId, units: null });
 
   const load = useCallback(async () => {
     if (!userId || !leagueId) {
-      setBalanceUnits(null);
+      setBalanceState({ leagueId, units: null });
       return;
     }
 
@@ -20,7 +23,7 @@ export function useCoinBalance(userId?: string, leagueId?: string) {
     ]);
 
     if (seasonsResult.error || settingsResult.error) {
-      setBalanceUnits(null);
+      setBalanceState({ leagueId, units: null });
       return;
     }
 
@@ -30,7 +33,7 @@ export function useCoinBalance(userId?: string, leagueId?: string) {
     });
 
     if (!season) {
-      setBalanceUnits(null);
+      setBalanceState({ leagueId, units: null });
       return;
     }
 
@@ -42,7 +45,10 @@ export function useCoinBalance(userId?: string, leagueId?: string) {
       .eq("season_id", season.id)
       .maybeSingle();
 
-    setBalanceUnits(error ? null : Number(data?.balance_units ?? 0));
+    setBalanceState({
+      leagueId,
+      units: error ? null : Number(data?.balance_units ?? 0)
+    });
   }, [leagueId, userId]);
 
   useEffect(() => {
@@ -57,5 +63,5 @@ export function useCoinBalance(userId?: string, leagueId?: string) {
     return () => { void supabase.removeChannel(channel); };
   }, [leagueId, load, userId]);
 
-  return balanceUnits;
+  return balanceState.leagueId === leagueId ? balanceState.units : null;
 }

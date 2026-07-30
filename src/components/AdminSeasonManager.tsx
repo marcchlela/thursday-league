@@ -162,7 +162,7 @@ export function AdminSeasonManager({ data, reload }: { data: LeagueData; reload:
             );
           })}
         </div>
-        {!data.seasons.length ? <EmptyState title="No seasons" text="Run the seasons migration to create the current yearly season." /> : null}
+        {!data.seasons.length ? <EmptyState title="No seasons yet" text="Choose a season format above or create a custom season to get started." /> : null}
       </Card>
     </div>
   );

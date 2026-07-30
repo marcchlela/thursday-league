@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
+import { describeLoadProblem } from "@/lib/loadProblems";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) {
@@ -31,8 +32,35 @@ export function EmptyState({ title, text }: { title: string; text?: string }) {
 }
 
 export function LoadingState({ label = "Loading...", cards = 3 }: { label?: string; cards?: number }) {
+  const [slow, setSlow] = useState(false);
+  const [offline, setOffline] = useState(false);
+
+  useEffect(() => {
+    const updateConnection = () => setOffline(!navigator.onLine);
+    updateConnection();
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
+    const timeout = window.setTimeout(() => setSlow(true), 8_000);
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
   return (
     <div className="space-y-5" role="status" aria-live="polite" aria-label={label}>
+      {offline ? (
+        <div className="rounded-2xl border border-red-400/25 bg-red-400/[.07] p-4 text-sm text-red-100">
+          <strong className="block">You are offline</strong>
+          <span className="mt-1 block text-red-100/70">Reconnect to Wi-Fi or mobile data. Loading will continue automatically.</span>
+        </div>
+      ) : slow ? (
+        <div className="rounded-2xl border border-league-gold/25 bg-league-gold/[.06] p-4 text-sm text-chalk/75">
+          <strong className="block text-league-gold">This is taking longer than expected</strong>
+          <span className="mt-1 block text-chalk/55">The connection may be slow or the server may be busy. You can keep waiting or refresh the page.</span>
+        </div>
+      ) : null}
       <div className="skeleton-shimmer h-11 w-52 rounded-2xl" />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: cards }, (_, index) => <div key={index} className="skeleton-shimmer h-44 rounded-[1.3rem] border border-league-gold/15" />)}
@@ -42,10 +70,11 @@ export function LoadingState({ label = "Loading...", cards = 3 }: { label?: stri
   );
 }
 
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void | Promise<void> }) {
+export function ErrorState({ message, title, onRetry }: { message: string; title?: string; onRetry?: () => void | Promise<void> }) {
+  const problem = describeLoadProblem(message, message);
   return (
     <div className="rounded-3xl border border-red-400/30 bg-red-400/10 p-5 text-red-100" role="alert">
-      <div className="flex items-start gap-3"><AlertCircle className="mt-0.5 shrink-0" size={20} /><div><h2 className="font-bold">Something went wrong</h2><p className="mt-1 text-sm text-red-100/75">{message}</p></div></div>
+      <div className="flex items-start gap-3"><AlertCircle className="mt-0.5 shrink-0" size={20} /><div><h2 className="font-bold">{title || problem.title}</h2><p className="mt-1 text-sm text-red-100/75">{problem.kind === "unknown" ? message : problem.message}</p></div></div>
       {onRetry ? <SecondaryButton type="button" onClick={onRetry} className="mt-4">Try again</SecondaryButton> : null}
     </div>
   );

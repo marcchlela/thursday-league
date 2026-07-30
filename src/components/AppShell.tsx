@@ -29,10 +29,11 @@ import { friendlyActionError } from "@/lib/actionErrors";
 import { copyText } from "@/lib/clipboard";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import type { LoadProblem } from "@/lib/loadProblems";
 import { CoinAmount, LeagueCoin } from "./LeagueCoin";
 import { LaunchScreen } from "./LaunchScreen";
 import { NotificationNudge } from "./NotificationOnboarding";
-import { Toast, type ToastTone } from "./ui";
+import { ErrorState, Toast, type ToastTone } from "./ui";
 import leagueLogo from "../../Thursday League logo (no bg).png";
 
 const baseLinks = [
@@ -47,7 +48,7 @@ const authPaths = ["/login", "/forgot-password"];
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, profile, loading } = useAuthProfile();
+  const { user, profile, loading, error, reloadProfile } = useAuthProfile();
   const isAuthPage = authPaths.some(path => pathname === path);
   const [launchReady, setLaunchReady] = useState(false);
 
@@ -72,12 +73,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       );
       router.replace("/login");
     }
-    if (!loading && user && isAuthPage) router.replace("/");
+    if (!loading && user && isAuthPage) {
+      const intendedPath = window.sessionStorage.getItem(
+        "thursday-league-post-auth-path"
+      );
+      window.sessionStorage.removeItem("thursday-league-post-auth-path");
+      router.replace(intendedPath?.startsWith("/") ? intendedPath : "/");
+    }
   }, [loading, user, isAuthPage, router]);
 
   if (loading || !launchReady) return <LaunchScreen />;
+  if (error) return <StartupFailure problem={error} onRetry={reloadProfile} />;
   if (isAuthPage) return <>{children}</>;
-  if (!user || !profile) return null;
+  if (!user || !profile) return <LaunchScreen />;
 
   return (
     <LeagueContextProvider
@@ -105,7 +113,8 @@ function AuthenticatedShell({
     isLeagueAdmin,
     isPlatformAdmin,
     leaguePath,
-    switchLeague
+    switchLeague,
+    reloadLeagues
   } = useLeagueContext();
   const balanceUnits = useCoinBalance(userId, league?.id);
   const relativePath = leagueRelativePath(pathname);
@@ -135,6 +144,7 @@ function AuthenticatedShell({
   }, [leagueMenuOpen]);
 
   if (loading) return <LaunchScreen />;
+  if (error) return <StartupFailure problem={error} onRetry={reloadLeagues} />;
   if (!league && isLeaguePage) return <LaunchScreen />;
 
   async function createInviteLink() {
@@ -190,7 +200,7 @@ function AuthenticatedShell({
     ? [...playerLinks, { href: "/admin", label: "Admin", icon: Shield }]
     : playerLinks;
   const pageContent = league && isLeaguePage
-    ? <LeagueDataProvider leagueId={league.id}>{children}</LeagueDataProvider>
+    ? <LeagueDataProvider key={league.id} leagueId={league.id}>{children}</LeagueDataProvider>
     : children;
 
   return (
@@ -398,5 +408,21 @@ function AuthenticatedShell({
         onDone={() => setToast(null)}
       />
     </div>
+  );
+}
+
+function StartupFailure({
+  problem,
+  onRetry
+}: {
+  problem: LoadProblem;
+  onRetry: () => void | Promise<void>;
+}) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-ink-900 bg-turfMuted px-4 text-chalk">
+      <div className="w-full max-w-lg">
+        <ErrorState title={problem.title} message={problem.message} onRetry={onRetry} />
+      </div>
+    </main>
   );
 }

@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { copyText } from "@/lib/clipboard";
+import { pushAccessToken, pushResponseError } from "@/lib/pushClient";
 import { supabase } from "@/lib/supabase";
 import type {
   Game,
@@ -70,6 +71,8 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
   const nextGame = useMemo(() => [...games]
     .filter(game => game.status !== "final")
     .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0], [games]);
+  const completedGames = games.filter(game => game.status === "final").length;
+  const remainingUnlockGames = Math.max(unlockAfter - completedGames, 0);
 
   const load = useCallback(async () => {
     if (!league) return;
@@ -198,15 +201,20 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
   async function reviewRequest(requestId: string, approve: boolean) {
     if (busy) return;
     setBusy(requestId);
-    const { error } = await supabase.rpc("review_league_join_request", {
-      target_request_id: requestId,
-      approve
-    });
-    setBusy(null);
-    if (error) {
+    try {
+      const token = await pushAccessToken();
+      const response = await fetch("/api/leagues/membership", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "review", requestId, approve })
+      });
+      if (!response.ok) throw new Error(await pushResponseError(response));
+    } catch (error) {
+      setBusy(null);
       setToast({ message: friendlyActionError(error, "The request could not be reviewed."), tone: "error" });
       return;
     }
+    setBusy(null);
     setToast({ message: approve ? "Member approved." : "Request declined.", tone: "success" });
     await load();
   }
@@ -312,7 +320,11 @@ export function LeagueManagementPanel({ games }: { games: Game[] }) {
             <label>
               <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Unlock betting after final games</span>
               <TextInput type="number" min={0} max={50} value={unlockAfter} onChange={event => setUnlockAfter(Number(event.target.value))} />
-              <span className="mt-1 block text-xs text-chalk/35">Set 0 to unlock betting immediately.</span>
+              <span className="mt-1 block text-xs text-chalk/35">
+                {remainingUnlockGames
+                  ? `${completedGames}/${unlockAfter} · ${remainingUnlockGames} game${remainingUnlockGames === 1 ? "" : "s"} left to unlock betting.`
+                  : `Unlocked with ${completedGames} completed game${completedGames === 1 ? "" : "s"}.`} Set 0 to unlock immediately.
+              </span>
             </label>
           ) : null}
           <PrimaryButton type="button" disabled={busy === "options" || name.trim().length < 2} onClick={() => void saveOptions()} className="w-full sm:w-fit">

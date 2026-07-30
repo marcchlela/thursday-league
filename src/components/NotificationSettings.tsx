@@ -10,9 +10,7 @@ import {
   disablePushNotifications,
   enablePushNotifications,
   PUSH_STATE_EVENT,
-  pushAccessToken,
   PushDeviceState,
-  pushResponseError,
   readPushDeviceState
 } from "@/lib/pushClient";
 import { Pill, PrimaryButton, SecondaryButton, Select } from "./ui";
@@ -31,6 +29,10 @@ type NotificationPreferences = {
   lineups_ready: boolean;
   final_results: boolean;
   fantasy_deadline: boolean;
+  join_request: boolean;
+  join_approved: boolean;
+  betting_unlocked: boolean;
+  matchday_reminder: boolean;
   fantasy_reminder_minutes: number;
 };
 
@@ -40,6 +42,10 @@ const defaultPreferences: NotificationPreferences = {
   lineups_ready: true,
   final_results: true,
   fantasy_deadline: true,
+  join_request: true,
+  join_approved: true,
+  betting_unlocked: true,
+  matchday_reminder: true,
   fantasy_reminder_minutes: 120
 };
 
@@ -73,7 +79,7 @@ export function NotificationSettings() {
       setPreferencesLoading(true);
       const { data } = await supabase
         .from("notification_preferences")
-        .select("announcements, new_game, lineups_ready, final_results, fantasy_deadline, fantasy_reminder_minutes")
+        .select("announcements, new_game, lineups_ready, final_results, fantasy_deadline, join_request, join_approved, betting_unlocked, matchday_reminder, fantasy_reminder_minutes")
         .eq("user_id", user!.id)
         .eq("league_id", leagueId)
         .maybeSingle();
@@ -132,24 +138,6 @@ export function NotificationSettings() {
     }
   }
 
-  async function sendTestNotification() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const token = await pushAccessToken();
-      const response = await fetch("/api/push/test", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error(await pushResponseError(response));
-      setMessage("Test notification sent.");
-    } catch (error) {
-      setMessage(friendlyActionError(error, "The test notification could not be sent."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (detecting) {
     return <section className="rounded-[1.35rem] border border-league-gold/25 bg-ink-850 p-5 shadow-[0_9px_24px_rgba(0,0,0,.13)]"><div className="skeleton-shimmer h-5 w-56 rounded-lg" /><div className="skeleton-shimmer mt-3 h-3 w-full max-w-md rounded" /></section>;
   }
@@ -176,10 +164,7 @@ export function NotificationSettings() {
         ) : state.permission === "denied" ? (
           <p className="rounded-xl border border-red-400/15 bg-red-400/[.045] p-3 text-sm text-red-200/80">Notifications are blocked. Open this app in iPhone Settings or your browser notification settings and allow notifications.</p>
         ) : state.enabled ? (
-          <div className="flex flex-wrap gap-2">
-            <PrimaryButton type="button" disabled={busy} onClick={sendTestNotification} className="rounded-xl">{busy ? "Sending..." : "Send test notification"}</PrimaryButton>
-            <SecondaryButton type="button" disabled={busy} onClick={disable} className="rounded-xl">Disable notifications</SecondaryButton>
-          </div>
+          <SecondaryButton type="button" disabled={busy} onClick={disable} className="rounded-xl">Disable notifications</SecondaryButton>
         ) : (
           <PrimaryButton type="button" disabled={busy} onClick={enable} className="rounded-xl">{busy ? "Enabling..." : "Enable notifications"}</PrimaryButton>
         )}
@@ -202,6 +187,12 @@ export function NotificationSettings() {
               <PreferenceToggle label="New games" detail="When a game is scheduled" checked={preferences.new_game} onChange={value => setPreference("new_game", value)} />
               <PreferenceToggle label="Confirmed lineups" detail="When lineups and fantasy open" checked={preferences.lineups_ready} onChange={value => setPreference("lineups_ready", value)} />
               <PreferenceToggle label="Final results" detail="Score and fantasy result updates" checked={preferences.final_results} onChange={value => setPreference("final_results", value)} />
+              <PreferenceToggle label="Matchday reminder" detail="A morning reminder on the day of a game" checked={preferences.matchday_reminder} onChange={value => setPreference("matchday_reminder", value)} />
+              <PreferenceToggle label="Betting unlocked" detail="When this league reaches its unlock target" checked={preferences.betting_unlocked} onChange={value => setPreference("betting_unlocked", value)} />
+              <PreferenceToggle label="Join request updates" detail="Requests to join and approvals that involve you" checked={preferences.join_request && preferences.join_approved} onChange={value => {
+                setPreference("join_request", value);
+                setPreference("join_approved", value);
+              }} />
               <PreferenceToggle label="Fantasy deadline" detail="Only when your team is not saved" checked={preferences.fantasy_deadline} onChange={value => setPreference("fantasy_deadline", value)} />
             </div>
 

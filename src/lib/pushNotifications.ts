@@ -3,7 +3,16 @@ import "server-only";
 import webPush from "web-push";
 import { createSupabaseAdmin } from "./supabaseAdmin";
 
-export type NotificationType = "new_game" | "lineups_ready" | "final_results" | "fantasy_deadline" | "announcement";
+export type NotificationType =
+  | "new_game"
+  | "lineups_ready"
+  | "final_results"
+  | "fantasy_deadline"
+  | "announcement"
+  | "join_request"
+  | "join_approved"
+  | "betting_unlocked"
+  | "matchday_reminder";
 
 export type PushPayload = {
   title: string;
@@ -276,7 +285,10 @@ export async function sendTrackedPush(args: {
   return { dispatchId: dispatch.id, total: enabledSubscriptions.length, sent, failed, removed };
 }
 
-export async function retryFailedDispatch(dispatchId: string): Promise<PushSendResult> {
+export async function retryFailedDispatch(
+  dispatchId: string,
+  options: { automatic?: boolean; now?: Date } = {}
+): Promise<PushSendResult> {
   const supabaseAdmin = createSupabaseAdmin();
   const { data: dispatch, error: dispatchError } = await supabaseAdmin
     .from("notification_dispatches")
@@ -284,30 +296,41 @@ export async function retryFailedDispatch(dispatchId: string): Promise<PushSendR
     .eq("id", dispatchId)
     .single();
   if (dispatchError || !dispatch) throw new Error("Notification dispatch not found.");
+  if (dispatch.notification_type !== "announcement") {
+    throw new Error("Only failed custom announcements can be retried.");
+  }
 
   const { data: failedRows, error: failedError } = await supabaseAdmin
     .from("notification_deliveries")
-    .select("id, user_id, subscription_id, attempt_count")
+    .select("id, user_id, subscription_id, attempt_count, last_attempt_at")
     .eq("dispatch_id", dispatchId)
     .eq("status", "failed");
   if (failedError) throw new Error("Could not load failed deliveries.");
-  if (!failedRows?.length) return { dispatchId, total: 0, sent: 0, failed: 0, removed: 0 };
+  const now = options.now || new Date();
+  const eligibleRows = (failedRows || []).filter(row => {
+    const maximumAttempts = options.automatic ? 3 : 5;
+    if (row.attempt_count >= maximumAttempts) return false;
+    if (!options.automatic || !row.last_attempt_at) return true;
+    const retryDelayMinutes = row.attempt_count <= 1 ? 10 : 30;
+    return now.getTime() - new Date(row.last_attempt_at).getTime() >= retryDelayMinutes * 60_000;
+  });
+  if (!eligibleRows.length) return { dispatchId, total: 0, sent: 0, failed: 0, removed: 0, skipped: true };
 
   configureWebPush();
-  const subscriptionIds = failedRows.flatMap(row => row.subscription_id ? [row.subscription_id] : []);
+  const subscriptionIds = eligibleRows.flatMap(row => row.subscription_id ? [row.subscription_id] : []);
   const { data: subscriptionData, error: subscriptionError } = subscriptionIds.length
     ? await supabaseAdmin.from("push_subscriptions").select("id, user_id, endpoint, p256dh_key, auth_key").in("id", subscriptionIds)
     : { data: [], error: null };
   if (subscriptionError) throw new Error("Could not reload push subscriptions.");
   const subscriptions = (subscriptionData || []) as PushSubscriptionRow[];
   const subscriptionMap = new Map(subscriptions.map(subscription => [subscription.id, subscription]));
-  const preferences = await preferenceMap(dispatch.league_id, [...new Set(failedRows.map(row => row.user_id))], dispatch.notification_type as NotificationType);
+  const preferences = await preferenceMap(dispatch.league_id, [...new Set(eligibleRows.map(row => row.user_id))], dispatch.notification_type as NotificationType);
   const payload: PushPayload = { title: dispatch.title, body: dispatch.body, url: dispatch.target_url, tag: dispatch.tag || undefined };
   let sent = 0;
   let failed = 0;
   let removed = 0;
 
-  await Promise.all(failedRows.map(async row => {
+  await Promise.all(eligibleRows.map(async row => {
     const subscription = row.subscription_id ? subscriptionMap.get(row.subscription_id) : undefined;
     if (!subscription) {
       removed += 1;
@@ -333,7 +356,28 @@ export async function retryFailedDispatch(dispatchId: string): Promise<PushSendR
     if (result.expired) await supabaseAdmin.from("push_subscriptions").delete().eq("id", subscription.id);
   }));
 
-  return { dispatchId, total: failedRows.length, sent, failed, removed };
+  return { dispatchId, total: eligibleRows.length, sent, failed, removed };
+}
+
+export async function retryFailedCustomDispatches(now = new Date()) {
+  const supabaseAdmin = createSupabaseAdmin();
+  const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60_000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("notification_dispatches")
+    .select("id, notification_deliveries!notification_deliveries_league_dispatch_fkey!inner(id)")
+    .eq("notification_type", "announcement")
+    .eq("notification_deliveries.status", "failed")
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: true })
+    .limit(25);
+  if (error) throw new Error("Could not load failed custom announcements.");
+
+  const results: PushSendResult[] = [];
+  for (const dispatch of data || []) {
+    const result = await retryFailedDispatch(dispatch.id, { automatic: true, now });
+    if (!result.skipped || result.total) results.push(result);
+  }
+  return results;
 }
 
 export async function sendPushToUser(userId: string, payload: PushPayload) {

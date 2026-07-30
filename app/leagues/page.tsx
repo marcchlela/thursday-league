@@ -18,6 +18,7 @@ import {
 import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { copyText } from "@/lib/clipboard";
+import { pushAccessToken, pushResponseError } from "@/lib/pushClient";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import {
@@ -83,7 +84,8 @@ export default function LeaguesPage() {
     const { data, error } = await supabase.rpc("create_league", {
       league_name: leagueName.trim(),
       enable_fantasy: fantasyEnabled,
-      enable_betting: bettingEnabled
+      enable_betting: bettingEnabled,
+      owner_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     });
     setBusy(false);
     if (error) {
@@ -124,17 +126,24 @@ export default function LeaguesPage() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.rpc("request_to_join_league", {
-      submitted_code: joinCode.trim().toUpperCase()
-    });
-    setBusy(false);
-    if (error) {
+    let response: Response;
+    try {
+      const token = await pushAccessToken();
+      response = await fetch("/api/leagues/membership", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "request", code: joinCode.trim().toUpperCase() })
+      });
+      if (!response.ok) throw new Error(await pushResponseError(response));
+    } catch (error) {
+      setBusy(false);
       setToast({
         message: friendlyActionError(error, "Your request could not be sent."),
         tone: "error"
       });
       return;
     }
+    setBusy(false);
     setPendingLeagueIds(ids => [...new Set([...ids, preview.id])]);
     setPreview(null);
     setJoinCode("");

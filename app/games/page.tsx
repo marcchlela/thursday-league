@@ -6,6 +6,7 @@ import { GameMatchHub } from "@/components/GameMatchHub";
 import { TeamCrest } from "@/components/TeamCrest";
 import { EmptyState, ErrorState, Select } from "@/components/ui";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { calculateScore } from "@/lib/scoring";
 import { Game, LeagueData } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -14,6 +15,7 @@ type GamesView = "upcoming" | "results";
 
 export default function GamesPage() {
   const { data, loading, error, reload } = useLeagueData();
+  const { isLeagueAdmin } = useLeagueContext();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -49,8 +51,8 @@ export default function GamesPage() {
 
       {view === "upcoming" ? <>
         {upcoming.length > 1 ? <GameSelector games={upcoming} selectedId={selectedGame?.id || ""} onChange={gameId => updateParams("upcoming", gameId)} /> : null}
-        {selectedGame ? <GameMatchHub key={selectedGame.id} game={selectedGame} data={data} initialTab="lineups" /> : <EmptyState title="No upcoming match" text="The next scheduled match will appear here." />}
-      </> : <ResultsList games={results} data={data} />}
+        {selectedGame ? <GameMatchHub key={selectedGame.id} game={selectedGame} data={data} initialTab="lineups" /> : <EmptyState title="No upcoming match" text={isLeagueAdmin ? "Schedule the first match from Admin → Games. It will appear here immediately." : "A league admin has not scheduled the next match yet."} />}
+      </> : <ResultsList games={results} data={data} isLeagueAdmin={isLeagueAdmin} />}
     </div>
   );
 }
@@ -68,8 +70,8 @@ function GameSelector({ games, selectedId, onChange }: { games: Game[]; selected
   return <label className="block rounded-[1.1rem] border border-league-gold/20 bg-ink-850 p-2.5 sm:flex sm:items-center sm:gap-3"><span className="mb-2 block shrink-0 px-1 text-[10px] font-black uppercase tracking-widest text-chalk/35 sm:mb-0">Choose fixture</span><Select value={selectedId} onChange={event => onChange(event.target.value)} className="rounded-xl border-chalk/[.07] py-2 text-sm">{games.map(game => <option key={game.id} value={game.id}>{formatDateTime(game.game_date)}{game.status === "live" ? " · Live" : ""}</option>)}</Select></label>;
 }
 
-function ResultsList({ games, data }: { games: Game[]; data: LeagueData }) {
-  if (!games.length) return <EmptyState title="No results yet" text="Finalized matches will appear here." />;
+function ResultsList({ games, data, isLeagueAdmin }: { games: Game[]; data: LeagueData; isLeagueAdmin: boolean }) {
+  if (!games.length) return <EmptyState title="No results yet" text={isLeagueAdmin ? "Finish a match from Admin → Games to publish its result and statistics." : "Completed match results will appear here."} />;
   return (
     <section aria-label="Match results" className="space-y-3">
       {games.map(game => {
@@ -92,7 +94,7 @@ function ResultTeam({ gameId, team, reverse = false }: { gameId: string; team: "
 }
 
 function resultDate(value: string) {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Beirut" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 }
 
 function GamesPageSkeleton({ view }: { view: GamesView }) {

@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) {
-    return NextResponse.json({ error: "Supabase is not configured." }, { status: 500 });
+    return NextResponse.json({ error: "The service is temporarily unavailable. Please try again shortly." }, { status: 503 });
   }
 
   const userClient = createClient(url, anonKey, {

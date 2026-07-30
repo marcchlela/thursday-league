@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Gamepad2, GripVertical, History, Search, Settings2, Trash2, UsersRound, X } from "lucide-react";
+import { CalendarPlus, CalendarRange, ChevronDown, Gamepad2, GripVertical, History, Search, Settings2, Trash2, UsersRound, X } from "lucide-react";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
@@ -62,21 +62,19 @@ async function generateAutomaticBettingMarkets(gameId: string) {
     market_count?: number;
     reason?: string;
     requires_review?: boolean;
+    completed_games?: number;
+    required_games?: number;
+    remaining_games?: number;
   } | null;
   if (!response.ok) throw new Error(body?.error || "Automatic betting setup failed.");
   return body;
 }
 
 function deliveryMessage(action: string, result?: PushSendResult) {
-  const delivered = result?.sent || 0;
-  const failed = result?.failed || 0;
   if (result?.skipped) {
-    return `${action} The notification was already recorded: ${delivered} sent${failed ? `, ${failed} failed` : ""}.`;
+    return `${action} The automatic notification was already handled.`;
   }
-  if (failed) {
-    return `${action} Notification sent to ${delivered} device${delivered === 1 ? "" : "s"}; ${failed} failed. Retry failed deliveries in Notifications.`;
-  }
-  return `${action} Notification sent to ${delivered} device${delivered === 1 ? "" : "s"}.`;
+  return `${action} Notifications are handled automatically.`;
 }
 
 export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => void }) {
@@ -101,6 +99,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   const [rosterFilter, setRosterFilter] = useState<"active" | "guest" | "inactive" | "archived" | "all">("active");
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [creatingGame, setCreatingGame] = useState(false);
+  const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [dirtyStatGameIds, setDirtyStatGameIds] = useState<Set<string>>(() => new Set());
   const games = useMemo(
     () => [...data.games].sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()),
@@ -225,7 +224,8 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       const result = await sendAdminGameNotification(createdGame.id, "game_scheduled");
       notify(deliveryMessage("Game created.", result));
     } catch (notificationError) {
-      notify(`Game created, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
+      console.error("Automatic game notification could not be queued", notificationError);
+      notify("Game created. Notifications continue automatically in the background.", "success");
     }
     await reload();
     setCreatingGame(false);
@@ -270,7 +270,11 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
                 <div><div className="text-[9px] font-black uppercase tracking-[.18em] text-league-gold/65">Schedule</div><h2 className="font-display text-3xl uppercase">Create Game</h2></div>
               </div>
               <form onSubmit={createGame} className="grid min-w-0 gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
-                <TextInput className="min-w-0 w-full" type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
+                <label className="min-w-0">
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-chalk/45">Your local time · {localTimeZone}</span>
+                  <TextInput aria-label="Game date and time" className="min-w-0 w-full" type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
+                  <span className="mt-1.5 block text-xs text-chalk/35">Other members see the same kickoff converted to their own device timezone.</span>
+                </label>
                 <PrimaryButton disabled={creatingGame || !gameDate} className="w-full whitespace-nowrap sm:w-auto">{creatingGame ? "Creating…" : "Create game"}</PrimaryButton>
               </form>
             </div>
@@ -351,7 +355,10 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
               || (rosterFilter === "inactive" && !player.active && !player.archived_at)
               || (rosterFilter === "archived" && !!player.archived_at);
             return matchesQuery && matchesFilter;
-          }) ? <EmptyState title="No matching players" text="Try a different search or roster filter." /> : null}
+          }) ? <EmptyState
+            title={!data.players.length ? "The roster is empty" : "No matching players"}
+            text={!data.players.length ? "Add the first player above. A complete match needs enough active players for two valid lineups." : "Try a different search or roster filter."}
+          /> : null}
         </Card>
       ) : activeTab === "seasons" ? (
         <div id="admin-seasons-panel" role="tabpanel" aria-labelledby="admin-seasons-tab">
@@ -672,6 +679,7 @@ function GameSection({
 }
 
 function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; onStatsDirtyChange: (gameId: string, dirty: boolean) => void; notify: (message: string, tone?: ToastTone) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
+  const { league } = useLeagueContext();
   const currentLineup = useMemo(() => data.lineups.filter(l => l.game_id === game.id), [data.lineups, game.id]);
   const gameEvents = data.events.filter(e => e.game_id === game.id);
   const gamePlayerStats = data.playerStats.filter(stat => stat.game_id === game.id);
@@ -687,7 +695,6 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
   const [dateEdit, setDateEdit] = useState(toLocalDatetimeInput(game.game_date));
   const [correctionReason, setCorrectionReason] = useState("");
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
-  const [sendingLineupNotification, setSendingLineupNotification] = useState(false);
   const [statsDirty, setStatsDirty] = useState(false);
   const handleStatsDirtyChange = useCallback((dirty: boolean) => {
     setStatsDirty(dirty);
@@ -807,6 +814,8 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
         bettingMessage = ` ${betting.market_count || 0} betting markets were prepared and opened automatically.`;
       } else if (betting?.requires_review) {
         bettingMessage = " Existing bets and their odds were preserved; betting remains suspended because this edit needs review.";
+      } else if (betting?.reason === "cold_start") {
+        bettingMessage = ` Betting unlocks after ${betting.required_games || league?.betting_unlock_after_games || 0} completed games; ${betting.remaining_games || 0} remaining.`;
       }
     } catch (bettingError) {
       bettingMessage = ` Betting setup needs attention: ${friendlyActionError(bettingError, "automatic setup failed.")}`;
@@ -816,24 +825,13 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
         const result = await sendAdminGameNotification(game.id, "lineups_ready");
         notify(`${deliveryMessage("Lineup saved.", result)}${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
       } catch (notificationError) {
-        notify(`Lineup saved, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}${bettingMessage}`, "warning");
+        console.error("Automatic lineup notification could not be queued", notificationError);
+        notify(`Lineup saved. Notifications continue automatically in the background.${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
       }
     } else {
       notify(`Lineup saved. No new notification was sent for this edit.${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
     }
     await reload();
-  }
-
-  async function sendLineupNotification() {
-    setSendingLineupNotification(true);
-    try {
-      const result = await sendAdminGameNotification(game.id, "lineups_ready");
-      notify(deliveryMessage("Lineup notification checked.", result), result?.failed ? "warning" : "success");
-    } catch (notificationError) {
-      notify(`The lineup is saved, but its notification could not be sent: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
-    } finally {
-      setSendingLineupNotification(false);
-    }
   }
 
   async function updateStatus(status: Game["status"]) {
@@ -848,12 +846,43 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
     const { error } = await supabase.rpc("set_game_status", { target_game_id: game.id, new_status: status });
     if (error) return notify(friendlyActionError(error, "The game status could not be changed. Please try again."), "error");
     if (status === "final") {
+      let message = "Game finalized and virtual bets settled.";
+      let tone: ToastTone = "success";
       try {
         const result = await sendAdminGameNotification(game.id, "result_finalized");
-        notify(deliveryMessage("Game finalized and virtual bets settled.", result));
+        message = deliveryMessage(message, result);
       } catch (notificationError) {
-        notify(`Game and virtual bets were finalized, but the notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
+        console.error("Automatic result notification could not be queued", notificationError);
+        message = "Game and virtual bets were finalized. Notifications continue automatically in the background.";
       }
+
+      const completedGames = data.games.filter(item => item.status === "final").length + 1;
+      const unlockAfter = league?.betting_unlock_after_games || 0;
+      if (league?.betting_enabled && completedGames >= unlockAfter) {
+        const readyGames = data.games.filter(item =>
+          item.id !== game.id
+          && (item.status === "upcoming" || item.status === "draft")
+          && gameLineupIsReady(
+            item,
+            data.lineups.filter(lineup => lineup.game_id === item.id)
+          )
+        );
+        let preparedGames = 0;
+        for (const readyGame of readyGames) {
+          try {
+            const result = await generateAutomaticBettingMarkets(readyGame.id);
+            if (result?.generated) preparedGames += 1;
+          } catch {
+            tone = "warning";
+          }
+        }
+        if (preparedGames) {
+          message += ` Betting is unlocked, and markets opened automatically for ${preparedGames} ready game${preparedGames === 1 ? "" : "s"}.`;
+        } else if (completedGames === unlockAfter) {
+          message += " Betting is now unlocked. Markets will open automatically when the next complete lineup is saved.";
+        }
+      }
+      notify(message, tone);
     } else {
       notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
     }
@@ -924,9 +953,14 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
             <Pill>{statusLabel(game.status)}</Pill>
             <h2 className="mt-2 font-display text-4xl uppercase">{formatDateTime(game.game_date)}</h2>
             <div className="mt-2 font-mono text-3xl">Team A {score.A} - {score.B} Team B</div>
-            <div className="mt-4 flex max-w-md gap-2">
-              <TextInput disabled={game.status === "final"} type="datetime-local" value={dateEdit} onChange={e => setDateEdit(e.target.value)} />
-              <SecondaryButton disabled={game.status === "final"} type="button" onClick={saveGameDetails}>Save date</SecondaryButton>
+            <div className="mt-4 max-w-md">
+              <label>
+                <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-chalk/45">Your local time · {Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}</span>
+                <span className="flex gap-2">
+                  <TextInput aria-label="Edit game date and time" disabled={game.status === "final"} type="datetime-local" value={dateEdit} onChange={e => setDateEdit(e.target.value)} />
+                  <SecondaryButton disabled={game.status === "final"} type="button" onClick={saveGameDetails}>Save date</SecondaryButton>
+                </span>
+              </label>
             </div>
           </div>
           <button type="button" disabled={game.status === "final"} onClick={deleteGame} className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 font-semibold text-red-200 disabled:cursor-not-allowed disabled:opacity-40">Delete game</button>
@@ -942,15 +976,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
           {lineupOpen ? (
             <PrimaryButton type="button" onClick={saveLineup} disabled={!lineupCanSave}>Save lineup</PrimaryButton>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {lineupReady && (game.status === "draft" || game.status === "live") ? (
-                <SecondaryButton type="button" disabled={sendingLineupNotification} onClick={() => void sendLineupNotification()} className="inline-flex items-center gap-2">
-                  <BellRing size={16} />
-                  {sendingLineupNotification ? "Sending..." : "Send lineup notification"}
-                </SecondaryButton>
-              ) : null}
-              <PrimaryButton disabled={game.status === "final"} type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
-            </div>
+            <PrimaryButton disabled={game.status === "final"} type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
           )}
         </div>
 

@@ -25,6 +25,7 @@ type DispatchRow = {
   game_id: string | null;
   title: string;
   body: string;
+  target_url: string;
   source: "admin" | "scheduled";
   created_by: string | null;
   created_at: string;
@@ -36,7 +37,11 @@ const TYPE_LABELS: Record<string, string> = {
   new_game: "New game",
   lineups_ready: "Confirmed lineups",
   final_results: "Final result",
-  fantasy_deadline: "Fantasy deadline"
+  fantasy_deadline: "Fantasy deadline",
+  join_request: "Join request",
+  join_approved: "Join approved",
+  betting_unlocked: "Betting unlocked",
+  matchday_reminder: "Matchday reminder"
 };
 
 export function AdminNotificationHistory({ leagueId, profiles, games }: { leagueId: string; profiles: Profile[]; games: Game[] }) {
@@ -52,12 +57,12 @@ export function AdminNotificationHistory({ leagueId, profiles, games }: { league
     setError(null);
     const { data, error: requestError } = await supabase
       .from("notification_dispatches")
-      .select("id, notification_type, game_id, title, body, source, created_by, created_at, notification_deliveries(id, user_id, status, attempt_count, error_message)")
+      .select("id, notification_type, game_id, title, body, target_url, source, created_by, created_at, notification_deliveries!notification_deliveries_league_dispatch_fkey(id, user_id, status, attempt_count, error_message)")
       .eq("league_id", leagueId)
       .order("created_at", { ascending: false })
       .limit(100);
     if (requestError) {
-      setError(friendlyActionError(requestError, "Notification history could not be loaded. Check the database setup and try again."));
+      setError(friendlyActionError(requestError, "Notification history could not be loaded. Please try again."));
       setRows([]);
     } else {
       setRows((data || []) as DispatchRow[]);
@@ -99,7 +104,7 @@ export function AdminNotificationHistory({ leagueId, profiles, games }: { league
       <AdminNotificationComposer leagueId={leagueId} games={games} onSent={load} />
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="flex items-center gap-3"><BellRing className="text-league-gold" /><h2 className="font-display text-3xl uppercase">Notification delivery</h2></div><p className="mt-1 text-sm text-chalk/55">The latest 100 sends, delivery totals, errors, and retryable failures.</p></div>
+          <div><div className="flex items-center gap-3"><BellRing className="text-league-gold" /><h2 className="font-display text-3xl uppercase">Notification delivery</h2></div><p className="mt-1 text-sm text-chalk/55">The latest 100 sends, destinations, and delivery totals. Failed custom announcements retry automatically; you can also retry them here.</p></div>
           <SecondaryButton type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2"><RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh</SecondaryButton>
         </div>
         <Select value={type} onChange={event => setType(event.target.value)} className="mt-4 md:max-w-xs" aria-label="Filter notification type">
@@ -125,9 +130,10 @@ export function AdminNotificationHistory({ leagueId, profiles, games }: { league
                 <div className="flex flex-wrap items-center gap-2"><h3 className="font-display text-2xl uppercase">{TYPE_LABELS[row.notification_type] || row.notification_type}</h3><Pill>{row.source === "scheduled" ? "Automatic" : "Admin"}</Pill>{game ? <Pill>{formatDateTime(game.game_date)}</Pill> : null}</div>
                 <p className="mt-2 font-semibold text-chalk/80">{row.title}</p>
                 <p className="mt-1 text-sm text-chalk/50">{row.body}</p>
+                <p className="mt-2 break-all font-mono text-xs text-league-gold/70">Opens {row.target_url}</p>
                 <p className="mt-2 text-xs text-chalk/35">{admin ? `Sent by ${admin} · ` : ""}{formatDateTime(row.created_at)}</p>
               </div>
-              {counts.failed ? <SecondaryButton type="button" disabled={retrying === row.id} onClick={() => void retry(row.id)} className="inline-flex items-center gap-2"><RotateCcw size={16} />{retrying === row.id ? "Retrying..." : `Retry ${counts.failed}`}</SecondaryButton> : null}
+              {counts.failed && row.notification_type === "announcement" ? <SecondaryButton type="button" disabled={retrying === row.id} onClick={() => void retry(row.id)} className="inline-flex items-center gap-2"><RotateCcw size={16} />{retrying === row.id ? "Retrying..." : `Retry ${counts.failed}`}</SecondaryButton> : null}
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
               <DeliveryCount label="Total" value={row.notification_deliveries.length} />

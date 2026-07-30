@@ -13,7 +13,7 @@ import {
 import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
-import type { League } from "@/lib/types";
+import type { Game, League, Profile } from "@/lib/types";
 import { AdminNotificationHistory } from "@/components/AdminNotificationHistory";
 import { Card, ErrorState, LoadingState, Select } from "@/components/ui";
 
@@ -38,6 +38,8 @@ export default function PlatformAdminPage() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [stats, setStats] = useState<PlatformLeagueStats[]>([]);
   const [selectedLeagueId, setSelectedLeagueId] = useState("");
+  const [leagueGames, setLeagueGames] = useState<Game[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tab, setTab] = useState<"overview" | "notifications">("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +53,9 @@ export default function PlatformAdminPage() {
     let active = true;
     void Promise.all([
       supabase.from("leagues").select("*").order("created_at", { ascending: false }),
-      supabase.rpc("get_platform_league_stats")
-    ]).then(([leagueResult, statsResult]) => {
+      supabase.rpc("get_platform_league_stats"),
+      supabase.from("profiles").select("id, username, avatar_path").order("username")
+    ]).then(([leagueResult, statsResult, profilesResult]) => {
       if (!active) return;
       if (leagueResult.error || statsResult.error) {
         setError(friendlyActionError(
@@ -63,12 +66,33 @@ export default function PlatformAdminPage() {
         const leagueRows = (leagueResult.data || []) as League[];
         setLeagues(leagueRows);
         setStats((statsResult.data || []) as PlatformLeagueStats[]);
+        setProfiles((profilesResult.data || []).map(profile => ({
+          ...profile,
+          is_admin: false
+        })) as Profile[]);
         setSelectedLeagueId(current => current || leagueRows[0]?.id || "");
       }
       setLoading(false);
     });
     return () => { active = false; };
   }, [isPlatformAdmin]);
+
+  useEffect(() => {
+    if (!isPlatformAdmin || !selectedLeagueId) {
+      setLeagueGames([]);
+      return;
+    }
+    let active = true;
+    void supabase
+      .from("games")
+      .select("*")
+      .eq("league_id", selectedLeagueId)
+      .order("game_date", { ascending: false })
+      .then(result => {
+        if (active && !result.error) setLeagueGames((result.data || []) as Game[]);
+      });
+    return () => { active = false; };
+  }, [isPlatformAdmin, selectedLeagueId]);
 
   const selectedLeague = leagues.find(league => league.id === selectedLeagueId);
   const selectedStats = stats.find(row => row.league_id === selectedLeagueId);
@@ -135,7 +159,7 @@ export default function PlatformAdminPage() {
       {tab === "notifications" && selectedLeagueId ? (
         <div>
           <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[.16em] text-chalk/45"><BellRing size={16} /> {selectedLeague?.name}</div>
-          <AdminNotificationHistory leagueId={selectedLeagueId} profiles={[]} games={[]} />
+          <AdminNotificationHistory leagueId={selectedLeagueId} profiles={profiles} games={leagueGames} />
         </div>
       ) : null}
     </div>

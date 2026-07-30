@@ -3,6 +3,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { friendlyActionError } from "@/lib/actionErrors";
+import { describeLoadProblem, withLoadTimeout } from "@/lib/loadProblems";
 import { supabase } from "@/lib/supabase";
 import { FantasyPick, FantasySquad, Game, GameLineup, GamePlayerStat, LeagueData, LeagueSettings, MatchEvent, Player, Profile, Season } from "@/lib/types";
 
@@ -20,11 +21,8 @@ const emptyData: LeagueData = {
 };
 
 function friendlyDataError(message: string) {
-  if (message.includes("schema cache") && message.includes("public.profiles")) {
-    return "The Supabase database tables have not been set up yet. Run supabase/schema.sql in your Supabase SQL Editor for the same project used by .env.local, then refresh.";
-  }
-
-  return friendlyActionError({ message }, "League data could not be loaded. Check your connection and try again.");
+  const fallback = friendlyActionError({ message }, "League data could not be loaded. Check your connection and try again.");
+  return describeLoadProblem({ message }, fallback).message;
 }
 
 function useLeagueDataStore(leagueId: string) {
@@ -35,18 +33,26 @@ function useLeagueDataStore(leagueId: string) {
 
   const load = useCallback(async () => {
     setError(null);
-    const [profiles, players, games, lineups, events, playerStats, squads, picks, seasons, leagueSettings] = await Promise.all([
-      supabase.rpc("get_league_member_directory", { target_league_id: leagueId }),
-      supabase.from("players").select("*").eq("league_id", leagueId).order("name"),
-      supabase.from("games").select("*").eq("league_id", leagueId).order("game_date", { ascending: false }),
-      supabase.from("game_lineups").select("*").eq("league_id", leagueId),
-      supabase.from("events").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
-      supabase.from("game_player_stats").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
-      supabase.from("fantasy_squads").select("*").eq("league_id", leagueId),
-      supabase.from("fantasy_picks").select("*").eq("league_id", leagueId).order("slot_index", { ascending: true }),
-      supabase.from("seasons").select("*").eq("league_id", leagueId).order("start_date", { ascending: false }),
-      supabase.from("league_settings").select("*").eq("league_id", leagueId).maybeSingle()
-    ]);
+    let results;
+    try {
+      results = await withLoadTimeout(Promise.all([
+        supabase.rpc("get_league_member_directory", { target_league_id: leagueId }),
+        supabase.from("players").select("*").eq("league_id", leagueId).order("name"),
+        supabase.from("games").select("*").eq("league_id", leagueId).order("game_date", { ascending: false }),
+        supabase.from("game_lineups").select("*").eq("league_id", leagueId),
+        supabase.from("events").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
+        supabase.from("game_player_stats").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
+        supabase.from("fantasy_squads").select("*").eq("league_id", leagueId),
+        supabase.from("fantasy_picks").select("*").eq("league_id", leagueId).order("slot_index", { ascending: true }),
+        supabase.from("seasons").select("*").eq("league_id", leagueId).order("start_date", { ascending: false }),
+        supabase.from("league_settings").select("*").eq("league_id", leagueId).maybeSingle()
+      ]));
+    } catch (loadError) {
+      setError(describeLoadProblem(loadError).message);
+      setLoading(false);
+      return;
+    }
+    const [profiles, players, games, lineups, events, playerStats, squads, picks, seasons, leagueSettings] = results;
 
     const firstError = [profiles, players, games, lineups, events, playerStats, squads, picks, seasons, leagueSettings].find(r => r.error)?.error;
     if (firstError) {

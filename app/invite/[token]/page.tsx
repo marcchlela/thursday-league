@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Link2, ShieldCheck, UsersRound } from "lucide-react";
 import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { friendlyActionError } from "@/lib/actionErrors";
+import { withLoadTimeout } from "@/lib/loadProblems";
 import { supabase } from "@/lib/supabase";
 import { Card, LoadingState, PrimaryButton, SecondaryButton } from "@/components/ui";
 
@@ -30,17 +31,31 @@ export default function InvitePage() {
 
   useEffect(() => {
     let active = true;
-    void supabase.rpc("preview_league_invite_link", {
-      submitted_token: params.token
-    }).then(({ data, error: previewError }) => {
-      if (!active) return;
-      if (previewError) {
-        setError(friendlyActionError(previewError, "This invitation is invalid or has expired."));
-      } else {
-        setPreview(data as InvitePreview);
+    void (async () => {
+      try {
+        const { data, error: previewError } = await withLoadTimeout(
+          Promise.resolve(
+            supabase.rpc("preview_league_invite_link", {
+              submitted_token: params.token
+            })
+          )
+        );
+        if (!active) return;
+        if (previewError) {
+          setError(friendlyActionError(previewError, "This invitation is invalid or has expired."));
+        } else {
+          setPreview(data as InvitePreview);
+        }
+      } catch (previewError) {
+        if (!active) return;
+        setError(friendlyActionError(
+          previewError,
+          "The invitation check took too long. Check your connection and try again."
+        ));
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
-    });
+    })();
     return () => { active = false; };
   }, [params.token]);
 

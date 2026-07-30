@@ -8,78 +8,19 @@ import {
   sendTrackedPush
 } from "@/lib/pushNotifications";
 import { serverRateLimitDecision } from "@/lib/serverRateLimit";
+import {
+  gameNotificationPayload,
+  LeagueGameNotificationEvent
+} from "@/lib/leagueNotifications";
 
 export const runtime = "nodejs";
 
-type AdminEvent =
-  | "game_scheduled"
-  | "lineups_ready"
-  | "result_finalized";
+type AdminEvent = LeagueGameNotificationEvent;
 
 type RequestBody = {
   gameId?: unknown;
   event?: unknown;
 };
-
-function gameTime(value: string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-LB", {
-    weekday: "long",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone
-  }).format(new Date(value));
-}
-
-function notificationFor(
-  event: AdminEvent,
-  game: {
-    id: string;
-    game_date: string;
-    status: string;
-  },
-  league: { slug: string; timezone: string },
-  score?: { A: number; B: number }
-): PushPayload | null {
-  const formattedTime = gameTime(game.game_date, league.timezone);
-  const leagueRoot = `/l/${league.slug}`;
-
-  if (event === "game_scheduled" && game.status === "upcoming") {
-    return {
-      title: "New game",
-      body: `${formattedTime}. Tap to view the game details.`,
-      url: `${leagueRoot}/games/${game.id}`,
-      tag: `game-scheduled-${game.id}`,
-      ttl: 86400
-    };
-  }
-
-  if (
-    event === "lineups_ready" &&
-    (game.status === "draft" || game.status === "live")
-  ) {
-    return {
-      title: "Lineups ready",
-      body: `${formattedTime}. Tap to see the lineups and create your fantasy team.`,
-      url: `${leagueRoot}/fantasy?tab=set`,
-      tag: `lineups-ready-${game.id}`,
-      ttl: 21600
-    };
-  }
-
-  if (event === "result_finalized" && game.status === "final" && score) {
-    return {
-      title: "Final result",
-      body: `Team A ${score.A}-${score.B} Team B. Tap to see game and fantasy details.`,
-      url: `${leagueRoot}/games/${game.id}`,
-      tag: `result-finalized-${game.id}`,
-      ttl: 86400
-    };
-  }
-
-  return null;
-}
 
 function notificationType(event: AdminEvent): NotificationType {
   if (event === "game_scheduled") return "new_game";
@@ -178,7 +119,7 @@ export async function POST(request: Request) {
       .maybeSingle(),
     supabaseAdmin
       .from("leagues")
-      .select("slug, timezone")
+      .select("name, slug, betting_enabled, betting_unlock_after_games")
       .eq("id", game.league_id)
       .single()
   ]);
@@ -203,9 +144,9 @@ export async function POST(request: Request) {
   let score: { A: number; B: number } | undefined;
   if (event === "result_finalized") {
     const [eventsResult, lineupsResult, statsResult] = await Promise.all([
-      supabaseAdmin.from("events").select("*").eq("game_id", game.id),
-      supabaseAdmin.from("game_lineups").select("*").eq("game_id", game.id),
-      supabaseAdmin.from("game_player_stats").select("*").eq("game_id", game.id)
+      supabaseAdmin.from("events").select("*").eq("league_id", game.league_id).eq("game_id", game.id),
+      supabaseAdmin.from("game_lineups").select("*").eq("league_id", game.league_id).eq("game_id", game.id),
+      supabaseAdmin.from("game_player_stats").select("*").eq("league_id", game.league_id).eq("game_id", game.id)
     ]);
 
     if (eventsResult.error || lineupsResult.error || statsResult.error) {
@@ -222,7 +163,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const payload = notificationFor(event, game, league, score);
+  const payload: PushPayload | null = gameNotificationPayload(
+    event,
+    game,
+    league.slug,
+    score
+  );
 
   if (!payload) {
     return NextResponse.json(
@@ -232,6 +178,7 @@ export async function POST(request: Request) {
   }
 
   let result;
+  let bettingUnlockResult;
   try {
     const finalVersion = event === "result_finalized" ? game.finalized_at || "final" : "first";
     result = await sendTrackedPush({
@@ -242,16 +189,48 @@ export async function POST(request: Request) {
       createdBy: user.id,
       dedupeKey: `${event}:${game.id}:${finalVersion}`
     });
+
+    if (
+      event === "result_finalized"
+      && league.betting_enabled
+      && Number(league.betting_unlock_after_games) > 0
+    ) {
+      const { count: completedGames, error: countError } = await supabaseAdmin
+        .from("games")
+        .select("id", { count: "exact", head: true })
+        .eq("league_id", game.league_id)
+        .eq("status", "final");
+      if (countError) throw countError;
+      const requiredGames = Number(league.betting_unlock_after_games);
+      if (Number(completedGames || 0) >= requiredGames) {
+        bettingUnlockResult = await sendTrackedPush({
+          leagueId: game.league_id,
+          type: "betting_unlocked",
+          source: "scheduled",
+          gameId: game.id,
+          createdBy: user.id,
+          dedupeKey: `betting_unlocked:${game.league_id}:${requiredGames}`,
+          payload: {
+            title: "Betting unlocked",
+            body: `${requiredGames} games are complete. Virtual betting is now open in ${league.name}.`,
+            url: `/l/${league.slug}/betting?tab=markets`,
+            tag: `betting-unlocked-${game.league_id}`,
+            ttl: 86400
+          }
+        });
+      }
+    }
   } catch (error) {
     console.error("Admin game notification failed", error);
     return NextResponse.json(
-      { error: "Could not send notifications. You can retry failed deliveries from Notifications." },
+      { error: "The automatic notification could not be completed right now." },
       { status: 500 }
     );
   }
 
   return NextResponse.json({
     success: true,
-    result
+    result,
+    bettingUnlockResult
   });
 }

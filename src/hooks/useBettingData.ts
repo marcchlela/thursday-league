@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { friendlyActionError } from "@/lib/actionErrors";
+import { describeLoadProblem, withLoadTimeout } from "@/lib/loadProblems";
 import { useLeagueContext } from "@/hooks/useLeagueContext";
 import {
   BetLeg,
@@ -46,24 +47,32 @@ export function useBettingData() {
       return;
     }
     setError(null);
-    const [settings, generations, markets, outcomes, wallets, slips, legs, ledger, resultVersions, settlementRuns] = await Promise.all([
-      supabase
-        .rpc("get_league_betting_public_settings", { target_league_id: leagueId })
-        .maybeSingle(),
-      supabase.from("odds_generation_runs").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
-      supabase.from("betting_markets").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
-      supabase.from("betting_outcomes").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
-      supabase.from("betting_wallets").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
-      supabase.from("bet_slips").select("*").eq("league_id", leagueId).order("placed_at", { ascending: false }),
-      supabase.from("bet_legs").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
-      supabase.from("coin_ledger").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
-      supabase.from("game_result_versions").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
-      supabase.from("bet_settlement_runs").select("*").eq("league_id", leagueId).order("created_at", { ascending: false })
-    ]);
-    const responses = [settings, generations, markets, outcomes, wallets, slips, legs, ledger, resultVersions, settlementRuns];
+    let responses;
+    try {
+      responses = await withLoadTimeout(Promise.all([
+        supabase
+          .rpc("get_league_betting_public_settings", { target_league_id: leagueId })
+          .maybeSingle(),
+        supabase.from("odds_generation_runs").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
+        supabase.from("betting_markets").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
+        supabase.from("betting_outcomes").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
+        supabase.from("betting_wallets").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
+        supabase.from("bet_slips").select("*").eq("league_id", leagueId).order("placed_at", { ascending: false }),
+        supabase.from("bet_legs").select("*").eq("league_id", leagueId).order("created_at", { ascending: true }),
+        supabase.from("coin_ledger").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
+        supabase.from("game_result_versions").select("*").eq("league_id", leagueId).order("created_at", { ascending: false }),
+        supabase.from("bet_settlement_runs").select("*").eq("league_id", leagueId).order("created_at", { ascending: false })
+      ]));
+    } catch (loadError) {
+      setError(describeLoadProblem(loadError).message);
+      setLoading(false);
+      return;
+    }
+    const [settings, generations, markets, outcomes, wallets, slips, legs, ledger, resultVersions, settlementRuns] = responses;
     const firstError = responses.find(response => response.error)?.error;
     if (firstError) {
-      setError(friendlyActionError(firstError, "Betting data could not be loaded. Check your connection and try again."));
+      const fallback = friendlyActionError(firstError, "Betting data could not be loaded. Check your connection and try again.");
+      setError(describeLoadProblem(firstError, fallback).message);
       setLoading(false);
       return;
     }

@@ -140,7 +140,10 @@ export async function POST(request: Request) {
   ) {
     return NextResponse.json({
       generated: false,
-      reason: !league?.betting_enabled ? "betting_disabled" : "cold_start"
+      reason: !league?.betting_enabled ? "betting_disabled" : "cold_start",
+      completed_games: finalGames,
+      required_games: Number(league?.betting_unlock_after_games || 0),
+      remaining_games: Math.max(Number(league?.betting_unlock_after_games || 0) - finalGames, 0)
     });
   }
 

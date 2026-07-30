@@ -142,7 +142,7 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
       .limit(200);
 
     if (requestError) {
-      setError(friendlyActionError(requestError, "Audit history could not be loaded. Check the database setup and try again."));
+      setError(friendlyActionError(requestError, "Audit history could not be loaded. Please try again."));
       setRows([]);
     } else {
       setRows((data || []) as AdminAuditLog[]);
@@ -198,7 +198,7 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
         </div>
       </Card>
 
-      {!filtered.length ? <EmptyState title="No audit entries" text={rows.length ? "No entries match the current filters." : "Admin changes will appear here after the migration is active."} /> : null}
+      {!filtered.length ? <EmptyState title="No audit entries" text={rows.length ? "No entries match the current filters." : "League setup, membership, and match-management changes will appear here."} /> : null}
       {filtered.map(row => {
         const admin = profiles.find(profile => profile.id === row.admin_user_id)?.username || "System / deleted admin";
         const game = games.find(item => item.id === row.game_id);

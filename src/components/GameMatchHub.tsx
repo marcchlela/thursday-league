@@ -26,13 +26,13 @@ const detailTabs: { id: MatchDetailTab; label: string }[] = [
 ];
 
 function matchDate(value: string) {
-  const parts = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "long", timeZone: "Asia/Beirut" }).formatToParts(new Date(value));
+  const parts = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "long" }).formatToParts(new Date(value));
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(item => item.type === type)?.value || "";
   return `${part("weekday")} ${part("day")} ${part("month")}`;
 }
 
 function matchTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Beirut" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(value));
 }
 
 export function GameMatchHub({ game, data, initialTab }: { game: Game; data: LeagueData; initialTab?: MatchDetailTab }) {

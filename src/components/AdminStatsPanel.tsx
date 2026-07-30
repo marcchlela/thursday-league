@@ -104,7 +104,7 @@ export function AdminStatsPanel({ data }: { data: LeagueData }) {
 
       {error ? (
         <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-100" role="alert">
-          <span>{error} Run the latest Supabase migration, then retry.</span>
+          <span>{error}</span>
           <button type="button" onClick={() => void loadNotificationStats()} className="shrink-0 font-bold underline underline-offset-4">Retry</button>
         </div>
       ) : null}

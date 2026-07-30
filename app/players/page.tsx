@@ -8,6 +8,7 @@ import { FaFutbol } from "react-icons/fa6";
 import { GiGoalKeeper, GiSoccerKick } from "react-icons/gi";
 import { MdOutlineReplay } from "react-icons/md";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { careerStats } from "@/lib/scoring";
 import { isGuestPlayer } from "@/lib/playerEligibility";
 import { LeagueData, Player } from "@/lib/types";
@@ -30,6 +31,7 @@ const statBoards: { label: string; key: StatKey; icon: BoardIcon }[] = [
 
 export default function PlayersPage() {
   const { data, loading, error, reload } = useLeagueData();
+  const { isLeagueAdmin } = useLeagueContext();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -80,7 +82,7 @@ export default function PlayersPage() {
               <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-league-gold/55" size={18} />
               <TextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search players…" className="rounded-[1.15rem] border-league-gold/20 bg-ink-850 py-3 pl-11 shadow-[0_7px_20px_rgba(0,0,0,.1)]" />
             </label>
-            {!visiblePlayers.length ? <EmptyState title="No players found" text={normalizedQuery ? "Try another player name." : "Admin can add active players from the Admin page."} /> : (
+            {!visiblePlayers.length ? <EmptyState title={normalizedQuery ? "No players found" : "The roster is empty"} text={normalizedQuery ? "Try another player name." : isLeagueAdmin ? "Add the first players from Admin → Roster. They will become available for lineups, fantasy, and eligible betting markets." : "A league admin has not added the roster yet."} /> : (
               <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6">
                 {visiblePlayers.map(player => <PlayerCircle key={player.id} player={player} />)}
               </div>

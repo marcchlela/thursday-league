@@ -485,7 +485,8 @@ $$;
 create or replace function public.create_league(
   league_name text,
   enable_fantasy boolean default true,
-  enable_betting boolean default true
+  enable_betting boolean default true,
+  owner_timezone text default 'UTC'
 )
 returns jsonb
 language plpgsql
@@ -502,6 +503,7 @@ declare
   created_league_id uuid;
   created_season_id uuid;
   current_year integer;
+  clean_timezone text := coalesce(nullif(trim(owner_timezone), ''), 'UTC');
 begin
   if current_user_id is null then raise exception 'Not authenticated'; end if;
   if not exists (
@@ -513,6 +515,11 @@ begin
   end if;
   if char_length(clean_name) not between 2 and 60 then
     raise exception 'League names must be between 2 and 60 characters';
+  end if;
+  if not exists (
+    select 1 from pg_timezone_names zone where zone.name = clean_timezone
+  ) then
+    raise exception 'Choose a valid timezone';
   end if;
   if (
     select count(*)
@@ -542,6 +549,7 @@ begin
     name,
     slug,
     join_code,
+    timezone,
     fantasy_enabled,
     betting_enabled,
     created_by
@@ -550,6 +558,7 @@ begin
     clean_name,
     candidate_slug,
     candidate_code,
+    clean_timezone,
     coalesce(enable_fantasy, true),
     coalesce(enable_betting, true),
     current_user_id
@@ -564,7 +573,7 @@ begin
   )
   values (created_league_id, current_user_id, 'owner', 'active');
 
-  current_year := extract(year from now() at time zone 'Asia/Beirut')::integer;
+  current_year := extract(year from now() at time zone clean_timezone)::integer;
   insert into public.seasons(
     league_id,
     name,
@@ -610,6 +619,7 @@ begin
     jsonb_build_object(
       'name', clean_name,
       'slug', candidate_slug,
+      'timezone', clean_timezone,
       'fantasy_enabled', coalesce(enable_fantasy, true),
       'betting_enabled', coalesce(enable_betting, true)
     )
@@ -620,6 +630,7 @@ begin
     'name', clean_name,
     'slug', candidate_slug,
     'join_code', candidate_code,
+    'timezone', clean_timezone,
     'role', 'owner'
   );
 end;
@@ -1649,7 +1660,7 @@ grant execute on function public.current_league_id() to authenticated, service_r
 revoke all on function public.set_active_league(uuid) from public;
 revoke all on function public.get_league_member_directory(uuid) from public;
 revoke all on function public.get_league_betting_public_settings(uuid) from public;
-revoke all on function public.create_league(text, boolean, boolean) from public;
+revoke all on function public.create_league(text, boolean, boolean, text) from public;
 revoke all on function public.preview_league_by_code(text) from public;
 revoke all on function public.request_to_join_league(text) from public;
 revoke all on function public.review_league_join_request(uuid, boolean) from public;
@@ -1673,7 +1684,7 @@ revoke all on function public.league_betting_availability(uuid) from public;
 grant execute on function public.set_active_league(uuid) to authenticated;
 grant execute on function public.get_league_member_directory(uuid) to authenticated;
 grant execute on function public.get_league_betting_public_settings(uuid) to authenticated;
-grant execute on function public.create_league(text, boolean, boolean) to authenticated;
+grant execute on function public.create_league(text, boolean, boolean, text) to authenticated;
 grant execute on function public.preview_league_by_code(text) to authenticated;
 grant execute on function public.request_to_join_league(text) to authenticated;
 grant execute on function public.review_league_join_request(uuid, boolean) to authenticated;
