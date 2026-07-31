@@ -141,8 +141,16 @@ export function AuthForm() {
             {mode === "signup" ? <label className="block"><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Confirm password</span><TextInput type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} placeholder="Password again" autoComplete="new-password" className="rounded-xl border-league-gold/15 py-3" /></label> : null}
           </div>
           {message ? <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-red-400/25 bg-red-400/[.07] p-3 text-sm leading-relaxed text-red-200" role="alert"><AlertCircle className="mt-0.5 shrink-0" size={17} />{message}</div> : null}
+          {mode === "signup" ? <p className="mt-4 text-center text-[11px] leading-relaxed text-chalk/35">By creating an account, you agree to the <Link href="/terms" className="font-bold text-league-gold/80 hover:text-league-gold hover:underline">Terms of Use</Link> and acknowledge the <Link href="/privacy" className="font-bold text-league-gold/80 hover:text-league-gold hover:underline">Privacy Policy</Link>.</p> : null}
           <PrimaryButton disabled={loading} className="mt-6 w-full rounded-xl py-3">{loading ? "Working..." : mode === "login" ? "Enter Thursday League" : "Create account"}</PrimaryButton>
           <p className="mt-4 text-center text-xs text-chalk/30">{mode === "login" ? "Email sign-in works after that address is verified." : "You can enter the app immediately; verify your email when it arrives."}</p>
+          <nav aria-label="Help and legal" className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-league-gold/12 pt-4 text-[11px] font-bold text-chalk/38">
+            <Link href="/privacy" className="transition hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">Privacy</Link>
+            <span aria-hidden="true" className="text-league-gold/30">•</span>
+            <Link href="/terms" className="transition hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">Terms</Link>
+            <span aria-hidden="true" className="text-league-gold/30">•</span>
+            <Link href="/support" className="transition hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">Support</Link>
+          </nav>
         </form>
       </div>
     </div>

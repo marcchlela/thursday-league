@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, KeyRound, LogOut, MailCheck, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
+import { Bell, CircleHelp, FileText, KeyRound, LogOut, MailCheck, ShieldCheck, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useWhatsNewStatus } from "@/hooks/useWhatsNew";
 import { friendlyActionError } from "@/lib/actionErrors";
@@ -142,7 +142,7 @@ export default function SettingsPage() {
 
       <SettingsHeader
         title="Settings"
-        description="Manage your profile, notifications, wallet activity, and account security."
+        description="Manage your profile, notifications, wallet activity, help, legal information, and account security."
         backHref="/profile"
         backLabel="Profile"
       />
@@ -164,6 +164,14 @@ export default function SettingsPage() {
 
       <SettingsPanel title="Appearance">
         <ThemeSelector />
+      </SettingsPanel>
+
+      <SettingsPanel title="Help & legal">
+        <div className="divide-y divide-league-gold/10">
+          <SettingsLinkRow href="/support" icon={CircleHelp} title="Support" detail="Get help with your account, leagues, notifications, and matchweek features" tone="green" />
+          <SettingsLinkRow href="/privacy" icon={ShieldCheck} title="Privacy policy" detail="See what information Thursday League handles and how it is protected" />
+          <SettingsLinkRow href="/terms" icon={FileText} title="Terms of use" detail="Review the rules for accounts, leagues, Fantasy, and virtual predictions" />
+        </div>
       </SettingsPanel>
 
       <SettingsPanel title="Security">
