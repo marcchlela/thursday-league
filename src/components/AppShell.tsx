@@ -60,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isAuthPage = authPaths.some(path => pathname === path);
   const isPublicPage = publicPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
   const isWelcomePage = pathname === "/welcome";
+  const isAuthCallbackPage = pathname === "/auth/confirm";
   const [launchReady, setLaunchReady] = useState(false);
 
   useEffect(() => {
@@ -76,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && !isAuthPage && !isPublicPage) {
+    if (!loading && !user && !isAuthPage && !isPublicPage && !isAuthCallbackPage) {
       if (pathname === "/" && !introductionWasSeen()) {
         router.replace("/welcome");
         return;
@@ -99,6 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [
     isAuthPage,
+    isAuthCallbackPage,
     isPublicPage,
     isWelcomePage,
     loading,
@@ -109,7 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (loading || !launchReady) return <LaunchScreen />;
   if (error) return <StartupFailure problem={error} onRetry={reloadProfile} />;
-  if (isAuthPage || (isPublicPage && !user)) return <>{children}</>;
+  if (isAuthCallbackPage || isAuthPage || (isPublicPage && !user)) return <>{children}</>;
   if (isWelcomePage) return <LaunchScreen />;
   if (!user || !profile) return <LaunchScreen />;
 

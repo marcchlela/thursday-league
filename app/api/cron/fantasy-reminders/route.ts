@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { retryFailedCustomDispatches, sendTrackedPush } from "@/lib/pushNotifications";
+import { reconcileNativePushReceipts, retryFailedCustomDispatches, sendTrackedPush } from "@/lib/pushNotifications";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { fantasyDeadlineTarget } from "@/lib/leagueNotifications";
 import { isMatchdayMorning } from "@/lib/scheduledNotifications";
@@ -127,11 +127,19 @@ export async function GET(request: Request) {
     console.error("Automatic custom notification recovery failed", error);
   }
 
+  let nativeReceipts: Awaited<ReturnType<typeof reconcileNativePushReceipts>> | null = null;
+  try {
+    nativeReceipts = await reconcileNativePushReceipts(now);
+  } catch (error) {
+    console.error("Native push receipt reconciliation failed", error);
+  }
+
   return NextResponse.json({
     success: true,
     checkedAt: now.toISOString(),
     matchdayReminders: matchdayResults,
     fantasyReminders: fantasyResults,
-    automaticRetries
+    automaticRetries,
+    nativeReceipts
   });
 }

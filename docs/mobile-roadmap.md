@@ -29,38 +29,60 @@ This checklist tracks the iOS and Android release as a separate client. The Next
 
 - [x] Mobile dependency tree, Expo Doctor, lint, TypeScript, Android Metro, and iOS Metro bundle checks pass.
 - [x] Existing web lint, TypeScript, tests, model tests, and production build still pass.
-- [ ] Android development build launches on a real device or emulator.
+- [x] Android development build launches on a real device or emulator.
 - [ ] iOS development build launches through EAS/TestFlight or a supported local simulator/device.
-- [ ] The permanent app identifiers and Expo ownership are approved before the first signed build.
+- [x] The permanent app identifiers and Expo ownership are approved before the first signed build.
 
 ## Phase 2 — Authentication and league entry
 
-- [ ] Port onboarding and persist progress natively.
-- [ ] Add username sign-in and signup through existing server validation.
-- [ ] Add a real verified recovery email while keeping usernames as the visible login identity.
-- [ ] Add protected routes and session lifecycle handling.
-- [ ] Port create/join/approve league flows.
-- [ ] Add league switching with strict cache invalidation.
-- [ ] Implement invitation-link previews and logged-out continuation.
+- [x] Port onboarding and persist progress natively.
+- [x] Add username/email sign-in and username/email/password signup through server validation.
+- [x] Add a real verified recovery email while keeping usernames as the public identity.
+- [x] Add protected routes and session lifecycle handling.
+- [x] Port create/join/approve league flows.
+- [x] Add league switching with strict cache invalidation.
+- [x] Implement invitation-link previews and logged-out continuation.
+
+### Production auth gate
+
+- [ ] Mirror the tested Auth settings in the hosted Supabase dashboard: direct signup off, email confirmations on, secure password changes on, and double-confirm email changes off.
+- [ ] Allow the production web callback and `thursdayleague://auth/confirm` redirect URLs.
+- [ ] Configure production SMTP and verify delivery, expiry, and one-time use for verification and recovery links.
+- [ ] Run one end-to-end signup, email verification, username login, email login, recovery, and account cleanup test against the release environment.
 
 ## Phase 3 — Core product
 
-- [ ] Home and matchweek readiness.
-- [ ] Games, match details, live state, and standings.
-- [ ] Players, statistics, profile, and avatars.
-- [ ] Fantasy selection, standings, and history.
-- [ ] Match predictions, wallets, slips, and history.
-- [ ] League-owner match, roster, season, and member controls.
-- [ ] Keep platform-owner controls web-first.
+- [x] Home and matchweek readiness.
+- [x] Games, match details, live state, and competition standings.
+- [x] Players, statistics, profile, and existing avatar display.
+- [x] Fantasy selection, standings, and history.
+- [x] Match predictions, wallets, slips, and history.
+- [x] League-owner match, roster, season, and member controls.
+- [x] Keep platform-owner controls web-first.
 
 ## Phase 4 — Native services
 
-- [ ] Native APNs/FCM token registration and delivery adapter.
-- [ ] Notification preferences and correct league/page routing.
-- [ ] iOS Universal Links and Android App Links.
-- [ ] Native image picker and upload permissions.
-- [ ] Network/offline recovery, crash reporting, and analytics decision.
-- [ ] Accessibility, Dynamic Type, screen-reader, keyboard, and reduced-motion pass.
+- [x] Register Expo device tokens securely and deliver through Expo to APNs/FCM.
+- [x] Persist per-league notification preferences and restrict notification routes to leagues the user belongs to.
+- [x] Retry token registration after connectivity returns, unregister safely on sign-out, and reconcile Expo push receipts.
+- [x] Prepare iOS Universal Links, Android App Links, and HTTPS association endpoints for the production Vercel domain.
+- [x] Add native profile-photo selection, local optimization, upload validation, replacement, and removal.
+- [x] Add offline status, recoverable route errors, Dynamic Type support, screen-reader semantics, accessible controls, and reduced-motion navigation.
+
+### Telemetry decision
+
+- Route-level crash recovery ships in the client so a broken screen does not strand the user.
+- Add external Sentry reporting before the first public beta, after the owner creates the Sentry project. The setup must include release source maps and must not attach usernames, email addresses, league data, bets, or Fantasy picks.
+- Do not add product analytics to the first store MVP. Revisit analytics only with a defined event allowlist, updated privacy disclosures, and consent where required. This avoids collecting behavior data before it has a clear product purpose.
+
+### Native-services release gate
+
+- [ ] Apply `20260731010000_native_push_delivery.sql` and `20260731020000_native_push_receipts.sql` to hosted Supabase after this branch is approved.
+- [ ] Configure Android FCM V1 credentials in EAS and test a received notification on a physical Android device or supported emulator.
+- [ ] Purchase the Apple Developer Program membership, configure the APNs push key, and test on the registered iPhone.
+- [ ] Add `ANDROID_APP_CERT_SHA256` and `APPLE_TEAM_ID` to Vercel, deploy the association endpoints, then verify Android App Links and iOS Universal Links.
+- [ ] Create the Sentry mobile project, run the official React Native setup wizard, add its EAS secrets, and verify a symbolicated non-production test crash.
+- [ ] Test notification opt-in/out, foreground/background/terminated routing, sign-out cleanup, avatar permission denial, avatar replacement, offline recovery, screen reader, large text, and reduced motion on physical release builds.
 
 ## Phase 5 — Store release
 

@@ -17,7 +17,10 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "app.thursdayleague.mobile",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:thursday-league.vercel.app"
+      ]
     },
     "android": {
       "package": "app.thursdayleague.mobile",
@@ -26,7 +29,34 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "thursday-league.vercel.app",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "https",
+              "host": "thursday-league.vercel.app",
+              "pathPrefix": "/auth/confirm"
+            },
+            {
+              "scheme": "https",
+              "host": "thursday-league.vercel.app",
+              "pathPrefix": "/l"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "plugins": [
       "expo-router",
@@ -37,11 +67,25 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160
         }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#DAA520",
+          "defaultChannel": "matchweek"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Thursday League to choose a profile photo.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "extra": {
       "router": {},
       "eas": {

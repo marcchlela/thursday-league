@@ -29,6 +29,7 @@ test("a new user can complete introduction, signup, and first-league creation", 
   await expect(page).toHaveURL(/\/login\?mode=signup$/);
   await expect(page.getByRole("heading", { name: "Create account" })).toBeVisible();
   await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Email", { exact: true }).fill(`${username}@example.com`);
   await page.locator('input[autocomplete="new-password"]').first().fill("Onboarding123!");
   await page.getByLabel("Confirm password").fill("Onboarding123!");
   await page.getByRole("button", { name: "Create account", exact: true }).click();
@@ -63,30 +64,38 @@ test("a new user can complete introduction, signup, and first-league creation", 
   await expect(page.getByRole("heading", { name: "Admin Control Room" })).toBeVisible();
 });
 
-test("a transient post-signup auth failure retries without losing the new account", async ({
-  page
+test("server auth supports immediate username login while email waits for verification", async ({
+  page,
+  request
 }, testInfo) => {
   test.setTimeout(120_000);
   const project = testInfo.project.name.startsWith("mobile") ? "m" : "d";
-  const username = `retry_${project}_${Date.now().toString(36)}`;
-  let interrupted = false;
+  const username = `identity_${project}_${Date.now().toString(36)}`;
+  const email = `${username}@example.com`;
+  const password = "Onboarding123!";
 
-  await page.route("**/auth/v1/token?grant_type=password", async route => {
-    if (!interrupted) {
-      interrupted = true;
-      await route.abort("connectionfailed");
-      return;
-    }
-    await route.continue();
+  const signup = await request.post("/api/auth/signup", {
+    data: { username, email, password, platform: "web" }
   });
+  expect(signup.status()).toBe(201);
+  const signupBody = await signup.json() as { session?: { access_token?: string } | null };
+  expect(signupBody.session?.access_token).toBeTruthy();
 
-  await page.goto("/login?mode=signup", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Username").fill(username);
-  await page.locator('input[autocomplete="new-password"]').first().fill("Onboarding123!");
-  await page.getByLabel("Confirm password").fill("Onboarding123!");
-  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  const unverifiedEmailLogin = await request.post("/api/auth/session", {
+    data: { identity: email, password }
+  });
+  expect(unverifiedEmailLogin.status()).toBe(401);
 
-  await expect.poll(() => interrupted).toBe(true);
-  await expect(page).toHaveURL(/\/onboarding\/league$/, { timeout: 45_000 });
-  await expect(page.getByRole("heading", { name: "Where do you play?" })).toBeVisible();
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await expect(page.getByLabel("Username or email")).toBeVisible();
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  await expect(page.locator("form input")).toHaveCount(2);
+  await page.getByLabel("Username or email").fill(username);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  const usernameLogin = page.waitForResponse(response =>
+    response.url().includes("/api/auth/session")
+      && response.request().method() === "POST"
+  );
+  await page.getByRole("button", { name: "Enter Thursday League" }).click();
+  expect((await usernameLogin).status()).toBe(200);
 });

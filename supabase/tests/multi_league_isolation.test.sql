@@ -25,6 +25,7 @@ declare
     'notification_preferences',
     'notification_dispatches',
     'notification_deliveries',
+    'native_push_tokens',
     'betting_settings',
     'odds_generation_runs',
     'betting_markets',

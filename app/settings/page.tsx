@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, KeyRound, LogOut, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
+import { Bell, KeyRound, LogOut, MailCheck, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useWhatsNewStatus } from "@/hooks/useWhatsNew";
 import { friendlyActionError } from "@/lib/actionErrors";
@@ -168,6 +168,7 @@ export default function SettingsPage() {
 
       <SettingsPanel title="Security">
         <div className="divide-y divide-league-gold/10">
+          <SettingsLinkRow href="/settings/recovery-email" icon={MailCheck} title="Recovery email" detail="Verify an email for recovery and optional email sign-in" tone="green" />
           <SettingsLinkRow href="/settings/password" icon={KeyRound} title="Update password" detail="Choose a new password for your account" />
           <button type="button" onClick={signOut} disabled={!!busy} className="group flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-league-gold/[.04] focus:outline-none focus-visible:bg-league-gold/[.06] disabled:opacity-50 sm:px-5">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-chalk/[.07] bg-chalk/[.025] text-chalk/50"><LogOut size={19} /></span>
