@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: "30 2 * * 1"
   workflow_dispatch:
+    inputs:
+      apply_migrations:
+        description: "Apply pending migrations after the backup succeeds"
+        required: true
+        type: boolean
+        default: false
+      confirmation:
+        description: "Type MIGRATE_PRODUCTION when applying migrations"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -59,3 +69,14 @@ jobs:
             backups/storage/
           if-no-files-found: warn
           retention-days: 7
+      - name: Require explicit production migration confirmation
+        if: inputs.apply_migrations
+        env:
+          MIGRATION_CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$MIGRATION_CONFIRMATION" = "MIGRATE_PRODUCTION"
+      - name: Preview pending production migrations
+        if: inputs.apply_migrations
+        run: npx supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+      - name: Apply pending production migrations
+        if: inputs.apply_migrations
+        run: npx supabase db push --db-url "$SUPABASE_DB_URL" --yes
