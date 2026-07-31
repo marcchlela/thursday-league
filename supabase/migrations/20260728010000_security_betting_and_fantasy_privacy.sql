@@ -14,6 +14,7 @@ alter table public.betting_settings
 -- still read them before the deadline; everyone can read them after kickoff so
 -- finalized standings and historical team views continue to work.
 drop policy if exists "fantasy squads readable" on public.fantasy_squads;
+drop policy if exists "fantasy squads privacy aware" on public.fantasy_squads;
 create policy "fantasy squads privacy aware"
 on public.fantasy_squads
 for select
@@ -30,6 +31,7 @@ using (
 );
 
 drop policy if exists "fantasy picks readable" on public.fantasy_picks;
+drop policy if exists "fantasy picks privacy aware" on public.fantasy_picks;
 create policy "fantasy picks privacy aware"
 on public.fantasy_picks
 for select
