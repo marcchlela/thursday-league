@@ -9,6 +9,11 @@ update public.profiles
 set is_admin = true
 where id = '90000000-0000-4000-8000-000000000001';
 
+insert into public.league_memberships(league_id, user_id, role) values
+  ('00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000001', 'admin'),
+  ('00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000002', 'member'),
+  ('00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000003', 'member');
+
 insert into public.games(id, game_date, status)
 values ('91000000-0000-4000-8000-000000000001', now() + interval '1 day', 'draft');
 
@@ -99,8 +104,8 @@ begin
     select count(*)
     from public.fantasy_squads
     where game_id = '91000000-0000-4000-8000-000000000001'
-  ) <> 2 then
-    raise exception 'An administrator cannot inspect Fantasy readiness';
+  ) <> 0 then
+    raise exception 'A league administrator can inspect private pre-kickoff Fantasy squads';
   end if;
   if (
     select count(*)
@@ -109,8 +114,18 @@ begin
       '93000000-0000-4000-8000-000000000001',
       '93000000-0000-4000-8000-000000000002'
     )
+  ) <> 0 then
+    raise exception 'A league administrator can inspect private pre-kickoff Fantasy picks';
+  end if;
+  if (
+    select count(*)
+    from public.get_league_readiness(
+      '00000000-0000-4000-8000-000000000001',
+      '91000000-0000-4000-8000-000000000001'
+    )
+    where fantasy_ready
   ) <> 2 then
-    raise exception 'An administrator cannot inspect Fantasy data';
+    raise exception 'A league administrator cannot inspect privacy-safe Fantasy readiness';
   end if;
   if has_function_privilege(
     'authenticated',

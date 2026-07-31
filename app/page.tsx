@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/LeagueLink";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -15,12 +15,12 @@ import {
 import { FaFutbol } from "react-icons/fa6";
 import { GiSoccerKick } from "react-icons/gi";
 import type { IconType } from "react-icons";
-import { NotificationOnboarding } from "@/components/NotificationOnboarding";
 import { TeamCrest } from "@/components/TeamCrest";
 import { ErrorState } from "@/components/ui";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useHomeBetStatus } from "@/hooks/useHomeBetStatus";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { calculateScore, careerStats } from "@/lib/scoring";
 import { Game, LeagueData } from "@/lib/types";
 import { cn, gameLineupIsReady } from "@/lib/utils";
@@ -30,7 +30,6 @@ function matchDate(value: string) {
     weekday: "short",
     day: "numeric",
     month: "long",
-    timeZone: "Asia/Beirut"
   }).formatToParts(new Date(value));
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(item => item.type === type)?.value || "";
   return `${part("weekday")} ${part("day")} ${part("month")}`;
@@ -41,7 +40,6 @@ function matchTime(value: string) {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "Asia/Beirut"
   }).format(new Date(value));
 }
 
@@ -64,6 +62,7 @@ function lineupIsReady(data: LeagueData, gameId: string) {
 
 export default function HomePage() {
   const { data, loading, error, reload } = useLeagueData();
+  const { league, isLeagueAdmin } = useLeagueContext();
   const { user } = useAuthProfile();
   const nextGame = nextPlayableGame(data.games);
   const hasPlacedBet = useHomeBetStatus(user?.id, nextGame?.id);
@@ -78,15 +77,18 @@ export default function HomePage() {
   const fantasySquad = nextGame && user ? data.squads.find(squad => squad.game_id === nextGame.id && squad.user_id === user.id) : undefined;
   const fantasyComplete = !!fantasySquad && data.picks.filter(pick => pick.squad_id === fantasySquad.id).length === 5;
   const leaders = buildLeaders(data);
+  const completedGames = data.games.filter(game => game.status === "final").length;
+  const requiredBettingGames = league?.betting_unlock_after_games || 0;
+  const remainingBettingGames = Math.max(requiredBettingGames - completedGames, 0);
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
-      <NotificationOnboarding />
+      {!data.games.length ? <NewLeagueGuide isLeagueAdmin={isLeagueAdmin} hasPlayers={data.players.some(player => player.active && !player.archived_at)} /> : null}
 
       {nextGame ? <NextMatch game={nextGame} lineupsReady={lineupsReady} /> : <NoUpcomingMatch />}
 
-      <section aria-label="Match actions" className="grid grid-cols-2 gap-3 md:gap-4">
-        <HomeAction
+      {league?.fantasy_enabled || league?.betting_enabled ? <section aria-label="Match actions" className={cn("grid gap-3 md:gap-4", league.fantasy_enabled && league.betting_enabled ? "grid-cols-2" : "grid-cols-1")}>
+        {league.fantasy_enabled ? <HomeAction
           href="/fantasy?tab=set"
           title="Set fantasy team"
           description="Pick your five"
@@ -94,17 +96,19 @@ export default function HomePage() {
           completed={fantasyComplete}
           completedLabel="Team set"
           tone="green"
-        />
-        <HomeAction
+        /> : null}
+        {league.betting_enabled ? <HomeAction
           href={nextGame ? `/betting?tab=markets&game=${nextGame.id}` : "/betting?tab=markets"}
-          title="Place your bet"
-          description="Make your picks"
+          title={remainingBettingGames ? "Betting locked" : "Place your bet"}
+          description={remainingBettingGames
+            ? `${completedGames}/${requiredBettingGames} · ${remainingBettingGames} game${remainingBettingGames === 1 ? "" : "s"} left to unlock betting`
+            : "Make your picks"}
           icon={Dices}
           completed={hasPlacedBet}
           completedLabel="Bet placed"
           tone="yellow"
-        />
-      </section>
+        /> : null}
+      </section> : null}
 
       <RecentMatch game={recentFinal} data={data} />
 
@@ -113,6 +117,41 @@ export default function HomePage() {
         <LeaderTable title="Assists" icon={GiSoccerKick} rows={leaders.assists} tone="gold" />
       </section>
     </div>
+  );
+}
+
+function NewLeagueGuide({ isLeagueAdmin, hasPlayers }: { isLeagueAdmin: boolean; hasPlayers: boolean }) {
+  if (!isLeagueAdmin) {
+    return (
+      <section className="rounded-[1.35rem] border border-league-gold/25 bg-league-gold/[.055] p-5">
+        <div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/65">League setup</div>
+        <h1 className="mt-1 font-display text-3xl uppercase">Your league is getting ready</h1>
+        <p className="mt-2 max-w-2xl text-sm text-chalk/55">The league admins are building the roster and scheduling the first match. You can explore the league now; fantasy and betting will become useful as matchday is prepared.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-[1.35rem] border border-league-gold/30 bg-league-gold/[.055] p-5">
+      <div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/65">League setup</div>
+      <h1 className="mt-1 font-display text-3xl uppercase">Get the first match ready</h1>
+      <p className="mt-2 max-w-2xl text-sm text-chalk/55">Start with the roster, then schedule a game and save both lineups. Fantasy opens from the lineup, and betting markets generate automatically once the league reaches its unlock target.</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <SetupLink href="/admin?section=roster" step="1" label={hasPlayers ? "Review roster" : "Add players"} complete={hasPlayers} />
+        <SetupLink href="/admin?section=games" step="2" label="Schedule a game" />
+        <SetupLink href="/admin?section=games" step="3" label="Save lineups" />
+      </div>
+    </section>
+  );
+}
+
+function SetupLink({ href, step, label, complete = false }: { href: string; step: string; label: string; complete?: boolean }) {
+  return (
+    <Link href={href} className="flex min-h-12 items-center gap-3 rounded-2xl border border-league-gold/20 bg-black/15 px-3 py-2 text-sm font-bold transition hover:border-league-gold/45 hover:bg-league-gold/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">
+      <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full border text-xs", complete ? "border-turf-400/30 bg-turf-400/10 text-turf-100" : "border-league-gold/25 bg-league-gold/[.08] text-league-gold")}>{complete ? <Check size={15} /> : step}</span>
+      <span>{label}</span>
+      <ChevronRight size={16} className="ml-auto text-chalk/35" />
+    </Link>
   );
 }
 

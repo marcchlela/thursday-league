@@ -70,7 +70,7 @@ export function currentSeason(data: Pick<LeagueData, "seasons" | "leagueSettings
   if (data.leagueSettings?.season_mode === "custom") {
     return data.seasons.find(season => season.id === data.leagueSettings?.current_season_id);
   }
-  const beirutYear = new Intl.DateTimeFormat("en", { year: "numeric", timeZone: "Asia/Beirut" }).format(new Date());
-  return data.seasons.find(season => season.format === "yearly" && season.name === beirutYear)
+  const localYear = new Intl.DateTimeFormat("en", { year: "numeric" }).format(new Date());
+  return data.seasons.find(season => season.format === "yearly" && season.name === localYear)
     || data.seasons.find(season => season.id === data.leagueSettings?.current_season_id);
 }

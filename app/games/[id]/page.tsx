@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/LeagueLink";
 import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { GameMatchHub } from "@/components/GameMatchHub";

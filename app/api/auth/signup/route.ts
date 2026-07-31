@@ -1,4 +1,3 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -11,12 +10,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{2,32}$/;
-
-function inviteCodesMatch(received: string, expected: string) {
-  const receivedHash = createHash("sha256").update(received).digest();
-  const expectedHash = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(receivedHash, expectedHash);
-}
 
 function internalEmail(username: string) {
   const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -56,16 +49,11 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
     username?: unknown;
     password?: unknown;
-    inviteCode?: unknown;
   } | null;
   const username = typeof body?.username === "string"
     ? body.username.trim().toLowerCase()
     : "";
   const password = typeof body?.password === "string" ? body.password : "";
-  const receivedInviteCode = typeof body?.inviteCode === "string"
-    ? body.inviteCode.trim()
-    : "";
-  const expectedInviteCode = process.env.LEAGUE_INVITE_CODE?.trim() || "";
 
   if (!USERNAME_PATTERN.test(username)) {
     return NextResponse.json(
@@ -79,16 +67,6 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (!expectedInviteCode) {
-    return NextResponse.json(
-      { error: "Signup is not configured. Contact the app administrator." },
-      { status: 503 }
-    );
-  }
-  if (!inviteCodesMatch(receivedInviteCode, expectedInviteCode)) {
-    return NextResponse.json({ error: "Invite code is not valid." }, { status: 403 });
-  }
-
   const supabaseAdmin = createSupabaseAdmin();
   const { error } = await supabaseAdmin.auth.admin.createUser({
     email: internalEmail(username),

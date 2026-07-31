@@ -5,7 +5,7 @@ A Next.js + Supabase web app for a weekly 5-a-side friend-group league: match tr
 ## What is included
 
 - Username + password auth using Supabase Auth.
-- First account created becomes admin automatically through the database trigger.
+- Multi-league memberships with league-scoped owner, admin, and member roles.
 - Admin player roster management.
 - Admin game creation, lineup setup, live/final statuses, events, own goals, assists, and Player of the Match.
 - Automatic score calculation from events.
@@ -18,7 +18,7 @@ A Next.js + Supabase web app for a weekly 5-a-side friend-group league: match tr
 - Final-game locking, controlled corrections, player archiving, and an admin audit-log foundation.
 - Push notifications with per-event preferences, admin-authored announcements, fantasy reminders, delivery history, and retry controls.
 - Yearly or custom seasons with seasonal and all-time standings.
-- Virtual-coin betting with player-lineup probability modelling, admin-approved odds, singles, same-game builders, transactional settlement, and correction recalculation.
+- Virtual-coin betting with automatic lineup-based markets, singles, same-game builders, transactional settlement, and correction recalculation.
 - Supabase Realtime subscriptions for live updates.
 - Turf/blue/chalk/floodlight visual system with generated turf texture assets.
 
@@ -50,17 +50,10 @@ cp .env.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
-LEAGUE_INVITE_CODE=use-a-long-random-server-only-code
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-`LEAGUE_INVITE_CODE` is checked only on the server and must never use the `NEXT_PUBLIC_` prefix. Use a long random code and set the same server-only variables in Vercel. `NEXT_PUBLIC_APP_URL` should be the deployed HTTPS origin in production. The service-role key is required only by server routes and must never be exposed to browser code.
-
-Generate a strong human-friendly code with:
-
-```bash
-npm run invite:generate
-```
+League join codes are generated in Postgres per league in the `TL-XXXX-XXXX` format; they are not environment variables. `NEXT_PUBLIC_APP_URL` should be the deployed HTTPS origin in production. The service-role key is required only by server routes and must never be exposed to browser code.
 
 ### 3) Run the database SQL
 
@@ -93,6 +86,9 @@ supabase/migrations/20260728010000_security_betting_and_fantasy_privacy.sql
 supabase/migrations/20260728020000_repair_missing_player_betting_markets.sql
 supabase/migrations/20260728030000_restore_authenticated_core_reads.sql
 supabase/migrations/20260728040000_preserve_model_prediction_history.sql
+supabase/migrations/20260729010000_multi_league_foundation.sql
+supabase/migrations/20260729020000_multi_league_access_and_membership.sql
+supabase/migrations/20260729030000_multi_league_betting_runtime.sql
 ```
 
 Run all migrations in filename order. The virtual betting migration depends on the integrity, seasons, and controlled-corrections migrations. The expanded betting migration adds alternate lines, safe admin edit/delete controls, and privacy-aware league picks and standings. The competition-eligibility migration adds reusable guest players that can play in a match without entering fantasy, personal betting markets, league statistics, or player-model history. The custom-notification migration adds opted-in admin announcements to the existing delivery history and retry workflow. The profile-avatar migration creates the avatar bucket and controlled profile update function. The account-lifecycle migration adds safe deactivation and anonymized deletion without removing historical fantasy or betting results.
@@ -102,9 +98,9 @@ Run all migrations in filename order. The virtual betting migration depends on t
 Because the app uses usernames and internally maps them to fake local emails:
 
 1. Go to **Supabase → Authentication → Providers → Email** and turn off email confirmation.
-2. Disable direct public signup after configuring `LEAGUE_INVITE_CODE` and `SUPABASE_SERVICE_ROLE_KEY`.
+2. Disable direct public signup after configuring `SUPABASE_SERVICE_ROLE_KEY`.
 
-Account creation now goes through `/api/auth/signup`, which validates and rate-limits the league code on the server before using the service role to create the user. If direct Supabase signup remains enabled, someone could bypass the app route by calling the public Auth endpoint directly.
+Account creation goes through `/api/auth/signup`, which validates input and rate-limits signup on the server before using the service role to create the user. League access is a separate, database-validated flow: a code creates a pending admin approval request, while a hashed single-use invitation link joins only after acceptance. If direct Supabase signup remains enabled, someone could bypass the app signup rate limit by calling the public Auth endpoint directly.
 
 ### 5) Enable Realtime
 
@@ -138,9 +134,9 @@ Open:
 http://localhost:3000
 ```
 
-### 7) Create the first account
+### 7) Create an account and league
 
-Go to `/login`, create the first username/password account. The first account automatically becomes admin.
+Go to `/login`, create a username/password account, then create a league or join one. A league creator becomes that league's owner.
 
 This project internally maps usernames to a fake email format for Supabase Auth, like:
 

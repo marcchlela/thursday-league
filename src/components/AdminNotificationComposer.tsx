@@ -20,7 +20,7 @@ type SendResult = { total: number; sent: number; failed: number; removed: number
 
 const emptyRecipients: RecipientCount = { users: 0, devices: 0 };
 
-export function AdminNotificationComposer({ games, onSent }: { games: Game[]; onSent: () => void | Promise<void> }) {
+export function AdminNotificationComposer({ leagueId, games, onSent }: { leagueId: string; games: Game[]; onSent: () => void | Promise<void> }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [destination, setDestination] = useState<CustomNotificationDestination>("home");
@@ -42,7 +42,7 @@ export function AdminNotificationComposer({ games, onSent }: { games: Game[]; on
     setRecipientsError(null);
     try {
       const token = await pushAccessToken();
-      const response = await fetch("/api/push/custom", { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(`/api/push/custom?league=${encodeURIComponent(leagueId)}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!response.ok) throw new Error(await pushResponseError(response));
       const result = await response.json() as { recipients?: RecipientCount };
       setRecipients(result.recipients || emptyRecipients);
@@ -51,7 +51,7 @@ export function AdminNotificationComposer({ games, onSent }: { games: Game[]; on
     } finally {
       setRecipientsLoading(false);
     }
-  }, []);
+  }, [leagueId]);
 
   useEffect(() => { void loadRecipients(); }, [loadRecipients]);
   useEffect(() => { setRequestId(null); }, [title, body, destination]);
@@ -85,7 +85,7 @@ export function AdminNotificationComposer({ games, onSent }: { games: Game[]; on
       const response = await fetch("/api/push/custom", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: cleanTitle, body: cleanBody, destination, gameId: destination === "upcoming_game" ? upcomingGame?.id : null, requestId })
+        body: JSON.stringify({ leagueId, title: cleanTitle, body: cleanBody, destination, gameId: destination === "upcoming_game" ? upcomingGame?.id : null, requestId })
       });
       if (!response.ok) throw new Error(await pushResponseError(response));
       const responseBody = await response.json() as { result?: SendResult };

@@ -34,3 +34,9 @@ export async function login(page: Page, username = "marcos") {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("Next match", { exact: true })).toBeVisible();
 }
+
+export async function expectNoHorizontalOverflow(page: Page) {
+  await expect.poll(async () => page.evaluate(() =>
+    document.documentElement.scrollWidth - window.innerWidth
+  )).toBeLessThanOrEqual(2);
+}

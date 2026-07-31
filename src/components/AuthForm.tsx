@@ -14,10 +14,44 @@ import leagueLogo from "../../Thursday League logo (no bg).png";
 
 function friendlyAuthError(message: string) {
   if (message.toLowerCase().includes("email rate limit")) {
-    return "Supabase is trying to send confirmation emails too often. Turn off email confirmation in Supabase Authentication > Providers > Email for this username-only app, then wait a few minutes and try again.";
+    return "Too many account attempts were made. Wait a few minutes and try again.";
   }
 
   return friendlyActionError(message, "Login could not be completed. Check your details and try again.");
+}
+
+function retryableAuthMessage(message: string, freshAccount: boolean) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("failed to fetch")
+    || normalized.includes("network")
+    || normalized.includes("timeout")
+    || normalized.includes("connection")
+    || normalized.includes("service unavailable")
+    || freshAccount && normalized.includes("invalid login credentials");
+}
+
+async function signInWithRetry(
+  email: string,
+  password: string,
+  freshAccount: boolean
+) {
+  const waits = [250, 800];
+  for (let attempt = 0; attempt <= waits.length; attempt += 1) {
+    try {
+      const result = await supabase.auth.signInWithPassword({ email, password });
+      if (
+        !result.error
+        || !retryableAuthMessage(result.error.message, freshAccount)
+        || attempt === waits.length
+      ) {
+        return result;
+      }
+    } catch (error) {
+      if (attempt === waits.length) throw error;
+    }
+    await new Promise(resolve => window.setTimeout(resolve, waits[attempt]));
+  }
+  throw new Error("The authentication service did not respond.");
 }
 
 export function AuthForm() {
@@ -26,7 +60,6 @@ export function AuthForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [enteredInviteCode, setEnteredInviteCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -34,6 +67,10 @@ export function AuthForm() {
 
   useEffect(() => {
     setInstalledApp(isInstalledApp());
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    if (requestedMode === "signup" || requestedMode === "login") {
+      setMode(requestedMode);
+    }
   }, []);
 
   async function submit(e: React.FormEvent) {
@@ -43,10 +80,11 @@ export function AuthForm() {
     if (cleaned.length < 2) return setMessage("Username needs at least 2 letters/numbers.");
     if (password.length < 8) return setMessage("Password needs at least 8 characters.");
     if (mode === "signup" && password !== confirmPassword) return setMessage("Passwords do not match.");
-    if (supabaseConfigError) return setMessage(supabaseConfigError);
+    if (supabaseConfigError) return setMessage("The app is temporarily unavailable. Please try again shortly.");
 
     setLoading(true);
     const email = usernameToEmail(cleaned);
+    let accountWasCreated = false;
     try {
       if (mode === "signup") {
         const response = await fetch("/api/auth/signup", {
@@ -54,8 +92,7 @@ export function AuthForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username: cleaned,
-            password,
-            inviteCode: enteredInviteCode
+            password
           })
         });
         const body = await response.json().catch(() => null) as { error?: string } | null;
@@ -63,18 +100,35 @@ export function AuthForm() {
           setMessage(body?.error || "The account could not be created.");
           return;
         }
+        accountWasCreated = true;
       }
 
-      const result = await supabase.auth.signInWithPassword({ email, password });
+      const result = await signInWithRetry(
+        email,
+        password,
+        accountWasCreated
+      );
 
       if (result.error) {
-        setMessage(friendlyAuthError(result.error.message));
+        if (accountWasCreated) {
+          setMode("login");
+          setMessage("Your account was created, but automatic sign-in did not finish. Press Log in with the same username and password.");
+        } else {
+          setMessage(friendlyAuthError(result.error.message));
+        }
         return;
       }
 
-      router.replace("/");
+      // AppShell owns the post-auth redirect. Keeping one redirect owner avoids
+      // racing the saved invitation/deep-link path against a fallback home URL.
+      router.refresh();
     } catch {
-      setMessage("Could not reach Supabase. Check your project URL, anon key, and internet connection, then try again.");
+      if (accountWasCreated) {
+        setMode("login");
+        setMessage("Your account was created, but automatic sign-in could not finish. Press Log in with the same username and password.");
+      } else {
+        setMessage("Could not reach the service. Check your internet connection and try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -117,8 +171,8 @@ export function AuthForm() {
           <div className="mb-5 mt-6 flex items-start justify-between gap-3">
             <div>
               <div className="text-[9px] font-black uppercase tracking-[.18em] text-league-gold/60">League access</div>
-              <h2 className="mt-1 font-display text-4xl uppercase">{mode === "login" ? "Welcome back" : "Join the league"}</h2>
-              <p className="mt-1 text-sm text-chalk/40">{mode === "login" ? "Sign in to continue your matchweek." : "Create your private league account."}</p>
+              <h2 className="mt-1 font-display text-4xl uppercase">{mode === "login" ? "Welcome back" : "Create account"}</h2>
+              <p className="mt-1 text-sm text-chalk/40">{mode === "login" ? "Sign in to continue your matchweek." : "Create an account, then join or start a league."}</p>
             </div>
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-league-gold/20 bg-league-gold/[.055] text-league-gold">
               {mode === "login" ? <LockKeyhole size={20} /> : <UserPlus size={20} />}
@@ -157,10 +211,6 @@ export function AuthForm() {
                   <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Confirm password</span>
                   <TextInput type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Password again" autoComplete="new-password" className="rounded-xl border-league-gold/15 py-3" />
                 </label>
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-chalk/45">Invite code</span>
-                  <TextInput value={enteredInviteCode} onChange={e => setEnteredInviteCode(e.target.value)} placeholder="League code" autoComplete="off" autoCapitalize="none" className="rounded-xl border-league-gold/15 py-3" />
-                </label>
               </>
             ) : null}
           </div>
@@ -170,7 +220,7 @@ export function AuthForm() {
           <PrimaryButton disabled={loading} className="mt-6 w-full rounded-xl py-3">
             {loading ? "Working…" : mode === "login" ? "Enter Thursday League" : "Create account"}
           </PrimaryButton>
-          <p className="mt-4 text-center text-xs text-chalk/30">{mode === "login" ? "Use the username and password linked to your league account." : "The league code is verified securely before your account is created."}</p>
+          <p className="mt-4 text-center text-xs text-chalk/30">{mode === "login" ? "Use the username and password linked to your account." : "League invitations and join codes are handled after your account is created."}</p>
         </form>
       </div>
     </div>

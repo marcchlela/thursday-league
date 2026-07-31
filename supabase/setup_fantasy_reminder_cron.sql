@@ -1,4 +1,5 @@
--- Run this separately after the migrations. Replace both placeholder values.
+-- Run this separately after the migrations. This one scheduled request handles
+-- matchday reminders, Fantasy deadlines, and failed custom-send recovery.
 -- Use the production app URL without a trailing slash and the same CRON_SECRET
 -- that you add to Vercel Production environment variables.
 

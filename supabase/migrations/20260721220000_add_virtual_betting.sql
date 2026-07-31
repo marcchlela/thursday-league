@@ -862,6 +862,17 @@ alter table public.game_result_versions enable row level security;
 alter table public.bet_settlement_runs enable row level security;
 alter table public.coin_ledger enable row level security;
 
+drop policy if exists "betting settings readable" on public.betting_settings;
+drop policy if exists "betting generations admin readable" on public.odds_generation_runs;
+drop policy if exists "published betting markets readable" on public.betting_markets;
+drop policy if exists "published betting outcomes readable" on public.betting_outcomes;
+drop policy if exists "wallets owner readable" on public.betting_wallets;
+drop policy if exists "slips owner readable" on public.bet_slips;
+drop policy if exists "legs owner readable" on public.bet_legs;
+drop policy if exists "result versions readable" on public.game_result_versions;
+drop policy if exists "settlement runs admin readable" on public.bet_settlement_runs;
+drop policy if exists "coin ledger owner readable" on public.coin_ledger;
+
 create policy "betting settings readable" on public.betting_settings for select to authenticated using (true);
 create policy "betting generations admin readable" on public.odds_generation_runs for select to authenticated using (public.is_admin());
 create policy "published betting markets readable" on public.betting_markets for select to authenticated using (status <> 'draft' or public.is_admin());

@@ -5,22 +5,25 @@ import { supabase } from "@/lib/supabase";
 import { currentSeason } from "@/lib/utils";
 import { LeagueSettings, Season } from "@/lib/types";
 
-export function useCoinBalance(userId?: string) {
-  const [balanceUnits, setBalanceUnits] = useState<number | null>(null);
+export function useCoinBalance(userId?: string, leagueId?: string) {
+  const [balanceState, setBalanceState] = useState<{
+    leagueId?: string;
+    units: number | null;
+  }>({ leagueId, units: null });
 
   const load = useCallback(async () => {
-    if (!userId) {
-      setBalanceUnits(null);
+    if (!userId || !leagueId) {
+      setBalanceState({ leagueId, units: null });
       return;
     }
 
     const [seasonsResult, settingsResult] = await Promise.all([
-      supabase.from("seasons").select("*").order("start_date", { ascending: false }),
-      supabase.from("league_settings").select("*").eq("id", 1).maybeSingle()
+      supabase.from("seasons").select("*").eq("league_id", leagueId).order("start_date", { ascending: false }),
+      supabase.from("league_settings").select("*").eq("league_id", leagueId).maybeSingle()
     ]);
 
     if (seasonsResult.error || settingsResult.error) {
-      setBalanceUnits(null);
+      setBalanceState({ leagueId, units: null });
       return;
     }
 
@@ -30,7 +33,7 @@ export function useCoinBalance(userId?: string) {
     });
 
     if (!season) {
-      setBalanceUnits(null);
+      setBalanceState({ leagueId, units: null });
       return;
     }
 
@@ -38,23 +41,27 @@ export function useCoinBalance(userId?: string) {
       .from("betting_wallets")
       .select("balance_units")
       .eq("user_id", userId)
+      .eq("league_id", leagueId)
       .eq("season_id", season.id)
       .maybeSingle();
 
-    setBalanceUnits(error ? null : Number(data?.balance_units ?? 0));
-  }, [userId]);
+    setBalanceState({
+      leagueId,
+      units: error ? null : Number(data?.balance_units ?? 0)
+    });
+  }, [leagueId, userId]);
 
   useEffect(() => {
     void load();
-    if (!userId) return;
+    if (!userId || !leagueId) return;
 
     const channel = supabase
-      .channel(`app-balance-${userId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "betting_wallets", filter: `user_id=eq.${userId}` }, load)
+      .channel(`app-balance-${leagueId}-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "betting_wallets", filter: `league_id=eq.${leagueId}` }, load)
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [load, userId]);
+  }, [leagueId, load, userId]);
 
-  return balanceUnits;
+  return balanceState.leagueId === leagueId ? balanceState.units : null;
 }

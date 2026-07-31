@@ -18,6 +18,10 @@ begin
 
   update public.profiles set username = 'wallet-admin-test', is_admin = true where id = admin_id;
   update public.profiles set username = 'wallet-user-test', is_admin = false where id = user_id;
+  insert into public.league_memberships(league_id, user_id, role)
+  values
+    ('00000000-0000-4000-8000-000000000001', admin_id, 'admin'),
+    ('00000000-0000-4000-8000-000000000001', user_id, 'member');
 
   insert into public.seasons(id, name, format, start_date, end_date)
   values (season_id, 'Wallet test season', 'custom', date '2040-01-01', date '2040-12-31');

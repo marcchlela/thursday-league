@@ -2,23 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BellRing, CalendarPlus, CalendarRange, ChevronDown, Coins, Gamepad2, GripVertical, History, Search, Trash2, UsersRound, X } from "lucide-react";
+import { CalendarPlus, CalendarRange, ChevronDown, Gamepad2, GripVertical, History, Search, Settings2, Trash2, UsersRound, X } from "lucide-react";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
+import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { calculateScore } from "@/lib/scoring";
 import { isFantasyEligible, isGuestPlayer, isIndividualBettingEligible } from "@/lib/playerEligibility";
 import { cn, formatDateTime, gameLineupIsReady, goalkeeperMode, playerName, sortLineupsByRole, statusLabel } from "@/lib/utils";
 import { Game, GoalkeeperMode, LeagueData, Player, PlayerPosition, PlayerType, TeamCode } from "@/lib/types";
 import { AdminMatchStatsGrid } from "./AdminMatchStatsGrid";
 import { AdminAuditHistory } from "./AdminAuditHistory";
-import { AdminBettingManager } from "./AdminBettingManager";
-import { AdminNotificationHistory } from "./AdminNotificationHistory";
+import { LeagueManagementPanel } from "./LeagueManagementPanel";
 import { AdminSeasonManager } from "./AdminSeasonManager";
-import { AdminStatsPanel } from "./AdminStatsPanel";
 import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, SecondaryButton, Select, TextInput, Toast, ToastTone } from "./ui";
 
-type AdminTab = "games" | "roster" | "betting" | "seasons" | "notifications" | "audit";
+type AdminTab = "league" | "games" | "roster" | "seasons" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
 type PushSendResult = { total: number; sent: number; failed: number; removed: number; skipped?: boolean };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
@@ -46,24 +45,45 @@ async function sendAdminGameNotification(gameId: string, event: AdminPushEvent) 
   return body?.result;
 }
 
+async function generateAutomaticBettingMarkets(gameId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Your login session could not be found.");
+  const response = await fetch("/api/betting/generate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ gameId })
+  });
+  const body = await response.json().catch(() => null) as {
+    error?: string;
+    generated?: boolean;
+    market_count?: number;
+    reason?: string;
+    requires_review?: boolean;
+    completed_games?: number;
+    required_games?: number;
+    remaining_games?: number;
+  } | null;
+  if (!response.ok) throw new Error(body?.error || "Automatic betting setup failed.");
+  return body;
+}
+
 function deliveryMessage(action: string, result?: PushSendResult) {
-  const delivered = result?.sent || 0;
-  const failed = result?.failed || 0;
   if (result?.skipped) {
-    return `${action} The notification was already recorded: ${delivered} sent${failed ? `, ${failed} failed` : ""}.`;
+    return `${action} The automatic notification was already handled.`;
   }
-  if (failed) {
-    return `${action} Notification sent to ${delivered} device${delivered === 1 ? "" : "s"}; ${failed} failed. Retry failed deliveries in Notifications.`;
-  }
-  return `${action} Notification sent to ${delivered} device${delivered === 1 ? "" : "s"}.`;
+  return `${action} Notifications are handled automatically.`;
 }
 
 export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => void }) {
+  const { league } = useLeagueContext();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestedSection = searchParams.get("section");
-  const activeTab: AdminTab = ["games", "roster", "betting", "seasons", "notifications", "audit"].includes(requestedSection || "")
+  const activeTab: AdminTab = ["league", "games", "roster", "seasons", "audit"].includes(requestedSection || "")
     ? requestedSection as AdminTab
     : "games";
   const [focusGameId, setFocusGameId] = useState<string | null>(null);
@@ -79,6 +99,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
   const [rosterFilter, setRosterFilter] = useState<"active" | "guest" | "inactive" | "archived" | "all">("active");
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [creatingGame, setCreatingGame] = useState(false);
+  const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [dirtyStatGameIds, setDirtyStatGameIds] = useState<Set<string>>(() => new Set());
   const games = useMemo(
     () => [...data.games].sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()),
@@ -151,6 +172,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
     if (!playerNameInput.trim() || addingPlayer) return;
     setAddingPlayer(true);
     const { error } = await supabase.from("players").insert({
+      league_id: league?.id,
       name: playerNameInput.trim(),
       default_position: playerPosition,
       player_type: newPlayerType,
@@ -190,7 +212,7 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
     setCreatingGame(true);
     const { data: createdGame, error } = await supabase
       .from("games")
-      .insert({ game_date: new Date(gameDate).toISOString(), status: "upcoming" })
+      .insert({ league_id: league?.id, game_date: new Date(gameDate).toISOString(), status: "upcoming" })
       .select("id")
       .single();
     if (error) {
@@ -202,7 +224,8 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       const result = await sendAdminGameNotification(createdGame.id, "game_scheduled");
       notify(deliveryMessage("Game created.", result));
     } catch (notificationError) {
-      notify(`Game created, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
+      console.error("Automatic game notification could not be queued", notificationError);
+      notify("Game created. Notifications continue automatically in the background.", "success");
     }
     await reload();
     setCreatingGame(false);
@@ -226,19 +249,18 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
       <header>
         <div className="text-[10px] font-black uppercase tracking-[.2em] text-league-gold/65">League operations</div>
         <h1 className="mt-1 font-display text-4xl uppercase sm:text-5xl">Admin Control Room</h1>
-        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-chalk/40">Manage games, players, seasons, betting, notifications, and controlled corrections.</p>
+        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-chalk/40">Manage the league, roster, matchweeks, seasons, and controlled corrections. Betting and notifications run automatically.</p>
       </header>
 
       <AdminMatchweekPulse data={data} onOpenGame={openGameControls} />
 
-      <details className="rounded-[1.2rem] border border-league-gold/20 bg-ink-850 p-3.5">
-        <summary className="cursor-pointer text-sm font-bold text-chalk/70">League totals and notification adoption</summary>
-        <div className="mt-3"><AdminStatsPanel data={data} /></div>
-      </details>
-
       <AdminSectionTabs active={activeTab} onChange={changeAdminTab} />
 
-      {activeTab === "games" ? (
+      {activeTab === "league" ? (
+        <div id="admin-league-panel" role="tabpanel" aria-labelledby="admin-league-tab">
+          <LeagueManagementPanel games={data.games} />
+        </div>
+      ) : activeTab === "games" ? (
         <div id="admin-games-panel" role="tabpanel" aria-labelledby="admin-games-tab" className="space-y-6">
           <QuickStartChecklist data={data} />
           <Card className="overflow-hidden p-0">
@@ -248,7 +270,11 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
                 <div><div className="text-[9px] font-black uppercase tracking-[.18em] text-league-gold/65">Schedule</div><h2 className="font-display text-3xl uppercase">Create Game</h2></div>
               </div>
               <form onSubmit={createGame} className="grid min-w-0 gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
-                <TextInput className="min-w-0 w-full" type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
+                <label className="min-w-0">
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-chalk/45">Your local time · {localTimeZone}</span>
+                  <TextInput aria-label="Game date and time" className="min-w-0 w-full" type="datetime-local" value={gameDate} onChange={e => setGameDate(e.target.value)} />
+                  <span className="mt-1.5 block text-xs text-chalk/35">Other members see the same kickoff converted to their own device timezone.</span>
+                </label>
                 <PrimaryButton disabled={creatingGame || !gameDate} className="w-full whitespace-nowrap sm:w-auto">{creatingGame ? "Creating…" : "Create game"}</PrimaryButton>
               </form>
             </div>
@@ -329,19 +355,14 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
               || (rosterFilter === "inactive" && !player.active && !player.archived_at)
               || (rosterFilter === "archived" && !!player.archived_at);
             return matchesQuery && matchesFilter;
-          }) ? <EmptyState title="No matching players" text="Try a different search or roster filter." /> : null}
+          }) ? <EmptyState
+            title={!data.players.length ? "The roster is empty" : "No matching players"}
+            text={!data.players.length ? "Add the first player above. A complete match needs enough active players for two valid lineups." : "Try a different search or roster filter."}
+          /> : null}
         </Card>
-      ) : activeTab === "betting" ? (
-        <div id="admin-betting-panel" role="tabpanel" aria-labelledby="admin-betting-tab">
-          <AdminBettingManager data={data} />
-        </div>
       ) : activeTab === "seasons" ? (
         <div id="admin-seasons-panel" role="tabpanel" aria-labelledby="admin-seasons-tab">
           <AdminSeasonManager data={data} reload={reload} />
-        </div>
-      ) : activeTab === "notifications" ? (
-        <div id="admin-notifications-panel" role="tabpanel" aria-labelledby="admin-notifications-tab">
-          <AdminNotificationHistory profiles={data.profiles} games={data.games} />
         </div>
       ) : (
         <div id="admin-audit-panel" role="tabpanel" aria-labelledby="admin-audit-tab">
@@ -353,11 +374,10 @@ export function AdminPanel({ data, reload }: { data: LeagueData; reload: () => v
 }
 
 const adminTabs: { id: AdminTab; label: string; icon: typeof Gamepad2 }[] = [
+  { id: "league", label: "League", icon: Settings2 },
   { id: "games", label: "Games", icon: Gamepad2 },
   { id: "roster", label: "Roster", icon: UsersRound },
-  { id: "betting", label: "Betting", icon: Coins },
   { id: "seasons", label: "Seasons", icon: CalendarRange },
-  { id: "notifications", label: "Notifications", icon: BellRing },
   { id: "audit", label: "Audit", icon: History }
 ];
 
@@ -376,7 +396,7 @@ function AdminSectionTabs({ active, onChange }: { active: AdminTab; onChange: (t
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)] sm:grid-cols-6" role="tablist" aria-label="Admin sections">
+    <div className="grid grid-cols-5 gap-1 rounded-[1.2rem] border border-league-gold/25 bg-ink-850 p-1 shadow-[0_7px_20px_rgba(0,0,0,.13)]" role="tablist" aria-label="Admin sections">
       {adminTabs.map(tab => {
         const Icon = tab.icon;
         return (
@@ -397,15 +417,7 @@ function AdminMatchweekPulse({ data, onOpenGame }: { data: LeagueData; onOpenGam
       .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0];
 
   if (!game) {
-    return (
-      <Card className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="text-xs font-black uppercase tracking-[.18em] text-league-gold">Current matchweek</div>
-          <h2 className="mt-1 font-display text-3xl uppercase">No active game</h2>
-          <p className="mt-1 text-sm text-chalk/60">Create the next game when its date is confirmed.</p>
-        </div>
-      </Card>
-    );
+    return null;
   }
 
   const lineups = data.lineups.filter(lineup => lineup.game_id === game.id);
@@ -667,6 +679,7 @@ function GameSection({
 }
 
 function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestConfirm }: { game: Game; data: LeagueData; reload: () => void; onStatsDirtyChange: (gameId: string, dirty: boolean) => void; notify: (message: string, tone?: ToastTone) => void; requestConfirm: (state: NonNullable<ConfirmState>) => void }) {
+  const { league } = useLeagueContext();
   const currentLineup = useMemo(() => data.lineups.filter(l => l.game_id === game.id), [data.lineups, game.id]);
   const gameEvents = data.events.filter(e => e.game_id === game.id);
   const gamePlayerStats = data.playerStats.filter(stat => stat.game_id === game.id);
@@ -682,7 +695,6 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
   const [dateEdit, setDateEdit] = useState(toLocalDatetimeInput(game.game_date));
   const [correctionReason, setCorrectionReason] = useState("");
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
-  const [sendingLineupNotification, setSendingLineupNotification] = useState(false);
   const [statsDirty, setStatsDirty] = useState(false);
   const handleStatsDirtyChange = useCallback((dirty: boolean) => {
     setStatsDirty(dirty);
@@ -795,29 +807,31 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
     });
     if (error) return notify(friendlyActionError(error, "The lineup could not be saved. Please try again."), "error");
     setLineupOpen(false);
+    let bettingMessage = "";
+    try {
+      const betting = await generateAutomaticBettingMarkets(game.id);
+      if (betting?.generated) {
+        bettingMessage = ` ${betting.market_count || 0} betting markets were prepared and opened automatically.`;
+      } else if (betting?.requires_review) {
+        bettingMessage = " Existing bets and their odds were preserved; betting remains suspended because this edit needs review.";
+      } else if (betting?.reason === "cold_start") {
+        bettingMessage = ` Betting unlocks after ${betting.required_games || league?.betting_unlock_after_games || 0} completed games; ${betting.remaining_games || 0} remaining.`;
+      }
+    } catch (bettingError) {
+      bettingMessage = ` Betting setup needs attention: ${friendlyActionError(bettingError, "automatic setup failed.")}`;
+    }
     if (firstPublication) {
       try {
         const result = await sendAdminGameNotification(game.id, "lineups_ready");
-        notify(deliveryMessage("Lineup saved.", result));
+        notify(`${deliveryMessage("Lineup saved.", result)}${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
       } catch (notificationError) {
-        notify(`Lineup saved, but its notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
+        console.error("Automatic lineup notification could not be queued", notificationError);
+        notify(`Lineup saved. Notifications continue automatically in the background.${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
       }
     } else {
-      notify("Lineup saved. No new notification was sent for this edit.");
+      notify(`Lineup saved. No new notification was sent for this edit.${bettingMessage}`, bettingMessage.includes("attention") ? "warning" : "success");
     }
-    reload();
-  }
-
-  async function sendLineupNotification() {
-    setSendingLineupNotification(true);
-    try {
-      const result = await sendAdminGameNotification(game.id, "lineups_ready");
-      notify(deliveryMessage("Lineup notification checked.", result), result?.failed ? "warning" : "success");
-    } catch (notificationError) {
-      notify(`The lineup is saved, but its notification could not be sent: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
-    } finally {
-      setSendingLineupNotification(false);
-    }
+    await reload();
   }
 
   async function updateStatus(status: Game["status"]) {
@@ -832,12 +846,43 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
     const { error } = await supabase.rpc("set_game_status", { target_game_id: game.id, new_status: status });
     if (error) return notify(friendlyActionError(error, "The game status could not be changed. Please try again."), "error");
     if (status === "final") {
+      let message = "Game finalized and virtual bets settled.";
+      let tone: ToastTone = "success";
       try {
         const result = await sendAdminGameNotification(game.id, "result_finalized");
-        notify(deliveryMessage("Game finalized and virtual bets settled.", result));
+        message = deliveryMessage(message, result);
       } catch (notificationError) {
-        notify(`Game and virtual bets were finalized, but the notification failed: ${friendlyActionError(notificationError, "Unknown notification error.")}`, "warning");
+        console.error("Automatic result notification could not be queued", notificationError);
+        message = "Game and virtual bets were finalized. Notifications continue automatically in the background.";
       }
+
+      const completedGames = data.games.filter(item => item.status === "final").length + 1;
+      const unlockAfter = league?.betting_unlock_after_games || 0;
+      if (league?.betting_enabled && completedGames >= unlockAfter) {
+        const readyGames = data.games.filter(item =>
+          item.id !== game.id
+          && (item.status === "upcoming" || item.status === "draft")
+          && gameLineupIsReady(
+            item,
+            data.lineups.filter(lineup => lineup.game_id === item.id)
+          )
+        );
+        let preparedGames = 0;
+        for (const readyGame of readyGames) {
+          try {
+            const result = await generateAutomaticBettingMarkets(readyGame.id);
+            if (result?.generated) preparedGames += 1;
+          } catch {
+            tone = "warning";
+          }
+        }
+        if (preparedGames) {
+          message += ` Betting is unlocked, and markets opened automatically for ${preparedGames} ready game${preparedGames === 1 ? "" : "s"}.`;
+        } else if (completedGames === unlockAfter) {
+          message += " Betting is now unlocked. Markets will open automatically when the next complete lineup is saved.";
+        }
+      }
+      notify(message, tone);
     } else {
       notify(`Game marked ${statusLabel(status).toLowerCase()}.`);
     }
@@ -908,9 +953,14 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
             <Pill>{statusLabel(game.status)}</Pill>
             <h2 className="mt-2 font-display text-4xl uppercase">{formatDateTime(game.game_date)}</h2>
             <div className="mt-2 font-mono text-3xl">Team A {score.A} - {score.B} Team B</div>
-            <div className="mt-4 flex max-w-md gap-2">
-              <TextInput disabled={game.status === "final"} type="datetime-local" value={dateEdit} onChange={e => setDateEdit(e.target.value)} />
-              <SecondaryButton disabled={game.status === "final"} type="button" onClick={saveGameDetails}>Save date</SecondaryButton>
+            <div className="mt-4 max-w-md">
+              <label>
+                <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-chalk/45">Your local time · {Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}</span>
+                <span className="flex gap-2">
+                  <TextInput aria-label="Edit game date and time" disabled={game.status === "final"} type="datetime-local" value={dateEdit} onChange={e => setDateEdit(e.target.value)} />
+                  <SecondaryButton disabled={game.status === "final"} type="button" onClick={saveGameDetails}>Save date</SecondaryButton>
+                </span>
+              </label>
             </div>
           </div>
           <button type="button" disabled={game.status === "final"} onClick={deleteGame} className="rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-2 font-semibold text-red-200 disabled:cursor-not-allowed disabled:opacity-40">Delete game</button>
@@ -926,15 +976,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
           {lineupOpen ? (
             <PrimaryButton type="button" onClick={saveLineup} disabled={!lineupCanSave}>Save lineup</PrimaryButton>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {lineupReady && (game.status === "draft" || game.status === "live") ? (
-                <SecondaryButton type="button" disabled={sendingLineupNotification} onClick={() => void sendLineupNotification()} className="inline-flex items-center gap-2">
-                  <BellRing size={16} />
-                  {sendingLineupNotification ? "Sending..." : "Send lineup notification"}
-                </SecondaryButton>
-              ) : null}
-              <PrimaryButton disabled={game.status === "final"} type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
-            </div>
+            <PrimaryButton disabled={game.status === "final"} type="button" onClick={() => setLineupOpen(true)}>Edit lineup</PrimaryButton>
           )}
         </div>
 
@@ -1082,6 +1124,7 @@ function SavedLineupSummary({ game, players, lineups }: { game: Game; players: P
 function SavedTeam({ title, mode, players, lineups }: { title: string; mode: GoalkeeperMode; players: Player[]; lineups: { player_id: string; role: PlayerPosition }[] }) {
   const sorted = sortLineupsByRole(players, lineups.map((lineup, index) => ({
     id: `${lineup.player_id}-${index}`,
+    league_id: "",
     game_id: "",
     team: "A",
     player_id: lineup.player_id,

@@ -11,6 +11,9 @@ update public.profiles
 set is_admin = true
 where id = '82000000-0000-4000-8000-000000000001';
 
+insert into public.league_memberships(league_id, user_id, role)
+values ('00000000-0000-4000-8000-000000000001', '82000000-0000-4000-8000-000000000001', 'admin');
+
 insert into public.players(id, name, default_position)
 select
   ('83000000-0000-4000-8000-' || lpad(player_number::text, 12, '0'))::uuid,

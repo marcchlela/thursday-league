@@ -249,6 +249,22 @@ button[aria-label] {
   }
 }
 
+@keyframes onboarding-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboarding-enter {
+  animation: onboarding-enter 260ms ease-out both;
+}
+
 .launch-screen {
   isolation: isolate;
 }
@@ -287,7 +303,8 @@ button[aria-label] {
   .launch-backdrop,
   .launch-mark,
   .launch-orbit,
-  .launch-wordmark {
+  .launch-wordmark,
+  .onboarding-enter {
     animation: none;
   }
 }

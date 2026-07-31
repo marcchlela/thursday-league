@@ -11,12 +11,12 @@ begin
   end if;
 
   if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'bet_slips'
-      and policyname = 'slips owner readable'
-      and qual like '%auth.uid()%'
+      select 1
+      from pg_policies
+      where schemaname = 'public'
+        and tablename = 'bet_slips'
+        and policyname = 'users read own league bets'
+        and qual like '%auth.uid()%'
   ) then
     raise exception 'The owner-only bet slip read policy is missing';
   end if;

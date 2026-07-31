@@ -28,6 +28,9 @@ begin
   set username = 'model-history-admin', is_admin = true
   where id = admin_id;
 
+  insert into public.league_memberships(league_id, user_id, role)
+  values ('00000000-0000-4000-8000-000000000001', admin_id, 'admin');
+
   insert into public.games(id, game_date, status)
   values (target_game_id, now() + interval '1 day', 'upcoming');
 

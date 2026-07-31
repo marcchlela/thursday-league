@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "@/components/LeagueLink";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronDown, Crown, ShieldCheck, Shirt, TrendingUp, Trophy } from "lucide-react";

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LeagueLink as Link } from "./LeagueLink";
 import { Game, GameLineup, GamePlayerStat, MatchEvent } from "@/lib/types";
 import { calculateScore } from "@/lib/scoring";
 import { formatDateTime, statusLabel } from "@/lib/utils";

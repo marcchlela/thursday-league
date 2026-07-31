@@ -18,8 +18,11 @@ async function authenticateAdmin(request: Request) {
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !user) return { ok: false as const, response: NextResponse.json({ error: "Invalid authentication." }, { status: 401 }) };
 
-  const { data: profile } = await supabaseAdmin.from("profiles").select("is_admin, account_status").eq("id", user.id).single();
-  if (!profile?.is_admin || profile.account_status !== "active") return { ok: false as const, response: NextResponse.json({ error: "Admin access required." }, { status: 403 }) };
+  const [{ data: profile }, { data: appRole }] = await Promise.all([
+    supabaseAdmin.from("profiles").select("account_status").eq("id", user.id).single(),
+    supabaseAdmin.from("app_roles").select("role").eq("user_id", user.id).eq("role", "platform_admin").maybeSingle()
+  ]);
+  if (profile?.account_status !== "active" || !appRole) return { ok: false as const, response: NextResponse.json({ error: "Platform admin access required." }, { status: 403 }) };
   return { ok: true as const, supabaseAdmin, userId: user.id };
 }
 
@@ -36,7 +39,9 @@ export async function GET(request: Request) {
   if (!limit.allowed) return NextResponse.json({ error: limit.error }, { status: limit.status });
 
   try {
-    const recipients = await countPushRecipients("announcement");
+    const leagueId = new URL(request.url).searchParams.get("league");
+    if (!leagueId) return NextResponse.json({ error: "Choose a league first." }, { status: 400 });
+    const recipients = await countPushRecipients(leagueId, "announcement");
     return NextResponse.json({ success: true, recipients });
   } catch (error) {
     console.error("Announcement recipient count failed", error);
@@ -56,7 +61,18 @@ export async function POST(request: Request) {
   });
   if (!limit.allowed) return NextResponse.json({ error: limit.error }, { status: limit.status });
 
-  const parsed = validateCustomNotification(await request.json().catch(() => null));
+  const rawBody = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const leagueId = typeof rawBody?.leagueId === "string" ? rawBody.leagueId : "";
+  if (!leagueId) return NextResponse.json({ error: "Choose a league first." }, { status: 400 });
+  const { data: league } = await authentication.supabaseAdmin
+    .from("leagues")
+    .select("id, slug")
+    .eq("id", leagueId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!league) return NextResponse.json({ error: "League not found." }, { status: 404 });
+
+  const parsed = validateCustomNotification(rawBody);
   if (parsed.error || !parsed.data) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const notification = parsed.data;
 
@@ -65,6 +81,7 @@ export async function POST(request: Request) {
       .from("games")
       .select("id")
       .eq("id", notification.gameId!)
+      .eq("league_id", leagueId)
       .in("status", ["upcoming", "draft"])
       .gt("game_date", new Date().toISOString())
       .maybeSingle();
@@ -73,6 +90,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await sendTrackedPush({
+      leagueId,
       type: "announcement",
       gameId: notification.gameId || undefined,
       createdBy: authentication.userId,
@@ -80,7 +98,7 @@ export async function POST(request: Request) {
       payload: {
         title: notification.title,
         body: notification.body,
-        url: customNotificationTarget(notification.destination, notification.gameId),
+        url: `/l/${league.slug}${customNotificationTarget(notification.destination, notification.gameId)}`,
         tag: `announcement-${notification.requestId}`,
         ttl: 86400
       }

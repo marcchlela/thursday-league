@@ -11,6 +11,7 @@ function runSupabase(args: string[], silent = false) {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      SUPABASE_HOME: path.join(process.cwd(), "supabase", ".temp", "cli-home"),
       SUPABASE_TELEMETRY_DISABLED: "true"
     },
     stdio: silent ? "ignore" : "inherit"

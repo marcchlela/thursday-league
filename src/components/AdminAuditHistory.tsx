@@ -28,21 +28,99 @@ const ACTION_LABELS: Record<string, string> = {
   season_created: "Season created",
   season_mode_changed: "Season mode changed",
   season_updated: "Season updated",
-  wallet_adjusted: "Wallet adjusted"
+  wallet_adjusted: "Wallet adjusted",
+  league_created: "League created",
+  league_member_role_changed: "Member role changed",
+  league_ownership_transferred: "League ownership transferred",
+  league_member_removed: "League member removed",
+  league_options_updated: "League options updated",
+  league_join_code_rotated: "League code rotated",
+  league_archived: "League archived"
 };
 
 function actionLabel(action: string) {
   return ACTION_LABELS[action] || action.replaceAll("_", " ");
 }
 
-function JsonSnapshot({ label, value }: { label: string; value: AdminAuditLog["before_data"] }) {
+const FIELD_LABELS: Record<string, string> = {
+  user_id: "Member",
+  owner_user_id: "Owner",
+  game_date: "Game date",
+  potm_player_id: "Player of the match",
+  fantasy_enabled: "Fantasy",
+  betting_enabled: "Betting",
+  betting_unlock_after_games: "Betting unlock",
+  archived_at: "Archived",
+  default_position: "Position",
+  player_type: "Player type",
+  fantasy_eligible: "Fantasy eligible",
+  individual_betting_eligible: "Betting eligible"
+};
+
+const HIDDEN_FIELDS = new Set([
+  "id",
+  "league_id",
+  "created_at",
+  "updated_at"
+]);
+
+function fieldLabel(key: string) {
+  return FIELD_LABELS[key]
+    || key.replaceAll("_", " ").replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function readableValue(key: string, value: unknown, profiles: Profile[], games: Game[]) {
+  if (value === null || value === undefined || value === "") return "None";
+  if (typeof value === "boolean") return value ? "Enabled" : "Disabled";
+  if (key.endsWith("user_id") && typeof value === "string") {
+    return profiles.find(profile => profile.id === value)?.username || "Former member";
+  }
+  if (key === "game_id" && typeof value === "string") {
+    const game = games.find(item => item.id === value);
+    return game ? formatDateTime(game.game_date) : "Game record";
+  }
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return formatDateTime(value);
+  }
+  if (typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value)) {
+    return `Record ending ${value.slice(-6)}`;
+  }
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (typeof value === "object") {
+    return `Detailed data updated (${Object.keys(value as Record<string, unknown>).length} fields)`;
+  }
+  if (key === "betting_unlock_after_games") {
+    return `${String(value)} final game${Number(value) === 1 ? "" : "s"}`;
+  }
+  return String(value).replaceAll("_", " ");
+}
+
+function AuditSnapshot({
+  label,
+  value,
+  profiles,
+  games
+}: {
+  label: string;
+  value: AdminAuditLog["before_data"];
+  profiles: Profile[];
+  games: Game[];
+}) {
   if (value === null) return null;
+  const entries = Object.entries(value)
+    .filter(([key]) => !HIDDEN_FIELDS.has(key));
+  if (!entries.length) return null;
   return (
-    <div>
+    <div className="rounded-2xl border border-league-gold/15 bg-black/20 p-4">
       <div className="mb-1 text-xs font-bold uppercase tracking-wider text-chalk/45">{label}</div>
-      <pre className="max-h-64 overflow-auto rounded-2xl border border-league-gold/15 bg-black/25 p-3 text-xs leading-relaxed text-chalk/70">
-        {JSON.stringify(value, null, 2)}
-      </pre>
+      <dl className="mt-2 divide-y divide-league-gold/10">
+        {entries.map(([key, entry]) => (
+          <div key={key} className="grid gap-1 py-2 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,11rem)_1fr]">
+            <dt className="text-xs font-semibold text-chalk/40">{fieldLabel(key)}</dt>
+            <dd className="break-words text-sm text-chalk/75">{readableValue(key, entry, profiles, games)}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
@@ -64,7 +142,7 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
       .limit(200);
 
     if (requestError) {
-      setError(friendlyActionError(requestError, "Audit history could not be loaded. Check the database setup and try again."));
+      setError(friendlyActionError(requestError, "Audit history could not be loaded. Please try again."));
       setRows([]);
     } else {
       setRows((data || []) as AdminAuditLog[]);
@@ -104,7 +182,9 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
             <RefreshCw size={16} /> Refresh
           </SecondaryButton>
         </div>
-        <div className="mt-4 rounded-2xl border border-league-gold/20 bg-league-gold/[.055] p-4 text-sm text-chalk/65">Final results stay locked. Use <strong className="text-chalk">Correct game</strong> below, reopen the result with a reason, make the edits in Games, then finalize it again. Every edit keeps that reason in this history.</div>
+        {games.some(game => game.status === "final") ? (
+          <div className="mt-4 rounded-2xl border border-league-gold/20 bg-league-gold/[.055] p-4 text-sm text-chalk/65">Final results stay locked. Use <strong className="text-chalk">Correct game</strong> on a game entry, give a reason, make the edit, and finalize it again.</div>
+        ) : null}
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_260px]">
           <label className="relative">
             <span className="sr-only">Search audit history</span>
@@ -118,7 +198,7 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
         </div>
       </Card>
 
-      {!filtered.length ? <EmptyState title="No audit entries" text={rows.length ? "No entries match the current filters." : "Admin changes will appear here after the migration is active."} /> : null}
+      {!filtered.length ? <EmptyState title="No audit entries" text={rows.length ? "No entries match the current filters." : "League setup, membership, and match-management changes will appear here."} /> : null}
       {filtered.map(row => {
         const admin = profiles.find(profile => profile.id === row.admin_user_id)?.username || "System / deleted admin";
         const game = games.find(item => item.id === row.game_id);
@@ -140,8 +220,8 @@ export function AdminAuditHistory({ profiles, games, onCorrectGame }: { profiles
                 <div className="mt-3 hidden text-xs font-bold uppercase tracking-wider text-league-gold group-open:block">Hide details</div>
               </summary>
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                <JsonSnapshot label="Before" value={row.before_data} />
-                <JsonSnapshot label="After" value={row.after_data} />
+                <AuditSnapshot label="Before" value={row.before_data} profiles={profiles} games={games} />
+                <AuditSnapshot label="After" value={row.after_data} profiles={profiles} games={games} />
               </div>
               {game ? <SecondaryButton type="button" onClick={() => onCorrectGame(game.id)} className="mt-4 inline-flex items-center gap-2"><Pencil size={15} /> Correct game</SecondaryButton> : null}
             </details>
