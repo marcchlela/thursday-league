@@ -15,7 +15,7 @@ This checklist tracks the iOS and Android release as a separate client. The Next
 - [x] Keep root web lint and TypeScript checks isolated from the mobile application.
 - [ ] Add final app icon, adaptive icon, monochrome icon, and splash artwork.
 - [x] Set the permanent Apple bundle ID and Android package name to `app.thursdayleague.mobile`.
-- [ ] Link the Expo project under the confirmed Expo owner `chlelaaa`.
+- [x] Link the Expo project under the confirmed Expo owner `chlelaaa`.
 
 ### Owner
 

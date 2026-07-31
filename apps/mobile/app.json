@@ -5,7 +5,10 @@
     "owner": "chlelaaa",
     "description": "Your weekly five-a-side league, fantasy competition, and match predictions in one place.",
     "version": "0.1.0",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "thursdayleague",
@@ -39,6 +42,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fa6766a1-14d7-469a-a94d-8f073656d50a"
+      }
     }
   }
 }
