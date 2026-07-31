@@ -370,9 +370,19 @@ update public.league_settings set league_id = '00000000-0000-4000-8000-000000000
 select set_config('app.allow_final_transition', 'true', true);
 update public.games set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 select set_config('app.allow_final_transition', 'false', true);
+
+-- Finalized match records are guarded by dedicated triggers that deliberately
+-- ignore the game transition flag. Disable only those three guards for this
+-- owner-run tenant-key backfill; the audit triggers remain enabled.
+alter table public.game_lineups disable trigger protect_final_lineups;
+alter table public.events disable trigger protect_final_events;
+alter table public.game_player_stats disable trigger protect_final_player_stats;
 update public.game_lineups set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.events set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.game_player_stats set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
+alter table public.game_lineups enable trigger protect_final_lineups;
+alter table public.events enable trigger protect_final_events;
+alter table public.game_player_stats enable trigger protect_final_player_stats;
 update public.admin_audit_log set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.fantasy_squads set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.fantasy_picks set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
