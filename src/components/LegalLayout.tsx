@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import leagueLogo from "../../Thursday League logo (no bg).png";
 
@@ -24,7 +25,7 @@ export function LegalLayout({
   return (
     <div className="min-h-[100svh] bg-ink-900 bg-turfMuted text-chalk">
       <header className="border-b border-league-gold/15">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-4 sm:px-6">
           <Link href="/welcome" className="flex items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">
             <Image src={leagueLogo} alt="" priority className="h-11 w-11 object-contain" />
             <span>
@@ -32,14 +33,15 @@ export function LegalLayout({
               <span className="block text-[9px] font-black uppercase tracking-[.18em] text-league-gold/65">Official information</span>
             </span>
           </Link>
-          <Link href="/login" className="rounded-xl border border-league-gold/30 bg-league-gold/[.06] px-4 py-2 text-sm font-bold text-league-gold transition hover:border-league-gold/55 hover:bg-league-gold/[.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">
-            Open app
-          </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
-        <div className="text-[10px] font-black uppercase tracking-[.2em] text-league-gold/70">{eyebrow}</div>
+        <Link href="/settings" className="inline-flex items-center gap-1.5 text-xs font-bold text-chalk/40 transition hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">
+          <ArrowLeft size={14} />
+          Settings
+        </Link>
+        <div className="mt-4 text-[10px] font-black uppercase tracking-[.2em] text-league-gold/70">{eyebrow}</div>
         <h1 className="mt-2 max-w-3xl font-display text-5xl uppercase leading-[.95] sm:text-6xl">{title}</h1>
         <p className="mt-5 max-w-3xl text-base leading-7 text-chalk/60 sm:text-lg">{intro}</p>
         <div className="mt-9 space-y-5 text-sm leading-7 text-chalk/65 sm:text-base">{children}</div>
@@ -65,4 +67,3 @@ export function LegalSection({ title, children }: { title: string; children: Rea
     </section>
   );
 }
-
