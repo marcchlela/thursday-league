@@ -27,10 +27,10 @@ export default async function ReleaseNotesPage({ params }: { params: Promise<{ v
             <span className="font-mono text-sm font-black text-league-gold">Version {release.version}</span>
             <ReleaseLevelBadge level={release.level} />
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-chalk/35">
+          <time dateTime={release.releasedAt} className="mt-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-chalk/45">
             <CalendarDays size={13} />
             Released {releaseDate(release.releasedAt)}
-          </div>
+          </time>
         </header>
 
         <div className="divide-y divide-league-gold/15">

@@ -30,14 +30,14 @@ export default function WhatsNewPage() {
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-xs font-black text-league-gold">v{release.version}</span>
                   <ReleaseLevelBadge level={release.level} />
-                  {index === 0 ? <span className="text-[8px] font-black uppercase tracking-[.16em] text-chalk/35">Latest</span> : null}
+                  {index === 0 ? <span className="text-[8px] font-black uppercase tracking-[.16em] text-chalk/50">Latest</span> : null}
                 </span>
                 <span className="mt-2 block font-display text-2xl uppercase text-chalk sm:text-3xl">{release.title}</span>
                 <span className="mt-1.5 block text-sm leading-relaxed text-chalk/45">{release.summary}</span>
-                <span className="mt-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-chalk/30">
+                <time dateTime={release.releasedAt} className="mt-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-chalk/40">
                   <CalendarDays size={13} />
                   {releaseDate(release.releasedAt)}
-                </span>
+                </time>
               </span>
               <ChevronRight size={18} className="mt-3 shrink-0 text-chalk/20 transition group-hover:translate-x-0.5 group-hover:text-league-gold" />
             </div>

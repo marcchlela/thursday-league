@@ -158,6 +158,7 @@ function AuthenticatedShell({
   const [inviteBusy, setInviteBusy] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const leagueMenuRef = useRef<HTMLDivElement>(null);
+  const leagueMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!leagueMenuOpen) return;
@@ -166,9 +167,23 @@ function AuthenticatedShell({
         setLeagueMenuOpen(false);
       }
     };
+    const closeWithKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setLeagueMenuOpen(false);
+      leagueMenuButtonRef.current?.focus();
+    };
     document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
+    document.addEventListener("keydown", closeWithKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", closeWithKeyboard);
+    };
   }, [leagueMenuOpen]);
+
+  useEffect(() => {
+    setLeagueMenuOpen(false);
+  }, [pathname]);
 
   if (loading) return <LaunchScreen />;
   if (error) return <StartupFailure problem={error} onRetry={reloadLeagues} />;
@@ -258,9 +273,11 @@ function AuthenticatedShell({
             </Link>
             <div ref={leagueMenuRef} className="relative min-w-0">
               <button
+                ref={leagueMenuButtonRef}
                 type="button"
                 aria-haspopup="menu"
                 aria-expanded={leagueMenuOpen}
+                aria-controls="league-switcher-menu"
                 onClick={() => setLeagueMenuOpen(open => !open)}
                 className="flex h-10 max-w-[10rem] items-center gap-1.5 rounded-xl border border-league-gold/18 bg-ink-850 px-2.5 text-left transition hover:border-league-gold/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold min-[430px]:max-w-[14rem] sm:h-11 sm:px-3"
               >
@@ -275,7 +292,9 @@ function AuthenticatedShell({
 
               {leagueMenuOpen ? (
                 <div
+                  id="league-switcher-menu"
                   role="menu"
+                  aria-label="Choose a league or league action"
                   className="absolute left-0 top-[calc(100%+.5rem)] z-50 w-64 overflow-hidden rounded-[1rem] border border-league-gold/25 bg-ink-850 p-1.5 shadow-[0_18px_48px_rgba(0,0,0,.45)]"
                 >
                   <div className="px-3 py-2 text-[9px] font-black uppercase tracking-[.17em] text-chalk/35">Your leagues</div>
@@ -284,6 +303,7 @@ function AuthenticatedShell({
                       key={item.id}
                       type="button"
                       role="menuitem"
+                      aria-current={item.id === league?.id ? "true" : undefined}
                       onClick={() => {
                         setLeagueMenuOpen(false);
                         if (item.id !== league?.id) void switchLeague(item.id);
@@ -354,6 +374,7 @@ function AuthenticatedShell({
                 <Link
                   key={link.href}
                   href={leaguePath(link.href)}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-chalk/55 transition hover:bg-league-gold/[.05] hover:text-chalk",
                     active && "bg-league-gold/[.08] text-league-gold ring-1 ring-league-gold/20"
@@ -421,7 +442,8 @@ function AuthenticatedShell({
               const active =
                 relativePath === link.href
                 || (link.href === "/games" && relativePath.startsWith("/games/"))
-                || (link.href === "/fantasy" && (relativePath.startsWith("/fantasy/") || relativePath.startsWith("/betting")));
+                || (link.href === "/fantasy" && (relativePath.startsWith("/fantasy/") || relativePath.startsWith("/betting")))
+                || (link.href === "/profile" && relativePath.startsWith("/settings"));
               return (
                 <Link
                   key={link.href}
