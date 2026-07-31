@@ -364,7 +364,12 @@ alter table public.coin_ledger add column if not exists league_id uuid;
 update public.players set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.seasons set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.league_settings set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
+-- Finalized games reject direct updates. This transaction-scoped flag is the
+-- same controlled escape hatch used by the finalize/reopen RPCs and permits
+-- only this database-owner backfill session to attach the legacy tenant.
+select set_config('app.allow_final_transition', 'true', true);
 update public.games set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
+select set_config('app.allow_final_transition', 'false', true);
 update public.game_lineups set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.events set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
 update public.game_player_stats set league_id = '00000000-0000-4000-8000-000000000001' where league_id is null;
