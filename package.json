@@ -17,7 +17,11 @@
     "db:backup:verify": "node scripts/verify-supabase-backup.mjs",
     "storage:backup": "node scripts/backup-supabase-storage.mjs",
     "storage:backup:verify": "node scripts/verify-supabase-backup.mjs",
-    "smoke:production": "node scripts/smoke-production.mjs"
+    "smoke:production": "node scripts/smoke-production.mjs",
+    "mobile:start": "npm --prefix apps/mobile start",
+    "mobile:android": "npm --prefix apps/mobile run android",
+    "mobile:ios": "npm --prefix apps/mobile run ios",
+    "mobile:typecheck": "npm --prefix apps/mobile run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
