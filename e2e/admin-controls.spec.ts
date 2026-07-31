@@ -51,14 +51,15 @@ test("unsaved match statistics block accidental admin navigation", async ({ page
   await login(page);
   await page.goto("/admin", { waitUntil: "domcontentloaded" });
   const lineupReadyGame = page.getByRole("button", { name: /Lineup ready/ }).first();
-  const matchStatistics = page.getByRole("heading", { name: "Match statistics" }).first();
+  const lineupReadySection = lineupReadyGame.locator("xpath=ancestor::section[1]");
+  const matchStatistics = lineupReadySection.getByRole("heading", { name: "Match statistics" });
   await expect(lineupReadyGame).toBeVisible();
   await expect(async () => {
     if (!(await matchStatistics.isVisible())) await lineupReadyGame.click();
     await expect(matchStatistics).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 30_000 });
 
-  const goalsInput = page.getByLabel(/Goals for /).first();
+  const goalsInput = lineupReadySection.getByLabel(/Goals for /).first();
   await goalsInput.fill("9");
   await expect(page.getByText("Unsaved changes", { exact: true }).first()).toBeVisible();
 
