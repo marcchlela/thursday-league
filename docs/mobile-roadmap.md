@@ -13,7 +13,7 @@ This checklist tracks the iOS and Android release as a separate client. The Next
 - [x] Add public environment templates and prevent mobile secrets from entering Git.
 - [x] Add EAS development, preview, and production build profiles.
 - [x] Keep root web lint and TypeScript checks isolated from the mobile application.
-- [ ] Add final app icon, adaptive icon, monochrome icon, and splash artwork.
+- [x] Add final app icon, adaptive icon, monochrome icon, and splash artwork from the approved Thursday League logo.
 - [x] Set the permanent Apple bundle ID and Android package name to `app.thursdayleague.mobile`.
 - [x] Link the Expo project under the confirmed Expo owner `chlelaaa`.
 
@@ -23,7 +23,7 @@ This checklist tracks the iOS and Android release as a separate client. The Next
 - [x] Confirm the Expo account owner: `chlelaaa`.
 - [x] Approve the permanent identifier: `app.thursdayleague.mobile`.
 - [x] Defer purchasing `thursday-league.app`; keep the current Vercel URL for now.
-- [ ] Copy the four public values from `.env.example` into `apps/mobile/.env.local` when ready to test the native client.
+- [x] Configure `apps/mobile/.env.local` with the public Supabase and production app values.
 
 ### Acceptance gate
 
