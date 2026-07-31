@@ -19,6 +19,39 @@ export type ReleaseNote = {
 // update and powers the unread badge in Settings.
 export const releaseNotes: ReleaseNote[] = [
   {
+    version: "0.5.0",
+    level: "major",
+    releasedAt: "2026-07-31",
+    title: "More leagues. One app.",
+    summary: "Create, join, and switch between secure leagues with guided onboarding and more automatic matchday setup.",
+    sections: [
+      {
+        title: "Your leagues, kept separate",
+        items: [
+          "Create a league for your group, join with an approval code or secure invite link, and switch leagues from the top bar.",
+          "Every league has its own roster, matches, Fantasy teams, virtual bets, standings, and settings.",
+          "Owners can promote admins, manage members, transfer ownership, and archive a league without deleting its history."
+        ]
+      },
+      {
+        title: "A guided first matchday",
+        items: [
+          "New onboarding introduces match tracking, Fantasy, virtual betting, and reminders before helping you create or join a league.",
+          "League previews show what you are joining, and setup progress is saved if you leave and return.",
+          "Fantasy and virtual betting can be enabled per league, while match and player-stat tracking are always included."
+        ]
+      },
+      {
+        title: "Less admin work",
+        items: [
+          "Virtual betting unlocks automatically after three completed games and markets are prepared from valid lineups.",
+          "Join updates, matchday reminders, Fantasy deadlines, betting unlocks, lineups, and results now use automatic league-aware notifications.",
+          "League data and private Fantasy or bet selections stay protected from other leagues and users."
+        ]
+      }
+    ]
+  },
+  {
     version: "0.4.1",
     level: "patch",
     releasedAt: "2026-07-27",

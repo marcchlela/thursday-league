@@ -239,13 +239,22 @@ export default function LeaguesPage() {
                     </span>
                     <ArrowRight size={18} className="text-chalk/30 transition group-hover:translate-x-1 group-hover:text-league-gold" />
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => setLeaveTarget(league)}
-                    className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-transparent text-xs font-bold text-chalk/35 transition hover:border-red-400/15 hover:bg-red-400/[.04] hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
-                  >
-                    <LogOut size={14} /> Leave league
-                  </button>
+                  {role === "owner" ? (
+                    <Link
+                      href={`/l/${league.slug}/admin?section=league`}
+                      className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-transparent text-xs font-bold text-league-gold/65 transition hover:border-league-gold/20 hover:bg-league-gold/[.05] hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"
+                    >
+                      <ShieldCheck size={14} /> Manage ownership
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setLeaveTarget(league)}
+                      className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-transparent text-xs font-bold text-chalk/35 transition hover:border-red-400/15 hover:bg-red-400/[.04] hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                    >
+                      <LogOut size={14} /> Leave league
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -316,7 +325,7 @@ export default function LeaguesPage() {
                     checked={bettingEnabled}
                     onChange={setBettingEnabled}
                     title="Virtual betting"
-                    detail="Unlocks automatically after enough completed games."
+                    detail="Unlocks automatically after three completed games."
                     icon={ShieldCheck}
                   />
                 </div>

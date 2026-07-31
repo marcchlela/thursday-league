@@ -18,7 +18,7 @@ test("appearance persists and release notes clear their unread badge", async ({ 
   await expect(whatsNew.getByText("New update")).toBeVisible();
   await whatsNew.click();
   await expect(page.getByRole("heading", { name: /What.s New/ })).toBeVisible();
-  await expect(page.getByText("v0.4.1")).toBeVisible();
+  await expect(page.getByText("v0.5.0")).toBeVisible();
 
   await page.goto("/settings", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("link", { name: /What.s New/ }).getByText("New update")).toHaveCount(0);
