@@ -1,7 +1,7 @@
 {
   "name": "@thursday-league/mobile",
   "main": "expo-router/entry",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "packageManager": "npm@10.9.4",
   "engines": {
     "node": ">=22.13.0 <23",

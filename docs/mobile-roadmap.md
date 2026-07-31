@@ -86,10 +86,14 @@ This checklist tracks the iOS and Android release as a separate client. The Next
 
 ## Phase 5 — Store release
 
-- [ ] Privacy policy, support, terms, and external account-deletion pages.
-- [ ] Honest simulated-gambling content/age-rating declarations.
-- [ ] App Store privacy and Google Play Data Safety forms.
-- [ ] Reviewer league, demo credentials, and review instructions.
+- [x] Privacy policy, support, terms, and external account-deletion pages.
+- [x] In-app native account deletion and legal/support links.
+- [x] Draft honest simulated-gambling content/age-rating declarations.
+- [x] Draft App Store privacy and Google Play Data Safety answers.
+- [x] Draft reviewer league, demo-account, and review instructions.
+- [x] Draft store descriptions, screenshot plan, and first-release notes.
+- [ ] Set `NEXT_PUBLIC_SUPPORT_EMAIL` in Vercel and verify every public legal/support URL in production.
+- [ ] Create the store records and enter the prepared listing, privacy, content-rating, and reviewer information.
 - [ ] TestFlight beta and Google closed test.
-- [ ] Store screenshots, descriptions, icons, and release notes.
+- [ ] Capture final screenshots from signed release builds.
 - [ ] Production builds, submissions, review fixes, and staged rollout.

@@ -4,7 +4,7 @@
     "slug": "thursday-league",
     "owner": "chlelaaa",
     "description": "Your weekly five-a-side league, fantasy competition, and match predictions in one place.",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "platforms": [
       "ios",
       "android"
@@ -17,6 +17,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "app.thursdayleague.mobile",
+      "buildNumber": "1",
       "supportsTablet": false,
       "associatedDomains": [
         "applinks:thursday-league.vercel.app"
@@ -24,6 +25,7 @@
     },
     "android": {
       "package": "app.thursdayleague.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#11110F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

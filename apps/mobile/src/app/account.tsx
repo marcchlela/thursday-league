@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 
 import { Body, Button, Card, Eyebrow, Field, Message, Screen, Title } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
 import { friendlyMobileError } from '@/lib/api';
+import { requireMobileEnvironment } from '@/lib/env';
 import { getPendingInvite, saveAuthNotice } from '@/lib/onboarding';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -50,6 +52,14 @@ export default function AccountScreen() {
     }
   }
 
+  async function openPublicPage(path: string) {
+    try {
+      await WebBrowser.openBrowserAsync(`${requireMobileEnvironment().webUrl.replace(/\/$/, '')}${path}`);
+    } catch (error) {
+      setMessage(friendlyMobileError(error, 'That page could not be opened.'));
+    }
+  }
+
   return (
     <Screen>
       <Eyebrow>THURSDAY LEAGUE</Eyebrow>
@@ -64,8 +74,16 @@ export default function AccountScreen() {
         <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="At least 8 characters" />
         {mode === 'signup' ? <Field label="Confirm password" value={confirmation} onChangeText={setConfirmation} secureTextEntry autoCapitalize="none" autoComplete="new-password" placeholder="Password again" /> : null}
         {message ? <Message tone="error">{message}</Message> : null}
+        {mode === 'signup' ? <Text style={styles.legalCopy}>By creating an account, you agree to the Terms of Use and acknowledge the Privacy Policy.</Text> : null}
         <Button onPress={submit} disabled={busy}>{busy ? 'Working...' : mode === 'login' ? 'Log in' : 'Create account'}</Button>
         {mode === 'login' ? <Pressable accessibilityRole="link" onPress={() => router.push('/forgot-password')}><Text style={styles.link}>Forgot password?</Text></Pressable> : <Text style={styles.helper}>We send verification separately. There is no second password setup.</Text>}
+        <View accessibilityRole="none" style={styles.legalLinks}>
+          <Pressable accessibilityRole="link" onPress={() => void openPublicPage('/privacy')}><Text style={styles.legalLink}>Privacy</Text></Pressable>
+          <Text style={styles.legalDivider}>•</Text>
+          <Pressable accessibilityRole="link" onPress={() => void openPublicPage('/terms')}><Text style={styles.legalLink}>Terms</Text></Pressable>
+          <Text style={styles.legalDivider}>•</Text>
+          <Pressable accessibilityRole="link" onPress={() => void openPublicPage('/support')}><Text style={styles.legalLink}>Support</Text></Pressable>
+        </View>
       </Card>
     </Screen>
   );
@@ -79,4 +97,8 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.gold },
   link: { color: colors.gold, fontSize: 14, fontWeight: '800', textAlign: 'center', paddingVertical: spacing.sm },
   helper: { color: colors.chalkMuted, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+  legalCopy: { color: colors.chalkMuted, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+  legalLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingTop: spacing.xs },
+  legalLink: { color: colors.gold, fontSize: 12, fontWeight: '800', paddingVertical: spacing.sm },
+  legalDivider: { color: colors.goldMuted, fontSize: 12 },
 });

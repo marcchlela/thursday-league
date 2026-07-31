@@ -20,4 +20,6 @@ Only public client configuration belongs in `EXPO_PUBLIC_*` variables. Never add
 
 ## Current scope
 
-Phase 1 provides the native shell, project configuration, environment validation, Supabase client factory, EAS build profiles, and an isolated dependency tree. Authentication and product screens are intentionally not connected yet.
+The native MVP includes onboarding, verified account authentication and recovery, multi-league entry and switching, player and match views, Fantasy, virtual prediction markets, league administration, notifications, profile photos, and in-app account deletion. Store-release materials and remaining owner actions are tracked in `docs/mobile-roadmap.md` and `docs/store-release/`.
+
+The first public native release uses marketing version `1.0.0`. EAS owns remote build-number increments for production builds; do not reset the remote iOS build number or Android version code after a build has been uploaded.
