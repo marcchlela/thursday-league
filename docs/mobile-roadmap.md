@@ -77,7 +77,7 @@ This checklist tracks the iOS and Android release as a separate client. The Next
 
 ### Native-services release gate
 
-- [ ] Apply `20260731010000_native_push_delivery.sql` and `20260731020000_native_push_receipts.sql` to hosted Supabase after this branch is approved.
+- [ ] Apply `20260731010000_native_push_delivery.sql`, `20260731020000_native_push_receipts.sql`, and `20260802010000_platform_notification_templates.sql` to hosted Supabase after this branch is approved.
 - [ ] Configure Android FCM V1 credentials in EAS and test a received notification on a physical Android device or supported emulator.
 - [ ] Purchase the Apple Developer Program membership, configure the APNs push key, and test on the registered iPhone.
 - [ ] Add `ANDROID_APP_CERT_SHA256` and `APPLE_TEAM_ID` to Vercel, deploy the association endpoints, then verify Android App Links and iOS Universal Links.

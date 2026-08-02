@@ -1,3 +1,11 @@
+import {
+  AutomaticNotificationType,
+  defaultNotificationTemplate,
+  NotificationTemplate,
+  notificationDestinationUrl,
+  renderNotificationText
+} from "./notificationTemplates";
+
 export type LeagueGameNotificationEvent =
   | "game_scheduled"
   | "lineups_ready"
@@ -14,16 +22,23 @@ export type LeagueNotificationPayload = {
 export function gameNotificationPayload(
   event: LeagueGameNotificationEvent,
   game: { id: string; status: string },
-  leagueSlug: string,
-  score?: { A: number; B: number }
+  league: { slug: string; name: string },
+  score?: { A: number; B: number },
+  storedTemplate?: NotificationTemplate
 ): LeagueNotificationPayload | null {
-  const leagueRoot = `/l/${leagueSlug}`;
+  const notificationType: AutomaticNotificationType = event === "game_scheduled"
+    ? "new_game"
+    : event === "lineups_ready"
+      ? "lineups_ready"
+      : "final_results";
+  const template = storedTemplate || defaultNotificationTemplate(notificationType);
+  if (!template.enabled) return null;
 
   if (event === "game_scheduled" && game.status === "upcoming") {
+    const text = renderNotificationText(template, { league_name: league.name });
     return {
-      title: "New game",
-      body: "A new game was scheduled. Tap to see kickoff in your local time.",
-      url: `${leagueRoot}/games/${game.id}`,
+      ...text,
+      url: notificationDestinationUrl(template.destination, { leagueSlug: league.slug, gameId: game.id }),
       tag: `game-scheduled-${game.id}`,
       ttl: 86400
     };
@@ -33,20 +48,24 @@ export function gameNotificationPayload(
     event === "lineups_ready"
     && (game.status === "draft" || game.status === "live")
   ) {
+    const text = renderNotificationText(template, { league_name: league.name });
     return {
-      title: "Lineups ready",
-      body: "The lineups are confirmed. Tap to view them and create your fantasy team.",
-      url: `${leagueRoot}/fantasy?tab=set`,
+      ...text,
+      url: notificationDestinationUrl(template.destination, { leagueSlug: league.slug, gameId: game.id }),
       tag: `lineups-ready-${game.id}`,
       ttl: 21600
     };
   }
 
   if (event === "result_finalized" && game.status === "final" && score) {
+    const text = renderNotificationText(template, {
+      league_name: league.name,
+      team_a_score: score.A,
+      team_b_score: score.B
+    });
     return {
-      title: "Final result",
-      body: `Team A ${score.A}-${score.B} Team B. Tap to see game and fantasy details.`,
-      url: `${leagueRoot}/games/${game.id}`,
+      ...text,
+      url: notificationDestinationUrl(template.destination, { leagueSlug: league.slug, gameId: game.id }),
       tag: `result-finalized-${game.id}`,
       ttl: 86400
     };
