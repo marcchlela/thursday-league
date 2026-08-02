@@ -53,7 +53,7 @@ App Store Connect does not show “What’s New” for the first version. For la
 ## Google Play
 
 - App name: `Thursday League`
-- Short description: `Run your football league, track matches, play Fantasy, and make virtual picks.`
+- Short description: `Run your football league, track matches, play Fantasy, and make friendly picks.` (79/80 characters)
 - Privacy policy URL: `https://thursday-league.vercel.app/privacy`
 - Account deletion URL: `https://thursday-league.vercel.app/delete-account`
 - Support contact: `thursdayleagueapp@gmail.com`
@@ -96,15 +96,22 @@ Welcome to Thursday League 1.0.
 - Receive optional matchweek notifications
 - Manage account recovery, privacy, and deletion in the app
 
-## Screenshot sequence
+## Google Play artwork
 
-Capture real screens from the final signed reviewer league. Avoid personal email addresses, real phone notifications, development labels, and placeholder data.
+Capture real screens from the final signed reviewer league. Avoid personal email addresses, real phone notifications, development labels, and placeholder data. The production renderer and exact capture filenames live in `design/store-listing/README.md`.
 
-1. Home: next match, readiness, and league switcher — headline `Your matchweek, together`
-2. Match: lineups, score, and timeline — headline `Every match in one place`
-3. Player stats: leaders and a player profile — headline `Track every contribution`
-4. Fantasy selection — headline `Pick your matchday five`
+1. Home: next match and readiness — headline `Your matchweek. Together.`
+2. Match: lineups, score, and timeline — headline `Every match. One place.`
+3. Player stats: leaders or player profile — headline `Every contribution counts.`
+4. Fantasy selection — headline `Pick your matchday five.`
 5. Predictions — headline `Friendly picks. Virtual coins.`
-6. Admin match setup or league invite — headline `Simple league management`
+6. League switcher and invitation entry — headline `One app. Every league.`
+7. Owner match or roster controls — headline `Run your league. Keep it simple.`
 
-Apple: capture the current required large iPhone display set from the signed iOS build. Google: supply at least two phone screenshots and a 1024 × 500 feature graphic; use a 512 × 512 store icon exported from the approved icon asset. Re-check both consoles at upload time because accepted device classes and asset rules can change.
+- Phone screenshots: seven portrait JPEGs at 1080 × 1920.
+- Feature graphic: one opaque JPEG at exactly 1024 × 500.
+- Store icon: approved 512 × 512 PNG from `public/icons/icon-512.png`.
+- Tilo appears only in the feature graphic so the mascot remains a meaningful brand moment.
+- Supply the accessibility descriptions from `design/store-listing/README.md` in Play Console.
+
+Apple screenshots must still be captured separately from the final signed iOS build. Re-check both consoles at upload time because accepted device classes and asset rules can change.
