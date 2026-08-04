@@ -7,8 +7,12 @@ test("seeded member can browse the core league pages", async ({ page }) => {
 
   await page.goto("/l/thursday-league/games", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("tab", { name: "Upcoming" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Results" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "All games" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Lineups" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open fixture calendar" })).toBeVisible();
+  await page.getByRole("button", { name: "Open fixture calendar" }).click();
+  await expect(page.getByRole("dialog", { name: "Fixture calendar" })).toBeVisible();
+  await page.getByRole("button", { name: "Close calendar" }).click();
   await expectNoHorizontalOverflow(page);
 
   await page.goto("/l/thursday-league/players", { waitUntil: "domcontentloaded" });

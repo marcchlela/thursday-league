@@ -9,6 +9,7 @@ import { GiGoalKeeper, GiSoccerKick } from "react-icons/gi";
 import { MdOutlineReplay } from "react-icons/md";
 import type { IconType } from "react-icons";
 import { calculatePlayerBreakdown, calculateScore } from "@/lib/scoring";
+import { isGameAwaitingUpdate } from "@/lib/gameSchedule";
 import { isFantasyEligible } from "@/lib/playerEligibility";
 import { Game, GameLineup, LeagueData, TeamCode } from "@/lib/types";
 import { cn, gameLineupIsReady, goalkeeperMode, playerName, statusLabel } from "@/lib/utils";
@@ -83,6 +84,9 @@ function MatchHero({ game, data, lineups }: { game: Game; data: LeagueData; line
   const score = calculateScore(events, lineups, playerStats);
   const ready = gameLineupIsReady(game, lineups);
   const showScore = game.status === "live" || game.status === "final";
+  const awaitingUpdate = isGameAwaitingUpdate(game);
+  const heroLabel = game.status === "final" ? "Final result" : game.status === "live" ? "Live match" : awaitingUpdate ? "Awaiting update" : "Next match";
+  const stateLabel = awaitingUpdate ? ready ? "Awaiting result" : "Setup incomplete" : statusLabel(game.status);
 
   return (
     <section className="relative min-h-[15.5rem] overflow-hidden rounded-[1.6rem] border border-league-gold/30 bg-ink-850 p-4 shadow-[0_14px_35px_rgba(0,0,0,.22),inset_0_1px_0_rgba(218,165,32,.07)] md:min-h-[17rem] md:p-6">
@@ -93,8 +97,8 @@ function MatchHero({ game, data, lineups }: { game: Game; data: LeagueData; line
       <div className="pointer-events-none absolute bottom-[13%] left-1/2 h-16 w-16 -translate-x-1/2 rounded-full border border-chalk/[.055]" />
 
       <div className="relative flex items-center justify-between">
-        <span className="text-xs font-black uppercase tracking-[.18em] text-turf-400">{game.status === "final" ? "Final result" : game.status === "live" ? "Live match" : "Next match"}</span>
-        <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest", game.status === "live" ? "bg-red-400/15 text-red-300" : "bg-chalk/[.05] text-chalk/60")}>{statusLabel(game.status)}</span>
+        <span className={cn("text-xs font-black uppercase tracking-[.18em]", awaitingUpdate ? "text-amber-200" : "text-turf-400")}>{heroLabel}</span>
+        <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest", game.status === "live" ? "bg-red-400/15 text-red-300" : awaitingUpdate ? "bg-amber-300/10 text-amber-200" : "bg-chalk/[.05] text-chalk/60")}>{stateLabel}</span>
       </div>
 
       <div className="relative mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:mt-4 md:gap-8">
@@ -116,7 +120,7 @@ function MatchHero({ game, data, lineups }: { game: Game; data: LeagueData; line
         <Link href={`/players/${game.potm_player_id}`} className="relative mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border border-league-gold/20 bg-league-gold/[.07] px-3 py-1.5 text-xs font-bold text-league-gold transition hover:border-league-gold/45 hover:bg-league-gold/[.11] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"><Crown size={14} /> POTM · {playerName(data.players, game.potm_player_id)}</Link>
       ) : (
         <div className={cn("relative mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold", ready ? "border-turf-400/20 bg-turf-400/10 text-turf-100" : "border-chalk/[.09] bg-black/20 text-chalk/55")}>
-          {ready ? <CheckCircle2 size={15} /> : <CircleDashed size={15} />}{ready ? "Lineups ready" : "Lineups not ready yet"}
+          {ready ? <CheckCircle2 size={15} /> : <CircleDashed size={15} />}{awaitingUpdate ? ready ? "Result not finalized" : "Lineups were not completed" : ready ? "Lineups ready" : "Lineups not ready yet"}
         </div>
       )}
     </section>

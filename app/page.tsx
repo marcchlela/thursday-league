@@ -22,6 +22,7 @@ import { useHomeBetStatus } from "@/hooks/useHomeBetStatus";
 import { useLeagueData } from "@/hooks/useLeagueData";
 import { useLeagueContext } from "@/hooks/useLeagueContext";
 import { calculateScore, careerStats } from "@/lib/scoring";
+import { organizeGames } from "@/lib/gameSchedule";
 import { Game, LeagueData } from "@/lib/types";
 import { cn, gameLineupIsReady } from "@/lib/utils";
 
@@ -44,13 +45,7 @@ function matchTime(value: string) {
 }
 
 function nextPlayableGame(games: Game[]) {
-  const live = games.find(game => game.status === "live");
-  if (live) return live;
-  const nonFinal = games.filter(game => game.status !== "final");
-  const future = nonFinal
-    .filter(game => new Date(game.game_date).getTime() >= Date.now())
-    .sort((first, second) => new Date(first.game_date).getTime() - new Date(second.game_date).getTime());
-  return future[0] || nonFinal.sort((first, second) => new Date(second.game_date).getTime() - new Date(first.game_date).getTime())[0];
+  return organizeGames(games).active[0];
 }
 
 function lineupIsReady(data: LeagueData, gameId: string) {
