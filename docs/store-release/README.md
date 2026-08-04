@@ -18,7 +18,7 @@ This folder contains the copy, declarations, reviewer setup, and acceptance gate
 - A Google Play developer account and app record are required for Play App Signing, FCM production credentials, closed testing, and submission.
 - The confirmed public support and privacy email is `thursdayleagueapp@gmail.com`; `NEXT_PUBLIC_SUPPORT_EMAIL` remains available as an override.
 - The confirmed personal publisher and copyright name is `Marc Chlela`.
-- Hosted Supabase does not yet have the two Phase 4 native-push migrations from this branch.
+- Hosted Supabase does not yet have the three Phase 4 notification migrations from this branch: `20260731010000_native_push_delivery.sql`, `20260731020000_native_push_receipts.sql`, and `20260802010000_platform_notification_templates.sql`.
 - Store screenshots and demo credentials must be created from the final signed release environment, not local development data.
 
 ## Official references

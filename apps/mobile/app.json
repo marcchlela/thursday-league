@@ -25,7 +25,12 @@
     },
     "android": {
       "package": "app.thursdayleague.mobile",
-      "versionCode": 1,
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#11110F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

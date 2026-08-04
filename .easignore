@@ -8,6 +8,9 @@ out
 .vercel
 .DS_Store
 *.log
+*firebase-adminsdk*.json
+*firebase-service-account*.json
+*service-account-key*.json
 model/data/*.json
 model/artifacts/*.json
 playwright-report

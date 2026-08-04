@@ -58,7 +58,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor",
+    "release:check:android": "node scripts/check-android-release-config.mjs"
   },
   "private": true
 }
