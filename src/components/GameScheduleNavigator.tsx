@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, X } from "lucide-react";
 import { fixtureDateKey, fixtureTabDate, isGameAwaitingUpdate } from "@/lib/gameSchedule";
 import type { Game } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -73,7 +73,7 @@ export function GameScheduleNavigator({
             <span className="block text-[10px] font-black uppercase tracking-[.18em] text-league-gold">Fixtures</span>
             <span className="mt-0.5 block text-xs text-chalk/40">{selectedIndex + 1} of {activeGames.length}</span>
           </div>
-          <button type="button" onClick={() => setCalendarOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-league-gold/25 bg-league-gold/[.06] px-3 text-xs font-bold text-league-gold transition hover:border-league-gold/45 hover:bg-league-gold/[.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold" aria-label="Open full game calendar">
+          <button type="button" onClick={() => setCalendarOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-league-gold/25 bg-league-gold/[.06] px-3 text-xs font-bold text-league-gold transition hover:border-league-gold/45 hover:bg-league-gold/[.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold" aria-label="Open game calendar">
             <CalendarDays size={17} />
             <span className="hidden sm:inline">Calendar</span>
           </button>
@@ -106,6 +106,37 @@ export function GameScheduleNavigator({
   );
 }
 
+export function GameCalendarLauncher({ games, onOpenGame }: { games: Game[]; onOpenGame: (gameId: string) => void }) {
+  const referenceGame = useMemo(
+    () => [...games].sort((left, right) => new Date(right.game_date).getTime() - new Date(left.game_date).getTime())[0],
+    [games],
+  );
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => monthStart(referenceGame ? new Date(referenceGame.game_date) : new Date()));
+
+  return (
+    <>
+      <button type="button" onClick={() => setCalendarOpen(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-league-gold/25 bg-league-gold/[.06] px-4 text-sm font-bold text-league-gold transition hover:border-league-gold/45 hover:bg-league-gold/[.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold" aria-label="Open game calendar">
+        <CalendarDays size={18} />
+        Game calendar
+      </button>
+      <GameCalendar
+        open={calendarOpen}
+        month={calendarMonth}
+        games={games}
+        activeGames={[]}
+        selectedGame={referenceGame}
+        onMonth={setCalendarMonth}
+        onClose={() => setCalendarOpen(false)}
+        onSelect={game => {
+          setCalendarOpen(false);
+          onOpenGame(game.id);
+        }}
+      />
+    </>
+  );
+}
+
 function GameCalendar({
   open,
   month,
@@ -120,13 +151,13 @@ function GameCalendar({
   month: Date;
   games: Game[];
   activeGames: Game[];
-  selectedGame: Game;
+  selectedGame?: Game;
   onMonth: (month: Date) => void;
   onClose: () => void;
   onSelect: (game: Game) => void;
 }) {
   const todayKey = fixtureDateKey(new Date());
-  const selectedKey = fixtureDateKey(selectedGame.game_date);
+  const selectedKey = selectedGame ? fixtureDateKey(selectedGame.game_date) : "";
   const activeIds = useMemo(() => new Set(activeGames.map(game => game.id)), [activeGames]);
   const gamesByDay = useMemo(() => {
     const grouped = new Map<string, Game[]>();
@@ -156,7 +187,10 @@ function GameCalendar({
 
   return (
     <Modal open={open} title="Game calendar" onClose={onClose}>
-      <div><span className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold">Schedule</span><h2 className="font-display text-3xl uppercase text-chalk">Game calendar</h2></div>
+      <div className="flex items-start justify-between gap-3">
+        <div><span className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold">Schedule</span><h2 className="font-display text-3xl uppercase text-chalk">Game calendar</h2></div>
+        <button type="button" onClick={onClose} aria-label="Close calendar" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-league-gold/20 text-chalk/55 transition hover:border-league-gold/40 hover:text-chalk focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"><X size={17} /></button>
+      </div>
       <div className="mt-4 grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-3 rounded-xl border border-league-gold/15 bg-black/15 p-2">
         <button type="button" onClick={() => onMonth(new Date(year, monthIndex - 1, 1))} aria-label="Previous month" className="grid h-11 w-11 place-items-center rounded-xl border border-league-gold/20 text-chalk/65 transition hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold"><ChevronLeft size={19} /></button>
         <strong className="text-center text-sm text-chalk">{monthLabel(month)}</strong>

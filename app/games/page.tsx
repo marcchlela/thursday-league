@@ -3,7 +3,7 @@
 import { Clock3 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { GameMatchHub } from "@/components/GameMatchHub";
-import { GameScheduleNavigator } from "@/components/GameScheduleNavigator";
+import { GameCalendarLauncher, GameScheduleNavigator } from "@/components/GameScheduleNavigator";
 import { LeagueLink as Link } from "@/components/LeagueLink";
 import { TeamCrest } from "@/components/TeamCrest";
 import { EmptyState, ErrorState } from "@/components/ui";
@@ -58,7 +58,17 @@ export default function GamesPage() {
           {selectedGame ? (
             <GameMatchHub key={selectedGame.id} game={selectedGame} data={data} initialTab="lineups" />
           ) : (
-            <EmptyState title="No upcoming match" text={isLeagueAdmin ? "Schedule the next match from Admin → Games. It will appear here immediately." : "A league admin has not scheduled the next match yet."} />
+            <div className="space-y-3">
+              <EmptyState title="No upcoming match" text={isLeagueAdmin ? "Schedule the next match from Admin → Games. It will appear here immediately." : "A league admin has not scheduled the next match yet."} />
+              {data.games.length ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <GameCalendarLauncher games={data.games} onOpenGame={gameId => router.push(`${pathname}/${gameId}`)} />
+                  <button type="button" onClick={() => updateParams("all")} className="min-h-12 rounded-xl border border-league-gold/25 bg-ink-850 px-4 text-sm font-bold text-chalk/70 transition hover:border-league-gold/45 hover:text-league-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-league-gold">
+                    View all games
+                  </button>
+                </div>
+              ) : null}
+            </div>
           )}
           {!selectedGame && schedule.awaitingUpdate.length ? (
             <p className="rounded-2xl border border-amber-300/20 bg-amber-300/[.06] p-4 text-center text-sm text-chalk/60">
