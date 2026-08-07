@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "323365637379",
+    "project_id": "thursday-league-cb4f4",
+    "storage_bucket": "thursday-league-cb4f4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:323365637379:android:13bdc0ea9d8d2b39bdad36",
+        "android_client_info": {
+          "package_name": "app.thursdayleague.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAO4TgjuWqRxD4WnKhr9li49gU3hu-ZJuw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

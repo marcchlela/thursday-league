@@ -25,6 +25,7 @@
     },
     "android": {
       "package": "app.thursdayleague.mobile",
+      "googleServicesFile": "./google-services.json",
       "allowBackup": false,
       "blockedPermissions": [
         "android.permission.CAMERA",
