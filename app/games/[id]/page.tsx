@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { GameMatchHub } from "@/components/GameMatchHub";
 import { EmptyState, ErrorState } from "@/components/ui";
 import { useLeagueData } from "@/hooks/useLeagueData";
+import { isGameAwaitingUpdate } from "@/lib/gameSchedule";
 
 export default function GameDetailPage() {
   const params = useParams<{ id: string }>();
@@ -18,7 +19,7 @@ export default function GameDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 md:space-y-5">
-      <Link href={game.status === "final" ? "/games?view=results" : "/games?view=upcoming"} className="inline-flex items-center gap-2 text-sm font-bold text-chalk/45 transition hover:text-league-gold"><ArrowLeft size={16} /> All games</Link>
+      <Link href={game.status === "final" || isGameAwaitingUpdate(game) ? "/games?view=all" : "/games?view=upcoming"} className="inline-flex items-center gap-2 text-sm font-bold text-chalk/45 transition hover:text-league-gold"><ArrowLeft size={16} /> All games</Link>
       <GameMatchHub game={game} data={data} />
     </div>
   );

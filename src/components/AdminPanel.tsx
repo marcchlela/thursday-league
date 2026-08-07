@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarPlus, CalendarRange, ChevronDown, Gamepad2, GripVertical, History, Search, Settings2, Trash2, UsersRound, X } from "lucide-react";
 import { friendlyActionError } from "@/lib/actionErrors";
+import { isGameAwaitingUpdate } from "@/lib/gameSchedule";
 import { supabase } from "@/lib/supabase";
 import { UNSAVED_CHANGES_MESSAGE, useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import { useLeagueContext } from "@/hooks/useLeagueContext";
@@ -687,6 +688,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
   const gameEvents = data.events.filter(e => e.game_id === game.id);
   const gamePlayerStats = data.playerStats.filter(stat => stat.game_id === game.id);
   const score = calculateScore(gameEvents, currentLineup, gamePlayerStats);
+  const awaitingUpdate = isGameAwaitingUpdate(game);
   const savedTeamAGoalkeeperMode = goalkeeperMode(game, "A");
   const savedTeamBGoalkeeperMode = goalkeeperMode(game, "B");
   const [lineupDraft, setLineupDraft] = useState<LineupDraft>({});
@@ -950,6 +952,7 @@ function GameManager({ game, data, reload, onStatsDirtyChange, notify, requestCo
   return (
     <div className="space-y-6">
       <PromptDialog open={reopenDialogOpen} title="Reopen final game" text="Explain why this historical result needs a correction. The reason is stored in the admin audit log." value={correctionReason} placeholder="Correction reason" confirmLabel="Reopen game" onChange={setCorrectionReason} onCancel={() => { setReopenDialogOpen(false); setCorrectionReason(""); }} onConfirm={reopenForCorrection} />
+      {awaitingUpdate ? <div className="rounded-2xl border border-amber-300/30 bg-amber-300/[.07] p-4 text-sm text-chalk/70"><strong className="block text-amber-200">This match is waiting for an update.</strong><span className="mt-1 block text-chalk/55">{currentLineup.length === 10 ? "Add the final statistics and finalize it, or change the date if it was postponed." : "Complete its setup, change the date if it was postponed, or delete it if it was not played."}</span></div> : null}
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
