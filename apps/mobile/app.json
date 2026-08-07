@@ -91,7 +91,8 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-image"
     ],
     "extra": {
       "router": {},
