@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, KeyRound, LogOut, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
+import { Bell, CircleHelp, FileText, KeyRound, LogOut, MailCheck, ShieldCheck, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
 import { useWhatsNewStatus } from "@/hooks/useWhatsNew";
 import { friendlyActionError } from "@/lib/actionErrors";
@@ -142,7 +142,7 @@ export default function SettingsPage() {
 
       <SettingsHeader
         title="Settings"
-        description="Manage your profile, notifications, wallet activity, and account security."
+        description="Manage your profile, notifications, wallet activity, help, legal information, and account security."
         backHref="/profile"
         backLabel="Profile"
       />
@@ -166,8 +166,17 @@ export default function SettingsPage() {
         <ThemeSelector />
       </SettingsPanel>
 
+      <SettingsPanel title="Help & legal">
+        <div className="divide-y divide-league-gold/10">
+          <SettingsLinkRow href="/support" icon={CircleHelp} title="Support" detail="Get help with your account, leagues, notifications, and matchweek features" tone="green" />
+          <SettingsLinkRow href="/privacy" icon={ShieldCheck} title="Privacy policy" detail="See what information Thursday League handles and how it is protected" />
+          <SettingsLinkRow href="/terms" icon={FileText} title="Terms of use" detail="Review the rules for accounts, leagues, Fantasy, and virtual predictions" />
+        </div>
+      </SettingsPanel>
+
       <SettingsPanel title="Security">
         <div className="divide-y divide-league-gold/10">
+          <SettingsLinkRow href="/settings/recovery-email" icon={MailCheck} title="Recovery email" detail="Verify an email for recovery and optional email sign-in" tone="green" />
           <SettingsLinkRow href="/settings/password" icon={KeyRound} title="Update password" detail="Choose a new password for your account" />
           <button type="button" onClick={signOut} disabled={!!busy} className="group flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-league-gold/[.04] focus:outline-none focus-visible:bg-league-gold/[.06] disabled:opacity-50 sm:px-5">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-chalk/[.07] bg-chalk/[.025] text-chalk/50"><LogOut size={19} /></span>

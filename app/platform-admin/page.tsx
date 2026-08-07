@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   BellRing,
+  FilePenLine,
   Gamepad2,
   Shield,
   Smartphone,
@@ -15,6 +16,7 @@ import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import type { Game, League, Profile } from "@/lib/types";
 import { AdminNotificationHistory } from "@/components/AdminNotificationHistory";
+import { PlatformNotificationTemplates } from "@/components/PlatformNotificationTemplates";
 import { Card, ErrorState, LoadingState, Select } from "@/components/ui";
 
 type PlatformLeagueStats = {
@@ -40,7 +42,7 @@ export default function PlatformAdminPage() {
   const [selectedLeagueId, setSelectedLeagueId] = useState("");
   const [leagueGames, setLeagueGames] = useState<Game[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [tab, setTab] = useState<"overview" | "notifications">("overview");
+  const [tab, setTab] = useState<"overview" | "notifications" | "templates">("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,9 +132,10 @@ export default function PlatformAdminPage() {
               {leagues.map(league => <option key={league.id} value={league.id}>{league.name}{league.status === "archived" ? " (archived)" : ""}</option>)}
             </Select>
           </label>
-          <div className="grid grid-cols-2 rounded-xl border border-league-gold/18 bg-black/15 p-1">
+          <div className="grid grid-cols-3 rounded-xl border border-league-gold/18 bg-black/15 p-1">
             <button type="button" onClick={() => setTab("overview")} className={tab === "overview" ? "rounded-lg bg-league-gold/[.1] px-4 py-2 text-sm font-bold text-league-gold" : "rounded-lg px-4 py-2 text-sm font-bold text-chalk/40"}>Overview</button>
             <button type="button" onClick={() => setTab("notifications")} className={tab === "notifications" ? "rounded-lg bg-league-gold/[.1] px-4 py-2 text-sm font-bold text-league-gold" : "rounded-lg px-4 py-2 text-sm font-bold text-chalk/40"}>Notifications</button>
+            <button type="button" onClick={() => setTab("templates")} className={tab === "templates" ? "rounded-lg bg-league-gold/[.1] px-4 py-2 text-sm font-bold text-league-gold" : "rounded-lg px-4 py-2 text-sm font-bold text-chalk/40"}>Templates</button>
           </div>
         </div>
       </Card>
@@ -160,6 +163,13 @@ export default function PlatformAdminPage() {
         <div>
           <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[.16em] text-chalk/45"><BellRing size={16} /> {selectedLeague?.name}</div>
           <AdminNotificationHistory leagueId={selectedLeagueId} profiles={profiles} games={leagueGames} />
+        </div>
+      ) : null}
+
+      {tab === "templates" ? (
+        <div>
+          <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[.16em] text-chalk/45"><FilePenLine size={16} /> Platform-wide notification copy</div>
+          <PlatformNotificationTemplates />
         </div>
       ) : null}
     </div>

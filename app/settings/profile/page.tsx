@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { UserRound } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
-import { cleanUsername, supabase, usernameToEmail } from "@/lib/supabase";
+import { cleanUsername, supabase } from "@/lib/supabase";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { SettingsHeader, SettingsPanel } from "@/components/SettingsComponents";
 import { LoadingState, PrimaryButton, TextInput } from "@/components/ui";
@@ -35,31 +35,22 @@ export default function EditProfilePage() {
 
     setSaving(true);
     setMessage(null);
-    const oldUsername = profile!.username;
-    const authUpdate = await supabase.auth.updateUser({
-      email: usernameToEmail(cleaned),
-      data: { ...user!.user_metadata, username: cleaned }
-    });
-    if (authUpdate.error) {
-      setSaving(false);
-      setMessage(friendlyActionError(authUpdate.error, "Your login username could not be updated."));
-      return;
-    }
-
     const profileUpdate = await supabase.rpc("update_own_username", { new_username: cleaned });
     if (profileUpdate.error) {
-      await supabase.auth.updateUser({
-        email: usernameToEmail(oldUsername),
-        data: { ...user!.user_metadata, username: oldUsername }
-      });
       setSaving(false);
       setMessage(friendlyActionError(profileUpdate.error, "Your profile could not be updated."));
       return;
     }
 
+    const authUpdate = await supabase.auth.updateUser({
+      data: { ...user!.user_metadata, username: cleaned }
+    });
+
     await reloadProfile();
     setSaving(false);
-    setMessage("Profile updated. Use this username the next time you log in.");
+    setMessage(authUpdate.error
+      ? "Username updated. Your public profile metadata will refresh on your next session."
+      : "Profile updated. Use this username the next time you log in.");
   }
 
   return (

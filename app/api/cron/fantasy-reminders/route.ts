@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { retryFailedCustomDispatches, sendTrackedPush } from "@/lib/pushNotifications";
+import { reconcileNativePushReceipts, retryFailedCustomDispatches, sendTrackedPush } from "@/lib/pushNotifications";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { fantasyDeadlineTarget } from "@/lib/leagueNotifications";
+import { automaticNotificationPayload, loadAutomaticNotificationTemplate } from "@/lib/notificationTemplateServer";
 import { isMatchdayMorning } from "@/lib/scheduledNotifications";
 
 export const runtime = "nodejs";
@@ -46,6 +46,10 @@ export async function GET(request: Request) {
 
   const preferences = (preferencesResult.data || []) as ReminderPreference[];
   const leagues = new Map((leaguesResult.data || []).map(league => [league.id, league]));
+  const [matchdayTemplate, fantasyTemplate] = await Promise.all([
+    loadAutomaticNotificationTemplate("matchday_reminder"),
+    loadAutomaticNotificationTemplate("fantasy_deadline")
+  ]);
   const fantasyResults = [];
   const matchdayResults = [];
 
@@ -57,21 +61,26 @@ export async function GET(request: Request) {
 
     if (isMatchdayMorning(now, gameTime, league.timezone || "UTC")) {
       try {
-        const result = await sendTrackedPush({
-          leagueId: game.league_id,
-          type: "matchday_reminder",
+        const payload = await automaticNotificationPayload({
+          notificationType: "matchday_reminder",
+          template: matchdayTemplate,
+          values: { league_name: league.name },
+          leagueSlug: league.slug,
           gameId: game.id,
-          source: "scheduled",
-          dedupeKey: `matchday_reminder:${game.id}`,
-          payload: {
-            title: "It's matchday",
-            body: `${league.name} plays today. Tap to see kickoff in your local time.`,
-            url: `/l/${league.slug}/games/${game.id}`,
-            tag: `matchday-${game.id}`,
-            ttl: Math.max(Math.floor((gameTimeMs - now.getTime()) / 1000), 60)
-          }
+          tag: `matchday-${game.id}`,
+          ttl: Math.max(Math.floor((gameTimeMs - now.getTime()) / 1000), 60)
         });
-        matchdayResults.push({ gameId: game.id, ...result });
+        if (payload) {
+          const result = await sendTrackedPush({
+            leagueId: game.league_id,
+            type: "matchday_reminder",
+            gameId: game.id,
+            source: "scheduled",
+            dedupeKey: `matchday_reminder:${game.id}`,
+            payload
+          });
+          matchdayResults.push({ gameId: game.id, ...result });
+        }
       } catch (error) {
         console.error("Matchday reminder delivery failed", { gameId: game.id, error });
         matchdayResults.push({ gameId: game.id, error: "Reminder delivery failed." });
@@ -97,22 +106,27 @@ export async function GET(request: Request) {
         .map(preference => preference.user_id);
 
       try {
-        const result = await sendTrackedPush({
-          leagueId: game.league_id,
-          type: "fantasy_deadline",
+        const payload = await automaticNotificationPayload({
+          notificationType: "fantasy_deadline",
+          template: fantasyTemplate,
+          values: { league_name: league.name },
+          leagueSlug: league.slug,
           gameId: game.id,
-          source: "scheduled",
-          dedupeKey: `fantasy_deadline:${game.id}:${minutes}`,
-          targetUserIds: userIds,
-          payload: {
-            title: "Fantasy deadline",
-            body: "Your team is not saved yet. Tap to make your picks before kickoff.",
-            url: fantasyDeadlineTarget(league.slug),
-            tag: `fantasy-deadline-${game.id}`,
-            ttl: Math.max(Math.floor((gameTimeMs - now.getTime()) / 1000), 60)
-          }
+          tag: `fantasy-deadline-${game.id}`,
+          ttl: Math.max(Math.floor((gameTimeMs - now.getTime()) / 1000), 60)
         });
-        fantasyResults.push({ gameId: game.id, minutes, ...result });
+        if (payload) {
+          const result = await sendTrackedPush({
+            leagueId: game.league_id,
+            type: "fantasy_deadline",
+            gameId: game.id,
+            source: "scheduled",
+            dedupeKey: `fantasy_deadline:${game.id}:${minutes}`,
+            targetUserIds: userIds,
+            payload
+          });
+          fantasyResults.push({ gameId: game.id, minutes, ...result });
+        }
       } catch (error) {
         console.error("Fantasy reminder delivery failed", { gameId: game.id, minutes, error });
         fantasyResults.push({ gameId: game.id, minutes, error: "Reminder delivery failed." });
@@ -127,11 +141,19 @@ export async function GET(request: Request) {
     console.error("Automatic custom notification recovery failed", error);
   }
 
+  let nativeReceipts: Awaited<ReturnType<typeof reconcileNativePushReceipts>> | null = null;
+  try {
+    nativeReceipts = await reconcileNativePushReceipts(now);
+  } catch (error) {
+    console.error("Native push receipt reconciliation failed", error);
+  }
+
   return NextResponse.json({
     success: true,
     checkedAt: now.toISOString(),
     matchdayReminders: matchdayResults,
     fantasyReminders: fantasyResults,
-    automaticRetries
+    automaticRetries,
+    nativeReceipts
   });
 }

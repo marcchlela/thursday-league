@@ -52,6 +52,7 @@ const baseLinks = [
 
 const authPaths = ["/login", "/forgot-password"];
 const publicPaths = ["/welcome", "/invite"];
+const standalonePublicPaths = ["/privacy", "/terms", "/support", "/delete-account"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -59,7 +60,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, error, reloadProfile } = useAuthProfile();
   const isAuthPage = authPaths.some(path => pathname === path);
   const isPublicPage = publicPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
+  const isStandalonePublicPage = standalonePublicPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
   const isWelcomePage = pathname === "/welcome";
+  const isAuthCallbackPage = pathname === "/auth/confirm";
   const [launchReady, setLaunchReady] = useState(false);
 
   useEffect(() => {
@@ -76,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && !isAuthPage && !isPublicPage) {
+    if (!loading && !user && !isAuthPage && !isPublicPage && !isStandalonePublicPage && !isAuthCallbackPage) {
       if (pathname === "/" && !introductionWasSeen()) {
         router.replace("/welcome");
         return;
@@ -99,7 +102,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [
     isAuthPage,
+    isAuthCallbackPage,
     isPublicPage,
+    isStandalonePublicPage,
     isWelcomePage,
     loading,
     pathname,
@@ -107,9 +112,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     user
   ]);
 
+  // Store/legal pages must remain available even when authentication or the
+  // database is unavailable, because users and reviewers rely on them for
+  // support, privacy information, and account-deletion instructions.
+  if (isStandalonePublicPage) return <>{children}</>;
   if (loading || !launchReady) return <LaunchScreen />;
   if (error) return <StartupFailure problem={error} onRetry={reloadProfile} />;
-  if (isAuthPage || (isPublicPage && !user)) return <>{children}</>;
+  if (isAuthCallbackPage || isAuthPage || (isPublicPage && !user)) return <>{children}</>;
   if (isWelcomePage) return <LaunchScreen />;
   if (!user || !profile) return <LaunchScreen />;
 

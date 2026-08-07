@@ -9,7 +9,7 @@ import { SettingsHeader, SettingsPanel } from "@/components/SettingsComponents";
 import { LoadingState, PrimaryButton, TextInput } from "@/components/ui";
 
 export default function PasswordSettingsPage() {
-  const { user, loading } = useAuthProfile();
+  const { user, profile, loading } = useAuthProfile();
   const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,10 +17,11 @@ export default function PasswordSettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   if (loading) return <LoadingState label="Loading password settings" cards={1} />;
-  if (!user) return null;
+  if (!user || !profile) return null;
 
   async function updatePassword(event: FormEvent) {
     event.preventDefault();
+    if (!profile) return;
     if (!currentPassword) {
       setMessage("Enter your current password.");
       return;
@@ -36,21 +37,21 @@ export default function PasswordSettingsPage() {
 
     setSaving(true);
     setMessage(null);
-    const userEmail = user?.email;
-    if (!userEmail) {
-      setSaving(false);
-      setMessage("Your account login could not be verified.");
-      return;
-    }
-    const verification = await supabase.auth.signInWithPassword({
-      email: userEmail,
-      password: currentPassword
+    const response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identity: profile.username, password: currentPassword })
     });
-    if (verification.error) {
+    const verification = await response.json().catch(() => null) as {
+      error?: string;
+      session?: { access_token: string; refresh_token: string };
+    } | null;
+    if (!response.ok || !verification?.session) {
       setSaving(false);
       setMessage("Current password is incorrect.");
       return;
     }
+    await supabase.auth.setSession(verification.session);
     const { error } = await supabase.auth.updateUser({ password });
     setSaving(false);
     setMessage(error ? friendlyActionError(error, "Your password could not be updated.") : "Password updated.");

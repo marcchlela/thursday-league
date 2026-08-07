@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { friendlyActionError } from "@/lib/actionErrors";
+import { automaticNotificationPayload } from "@/lib/notificationTemplateServer";
 import { sendTrackedPush } from "@/lib/pushNotifications";
 import { serverRateLimitDecision } from "@/lib/serverRateLimit";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -96,21 +97,24 @@ export async function POST(request: Request) {
       ]);
       if (league) {
         try {
-          await sendTrackedPush({
-            leagueId: result.league_id,
-            type: "join_request",
-            source: "scheduled",
-            createdBy: user.id,
-            dedupeKey: `join_request:${result.request_id}`,
-            targetUserIds: (adminRows || []).map(row => row.user_id),
-            payload: {
-              title: "New join request",
-              body: `${profile.username} requested to join ${league.name}.`,
-              url: `/l/${league.slug}/admin?section=league`,
-              tag: `join-request-${result.request_id}`,
-              ttl: 86400
-            }
+          const payload = await automaticNotificationPayload({
+            notificationType: "join_request",
+            values: { username: profile.username || "A player", league_name: league.name },
+            leagueSlug: league.slug,
+            tag: `join-request-${result.request_id}`,
+            ttl: 86400
           });
+          if (payload) {
+            await sendTrackedPush({
+              leagueId: result.league_id,
+              type: "join_request",
+              source: "scheduled",
+              createdBy: user.id,
+              dedupeKey: `join_request:${result.request_id}`,
+              targetUserIds: (adminRows || []).map(row => row.user_id),
+              payload
+            });
+          }
         } catch (error) {
           console.error("Join request notification failed", {
             requestId: result.request_id,
@@ -151,21 +155,24 @@ export async function POST(request: Request) {
       .single();
     if (league) {
       try {
-        await sendTrackedPush({
-          leagueId: result.league_id,
-          type: "join_approved",
-          source: "scheduled",
-          createdBy: user.id,
-          dedupeKey: `join_approved:${requestId}`,
-          targetUserIds: [result.user_id],
-          payload: {
-            title: `You joined ${league.name}`,
-            body: `${profile.username} accepted your request. Tap to open the league.`,
-            url: `/l/${league.slug}`,
-            tag: `join-approved-${requestId}`,
-            ttl: 86400
-          }
+        const payload = await automaticNotificationPayload({
+          notificationType: "join_approved",
+          values: { admin_name: profile.username || "A league admin", league_name: league.name },
+          leagueSlug: league.slug,
+          tag: `join-approved-${requestId}`,
+          ttl: 86400
         });
+        if (payload) {
+          await sendTrackedPush({
+            leagueId: result.league_id,
+            type: "join_approved",
+            source: "scheduled",
+            createdBy: user.id,
+            dedupeKey: `join_approved:${requestId}`,
+            targetUserIds: [result.user_id],
+            payload
+          });
+        }
       } catch (error) {
         console.error("Join approval notification failed", { requestId, error });
       }

@@ -1,7 +1,25 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 const port = Number(process.env.E2E_PORT || 3000);
 const baseURL = `http://127.0.0.1:${port}`;
+
+function localTestEnvironment() {
+  const file = path.resolve(process.cwd(), ".env.development.local");
+  const inherited = Object.fromEntries(Object.entries(process.env)
+    .filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+  if (!existsSync(file)) return inherited;
+  const values = Object.fromEntries(readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith("#") && line.includes("="))
+    .map(line => {
+      const separator = line.indexOf("=");
+      return [line.slice(0, separator), line.slice(separator + 1)];
+    }));
+  return { ...inherited, ...values };
+}
 
 export default defineConfig({
   testDir: "./e2e",
@@ -21,10 +39,14 @@ export default defineConfig({
     video: "retain-on-failure"
   },
   webServer: {
-    command: `npm run dev -- --hostname 127.0.0.1 --port ${port}`,
+    // Compile once, then exercise the same optimized server shape that ships
+    // to production. Development-mode route compilation became the dominant
+    // cost of the suite and could exhaust a test timeout before assertions ran.
+    command: `npm run build && npm run start -- --hostname 127.0.0.1 --port ${port}`,
     url: `${baseURL}/login`,
+    env: localTestEnvironment(),
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000
+    timeout: 180_000
   },
   projects: [
     {

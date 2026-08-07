@@ -6,12 +6,13 @@ import {
 
 describe("league notification destinations", () => {
   const slug = "sunday-five-a-side";
+  const league = { slug, name: "Sunday Five-a-Side" };
 
   it("opens a scheduled game inside the originating league", () => {
     expect(gameNotificationPayload(
       "game_scheduled",
       { id: "game-1", status: "upcoming" },
-      slug
+      league
     )?.url).toBe(`/l/${slug}/games/game-1`);
   });
 
@@ -19,7 +20,7 @@ describe("league notification destinations", () => {
     expect(gameNotificationPayload(
       "lineups_ready",
       { id: "game-1", status: "draft" },
-      slug
+      league
     )?.url).toBe(`/l/${slug}/fantasy?tab=set`);
   });
 
@@ -27,7 +28,7 @@ describe("league notification destinations", () => {
     expect(gameNotificationPayload(
       "result_finalized",
       { id: "game-1", status: "final" },
-      slug,
+      league,
       { A: 4, B: 3 }
     )?.url).toBe(`/l/${slug}/games/game-1`);
   });
@@ -40,7 +41,7 @@ describe("league notification destinations", () => {
     expect(gameNotificationPayload(
       "lineups_ready",
       { id: "game-1", status: "upcoming" },
-      slug
+      league
     )).toBeNull();
   });
 });

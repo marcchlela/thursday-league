@@ -20,7 +20,7 @@ import { Card, ConfirmDialog, EmptyState, Pill, PrimaryButton, PromptDialog, Sec
 
 type AdminTab = "league" | "games" | "roster" | "seasons" | "audit";
 type AdminPushEvent = "game_scheduled" | "lineups_ready" | "result_finalized";
-type PushSendResult = { total: number; sent: number; failed: number; removed: number; skipped?: boolean };
+type PushSendResult = { total: number; sent: number; failed: number; removed: number; skipped?: boolean; disabled?: boolean };
 type LineupDraft = Record<string, { team: TeamCode | null; role: PlayerPosition }>;
 type ConfirmState = {
   title: string;
@@ -72,6 +72,9 @@ async function generateAutomaticBettingMarkets(gameId: string) {
 }
 
 function deliveryMessage(action: string, result?: PushSendResult) {
+  if (result?.disabled) {
+    return `${action} This automatic notification is currently disabled.`;
+  }
   if (result?.skipped) {
     return `${action} The automatic notification was already handled.`;
   }

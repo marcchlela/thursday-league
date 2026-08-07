@@ -1,0 +1,104 @@
+{
+  "expo": {
+    "name": "Thursday League",
+    "slug": "thursday-league",
+    "owner": "chlelaaa",
+    "description": "Your weekly five-a-side league, fantasy competition, and match predictions in one place.",
+    "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "thursdayleague",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#11110F",
+    "ios": {
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "app.thursdayleague.mobile",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:thursday-league.vercel.app"
+      ]
+    },
+    "android": {
+      "package": "app.thursdayleague.mobile",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#11110F",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "thursday-league.vercel.app",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "https",
+              "host": "thursday-league.vercel.app",
+              "pathPrefix": "/auth/confirm"
+            },
+            {
+              "scheme": "https",
+              "host": "thursday-league.vercel.app",
+              "pathPrefix": "/l"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#11110F",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 160
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#DAA520",
+          "defaultChannel": "matchweek"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Thursday League to choose a profile photo.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-image"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fa6766a1-14d7-469a-a94d-8f073656d50a"
+      }
+    }
+  }
+}

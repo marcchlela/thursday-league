@@ -18,10 +18,10 @@ export async function login(page: Page, username = "marcos") {
   }, { key: `thursday-league:notification-onboarding:v1:${userId}` });
 
   await page.goto("/login", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Username or email").fill(username);
   await page.locator('input[autocomplete="current-password"]').fill("LocalTest123!");
   const signInResponse = page.waitForResponse(response =>
-    response.url().includes("/auth/v1/token") &&
+    response.url().includes("/api/auth/session") &&
     response.request().method() === "POST"
   );
   await page.getByRole("button", { name: "Enter Thursday League" }).click();

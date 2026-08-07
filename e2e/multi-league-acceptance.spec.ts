@@ -53,10 +53,10 @@ test("code approval and owner-admin-member transitions work end to end", async (
     await expect(inviteePage.getByRole("heading", { name: "Acceptance League" })).toBeVisible();
     await inviteePage.getByRole("button", { name: "Sign in" }).click();
     await expect(inviteePage).toHaveURL(/\/login\?mode=login$/);
-    await inviteePage.getByLabel("Username").fill("omar");
+    await inviteePage.getByLabel("Username or email").fill("omar");
     await inviteePage.locator('input[autocomplete="current-password"]').fill("LocalTest123!");
     const signInResponse = inviteePage.waitForResponse(response =>
-      response.url().includes("/auth/v1/token")
+      response.url().includes("/api/auth/session")
       && response.request().method() === "POST"
     );
     await inviteePage.getByRole("button", { name: "Enter Thursday League" }).click();

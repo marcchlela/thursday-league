@@ -3,7 +3,6 @@ import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { calculateScore } from "@/lib/scoring";
 import { GameLineup, GamePlayerStat, MatchEvent } from "@/lib/types";
 import {
-  NotificationType,
   PushPayload,
   sendTrackedPush
 } from "@/lib/pushNotifications";
@@ -12,6 +11,8 @@ import {
   gameNotificationPayload,
   LeagueGameNotificationEvent
 } from "@/lib/leagueNotifications";
+import { automaticNotificationPayload, loadAutomaticNotificationTemplate } from "@/lib/notificationTemplateServer";
+import type { AutomaticNotificationType } from "@/lib/notificationTemplates";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ type RequestBody = {
   event?: unknown;
 };
 
-function notificationType(event: AdminEvent): NotificationType {
+function notificationType(event: AdminEvent): AutomaticNotificationType {
   if (event === "game_scheduled") return "new_game";
   if (event === "lineups_ready") return "lineups_ready";
   return "final_results";
@@ -163,32 +164,39 @@ export async function POST(request: Request) {
     );
   }
 
-  const payload: PushPayload | null = gameNotificationPayload(
-    event,
-    game,
-    league.slug,
-    score
-  );
-
-  if (!payload) {
+  const validEventState = (event === "game_scheduled" && game.status === "upcoming")
+    || (event === "lineups_ready" && (game.status === "draft" || game.status === "live"))
+    || (event === "result_finalized" && game.status === "final" && Boolean(score));
+  if (!validEventState) {
     return NextResponse.json(
       { error: "The game is not in the correct state for this notification." },
       { status: 409 }
     );
   }
 
+  const storedTemplate = await loadAutomaticNotificationTemplate(notificationType(event));
+  const payload: PushPayload | null = gameNotificationPayload(
+    event,
+    game,
+    { slug: league.slug, name: league.name },
+    score,
+    storedTemplate
+  );
+
   let result;
   let bettingUnlockResult;
   try {
     const finalVersion = event === "result_finalized" ? game.finalized_at || "final" : "first";
-    result = await sendTrackedPush({
-      leagueId: game.league_id,
-      type: notificationType(event),
-      payload,
-      gameId: game.id,
-      createdBy: user.id,
-      dedupeKey: `${event}:${game.id}:${finalVersion}`
-    });
+    result = payload
+      ? await sendTrackedPush({
+          leagueId: game.league_id,
+          type: notificationType(event),
+          payload,
+          gameId: game.id,
+          createdBy: user.id,
+          dedupeKey: `${event}:${game.id}:${finalVersion}`
+        })
+      : { total: 0, sent: 0, failed: 0, removed: 0, skipped: true, disabled: true };
 
     if (
       event === "result_finalized"
@@ -203,21 +211,25 @@ export async function POST(request: Request) {
       if (countError) throw countError;
       const requiredGames = Number(league.betting_unlock_after_games);
       if (Number(completedGames || 0) >= requiredGames) {
-        bettingUnlockResult = await sendTrackedPush({
-          leagueId: game.league_id,
-          type: "betting_unlocked",
-          source: "scheduled",
+        const bettingPayload = await automaticNotificationPayload({
+          notificationType: "betting_unlocked",
+          values: { required_games: requiredGames, league_name: league.name },
+          leagueSlug: league.slug,
           gameId: game.id,
-          createdBy: user.id,
-          dedupeKey: `betting_unlocked:${game.league_id}:${requiredGames}`,
-          payload: {
-            title: "Betting unlocked",
-            body: `${requiredGames} games are complete. Virtual betting is now open in ${league.name}.`,
-            url: `/l/${league.slug}/betting?tab=markets`,
-            tag: `betting-unlocked-${game.league_id}`,
-            ttl: 86400
-          }
+          tag: `betting-unlocked-${game.league_id}`,
+          ttl: 86400
         });
+        bettingUnlockResult = bettingPayload
+          ? await sendTrackedPush({
+              leagueId: game.league_id,
+              type: "betting_unlocked",
+              source: "scheduled",
+              gameId: game.id,
+              createdBy: user.id,
+              dedupeKey: `betting_unlocked:${game.league_id}:${requiredGames}`,
+              payload: bettingPayload
+            })
+          : { total: 0, sent: 0, failed: 0, removed: 0, skipped: true, disabled: true };
       }
     }
   } catch (error) {

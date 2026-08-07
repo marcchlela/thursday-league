@@ -6,7 +6,7 @@ const root = process.cwd();
 const testsDirectory = path.join(root, "supabase", "tests");
 const databaseUrl =
   process.env.SUPABASE_LOCAL_DB_URL ||
-  "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+  "postgresql://postgres:postgres@127.0.0.1:55322/postgres";
 const parsedUrl = new URL(databaseUrl);
 
 if (!["127.0.0.1", "localhost"].includes(parsedUrl.hostname)) {

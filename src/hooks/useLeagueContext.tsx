@@ -35,6 +35,7 @@ const LeagueContext = createContext<LeagueContextValue | null>(null);
 const globalPaths = [
   "/login",
   "/forgot-password",
+  "/auth",
   "/onboarding",
   "/leagues",
   "/invite",
