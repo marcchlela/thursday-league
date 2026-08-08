@@ -21,7 +21,7 @@ type LeagueContextValue = {
 const LeagueContext = createContext<LeagueContextValue | null>(null);
 
 export function LeagueProvider({ children }: PropsWithChildren) {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile } = useAuth();
   const [memberships, setMemberships] = useState<LeagueMembership[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [activeLeague, setActiveLeague] = useState<League | null>(null);
@@ -89,25 +89,22 @@ export function LeagueProvider({ children }: PropsWithChildren) {
 
     setSwitching(true);
     setError(null);
-    requestId.current += 1;
-    setActiveLeague(null);
-    setMemberships([]);
-    setLeagues([]);
-    setDataGeneration(value => value + 1);
     try {
       const supabase = getSupabaseClient();
       const result = await supabase.rpc('set_active_league', { target_league_id: leagueId });
       if (result.error) throw result.error;
-      await refreshProfile();
-      await refreshLeagues(leagueId);
+      // Keep the known league list mounted while the server records the choice.
+      // Clearing it here caused the switcher and scoped routes to race each other
+      // and could leave the user on a permanent loading screen.
+      setActiveLeague(target);
+      setDataGeneration(value => value + 1);
       return target;
     } catch (switchError) {
-      await refreshLeagues();
       throw switchError;
     } finally {
       setSwitching(false);
     }
-  }, [activeLeague?.id, leagues, refreshLeagues, refreshProfile]);
+  }, [activeLeague?.id, leagues]);
 
   const activeMembership = memberships.find(item => item.league_id === activeLeague?.id) || null;
   const value = useMemo<LeagueContextValue>(() => ({

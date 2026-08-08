@@ -130,7 +130,7 @@ function NewLeagueGuide({ isLeagueAdmin, hasPlayers }: { isLeagueAdmin: boolean;
     <section className="rounded-[1.35rem] border border-league-gold/30 bg-league-gold/[.055] p-5">
       <div className="text-[10px] font-black uppercase tracking-[.18em] text-league-gold/65">League setup</div>
       <h1 className="mt-1 font-display text-3xl uppercase">Get the first match ready</h1>
-      <p className="mt-2 max-w-2xl text-sm text-chalk/55">Start with the roster, then schedule a game and save both lineups. Fantasy opens from the lineup, and betting markets generate automatically once the league reaches its unlock target.</p>
+      <p className="mt-2 max-w-2xl text-sm text-chalk/55">Follow these simple steps to set up your first league game.</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         <SetupLink href="/admin?section=roster" step="1" label={hasPlayers ? "Review roster" : "Add players"} complete={hasPlayers} />
         <SetupLink href="/admin?section=games" step="2" label="Schedule a game" />

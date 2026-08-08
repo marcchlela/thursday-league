@@ -59,7 +59,7 @@ export default function RootLayout() {
       <AuthProvider>
         <LeagueProvider>
           <NativeServicesProvider>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink900 }, animation: reduceMotion ? 'none' : 'fade_from_bottom' }} />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink900 }, animation: reduceMotion ? 'none' : 'simple_push' }} />
           </NativeServicesProvider>
         </LeagueProvider>
       </AuthProvider>

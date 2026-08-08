@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, Linking } from 'react-native';
 import * as Network from 'expo-network';
 import * as Notifications from 'expo-notifications';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 
 import { friendlyMobileError } from '@/lib/api';
 import {
@@ -42,13 +42,25 @@ const NativeServicesContext = createContext<NativeServicesContextValue | null>(n
 
 export function NativeServicesProvider({ children }: PropsWithChildren) {
   const router = useRouter();
+  const pathname = usePathname();
   const { session } = useAuth();
-  const { leagues, activeLeague } = useLeagues();
+  const { leagues, activeLeague, loading: leaguesLoading } = useLeagues();
   const [online, setOnline] = useState(true);
   const [notificationState, setNotificationState] = useState(initialState);
   const [notificationBusy, setNotificationBusy] = useState(false);
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const lastHandledNotification = useRef<string | null>(null);
+  const coldStartHandled = useRef(false);
+
+  useEffect(() => {
+    if (coldStartHandled.current || !session || leaguesLoading || !activeLeague) return;
+    coldStartHandled.current = true;
+    // Android may restore the last activity route after the app was closed.
+    // Resume the user's saved league instead of reopening temporary league-entry UI.
+    if (pathname === '/' || pathname === '/league-entry' || pathname === '/leagues' || pathname === '/create-league') {
+      router.replace(`/l/${activeLeague.slug}`);
+    }
+  }, [activeLeague, leaguesLoading, pathname, router, session]);
 
   const refreshNotifications = useCallback(async () => {
     try { setNotificationState(await readNativeNotificationState()); }

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { LeagueHeader, LeagueNav } from '@/components/LeagueChrome';
 import { TeamCrest } from '@/components/TeamCrest';
-import { Button, Card, EmptyState, Icon, Loading, Message, Screen } from '@/components/ui';
+import { Card, EmptyState, Icon, Loading, Message, Screen } from '@/components/ui';
 import { colors, fonts, radius, shadows, spacing } from '@/constants/theme';
 import { useScopedLeague } from '@/hooks/useScopedLeague';
 import { friendlyMobileError } from '@/lib/api';
@@ -83,6 +84,7 @@ export default function LeagueHomeScreen() {
   return (
     <Screen header={<LeagueHeader league={league} />} bottomBar={<LeagueNav league={league} admin={admin} />} compact>
       {leagueError || message ? <Message tone={leagueError || message?.includes('could not') ? 'error' : 'success'}>{leagueError || message}</Message> : null}
+      {!loading && !games.length ? <NewLeagueGuide admin={admin} hasPlayers={players.some(player => player.active && !player.archived_at)} leagueSlug={league.slug} /> : null}
       {loading ? <Card><Text style={styles.muted}>Loading the next match...</Text></Card> : nextGame ? (
         <Pressable accessibilityRole="button" onPress={() => router.push(`/l/${league.slug}/games/${nextGame.id}`)} style={({ pressed }) => [styles.nextMatch, pressed && styles.pressed]}>
           <View pointerEvents="none" style={styles.pitchGlow} />
@@ -98,13 +100,13 @@ export default function LeagueHomeScreen() {
           <View style={[styles.lineupPill, nextLineups.length === 10 && styles.lineupPillReady]}><Icon name={nextLineups.length === 10 ? { ios: 'checkmark.circle.fill', android: 'check_circle' } : { ios: 'circle.dashed', android: 'pending' }} size={15} color={nextLineups.length === 10 ? colors.turf400 : colors.chalkMuted} /><Text style={[styles.lineupText, nextLineups.length === 10 && styles.lineupTextReady]}>{nextLineups.length === 10 ? 'Lineups ready' : 'Lineups not ready yet'}</Text></View>
         </Pressable>
       ) : (
-        <EmptyState title="Nothing scheduled yet" text={admin ? 'Add the roster, then schedule the next match from League Admin.' : 'The next match will appear here as soon as a league admin creates it.'} action={admin ? <Button onPress={() => router.push(`/l/${league.slug}/admin`)}>Continue league setup</Button> : undefined} />
+        <EmptyState title="Nothing scheduled yet" text="The next match will appear as soon as it is created." />
       )}
 
       {!loading && (league.fantasy_enabled || league.betting_enabled) ? (
         <View style={styles.actions}>
-          {league.fantasy_enabled ? <HomeAction title={fantasyReady ? 'Team set' : 'Set fantasy team'} detail={fantasyReady ? 'Tap to review' : 'Pick your five'} complete={fantasyReady} tone="green" icon={{ ios: 'tshirt.fill', android: 'checkroom' }} onPress={() => router.push(`/l/${league.slug}/fantasy`)} /> : null}
-          {league.betting_enabled ? <HomeAction title={predictionReady ? 'Bet placed' : availability && !availability.unlocked ? 'Betting locked' : 'Place your bet'} detail={predictionReady ? 'Tap to review' : availability && !availability.unlocked ? `${availability.completed_games}/${availability.required_games} · ${Math.max(availability.required_games - availability.completed_games, 0)} games left` : 'Make your picks'} complete={predictionReady} tone="gold" icon={{ ios: 'dice.fill', android: 'casino' }} onPress={() => router.push(`/l/${league.slug}/bets`)} /> : null}
+          {league.fantasy_enabled ? <HomeAction title={fantasyReady ? 'Team set' : 'Set fantasy team'} detail={fantasyReady ? 'Tap to review' : 'Pick your five'} complete={fantasyReady} tone="green" icon={<JerseyGlyph color={colors.turf400} />} onPress={() => router.push(`/l/${league.slug}/fantasy`)} /> : null}
+          {league.betting_enabled ? <HomeAction title={predictionReady ? 'Bet placed' : availability && !availability.unlocked ? 'Betting locked' : 'Place your bet'} detail={predictionReady ? 'Tap to review' : availability && !availability.unlocked ? `${availability.completed_games}/${availability.required_games} · ${Math.max(availability.required_games - availability.completed_games, 0)} games left` : 'Make your picks'} complete={predictionReady} tone="gold" icon={<Icon name={{ ios: 'dice.fill', android: 'casino' }} size={20} color={colors.goldBright} />} onPress={() => router.push(`/l/${league.slug}/bets`)} /> : null}
         </View>
       ) : null}
 
@@ -116,19 +118,34 @@ export default function LeagueHomeScreen() {
         <LeaderTable title="Assists" rows={leaders.assists.map(item => ({ id: item.player.id, name: item.player.name, value: item.stats.assists }))} tone="gold" leagueSlug={league.slug} />
       </View>
 
-      {admin ? <Button variant="ghost" icon={{ ios: 'shield.fill', android: 'shield' }} onPress={() => router.push(`/l/${league.slug}/admin`)}>League Admin</Button> : null}
-      <Button variant="ghost" onPress={load}>Refresh</Button>
     </Screen>
   );
+}
+
+function NewLeagueGuide({ admin, hasPlayers, leagueSlug }: { admin: boolean; hasPlayers: boolean; leagueSlug: string }) {
+  const router = useRouter();
+  if (!admin) return <View style={styles.setupGuide}><Text style={styles.setupEyebrow}>LEAGUE SETUP</Text><Text style={styles.setupTitle}>YOUR LEAGUE IS GETTING READY</Text><Text style={styles.setupBody}>The league admins are preparing the roster and first match. You can explore the league while they finish.</Text></View>;
+  return <View style={styles.setupGuide}><Text style={styles.setupEyebrow}>LEAGUE SETUP</Text><Text style={styles.setupTitle}>GET THE FIRST MATCH READY</Text><Text style={styles.setupBody}>Follow these simple steps to set up your first league game.</Text><View style={styles.setupSteps}><SetupStep step="1" label={hasPlayers ? 'Review roster' : 'Add players'} complete={hasPlayers} onPress={() => router.push(`/l/${leagueSlug}/admin/roster`)} /><SetupStep step="2" label="Schedule a game" onPress={() => router.push(`/l/${leagueSlug}/admin/games`)} /><SetupStep step="3" label="Save lineups" onPress={() => router.push(`/l/${leagueSlug}/admin/games`)} /></View></View>;
+}
+
+function SetupStep({ step, label, complete = false, onPress }: { step: string; label: string; complete?: boolean; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.setupStep, pressed && styles.pressed]}><View style={[styles.setupNumber, complete && styles.setupNumberComplete]}>{complete ? <Icon name={{ ios: 'checkmark', android: 'check' }} size={15} color={colors.turf100} /> : <Text style={styles.setupNumberText}>{step}</Text>}</View><Text style={styles.setupStepText}>{label}</Text><Icon name={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color={colors.chalk30} /></Pressable>;
 }
 
 function TeamIdentity({ gameId, team }: { gameId: string; team: 'A' | 'B' }) {
   return <View style={styles.team}><TeamCrest gameId={gameId} team={team} size={74} /><Text style={styles.teamName}>TEAM {team}</Text></View>;
 }
 
-function HomeAction({ title, detail, complete, tone, icon, onPress }: { title: string; detail: string; complete: boolean; tone: 'green' | 'gold'; icon: Parameters<typeof Icon>[0]['name']; onPress: () => void }) {
-  const color = tone === 'green' ? colors.turf400 : colors.goldBright;
-  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.actionCard, tone === 'green' ? styles.actionGreen : styles.actionGold, pressed && styles.pressed]}><View style={styles.actionTop}><View style={[styles.actionIcon, { backgroundColor: tone === 'green' ? colors.successSoft : colors.goldSoft }]}><Icon name={icon} size={20} color={color} /></View>{complete ? <View style={styles.completeIcon}><Icon name={{ ios: 'checkmark', android: 'check' }} size={17} color={colors.ink900} /></View> : <Icon name={{ ios: 'chevron.right', android: 'chevron_right' }} size={19} color={colors.chalk45} />}</View><View><Text style={styles.actionTitle}>{title}</Text><Text style={styles.actionDetail}>{detail}</Text></View></Pressable>;
+function HomeAction({ title, detail, complete, tone, icon, onPress }: { title: string; detail: string; complete: boolean; tone: 'green' | 'gold'; icon: ReactNode; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.actionCard, tone === 'green' ? styles.actionGreen : styles.actionGold, pressed && styles.pressed]}><View pointerEvents="none" style={[styles.actionGlow, { backgroundColor: tone === 'green' ? 'rgba(49,185,78,0.08)' : 'rgba(247,183,51,0.08)' }]} /><View style={styles.actionTop}><View style={[styles.actionIcon, { backgroundColor: tone === 'green' ? colors.successSoft : colors.goldSoft }]}>{icon}</View>{complete ? <View style={styles.completeIcon}><Icon name={{ ios: 'checkmark', android: 'check' }} size={17} color={colors.ink900} /></View> : <Icon name={{ ios: 'chevron.right', android: 'chevron_right' }} size={19} color={colors.chalk45} />}</View><View><Text style={styles.actionTitle}>{title}</Text><Text style={styles.actionDetail}>{detail}</Text></View></Pressable>;
+}
+
+function JerseyGlyph({ color }: { color: string }) {
+  return <Svg width={21} height={21} viewBox="0 0 24 24"><Path d="M8 4.6 10.2 3h3.6L16 4.6l4.3 3.1-2.7 4-2.1-1.4V21h-7V10.3l-2.1 1.4-2.7-4L8 4.6Z" fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" /><Path d="M10.2 3c.2 1 1 1.7 1.8 1.7S13.6 4 13.8 3" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" /></Svg>;
+}
+
+function AssistGlyph({ color }: { color: string }) {
+  return <Svg width={19} height={19} viewBox="0 0 24 24"><Circle cx={17.2} cy={7.2} r={3.2} fill="none" stroke={color} strokeWidth={1.8} /><Path d="m15.4 4.7 3.5 4.7M19.6 5.1l-4.9 3.8M3.5 18c3.6-.2 6.2-1.4 8.3-4.1M8.8 11.5l3 2.4-3.1 2.5" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
 function PreviousMatch({ game, leagueSlug, lineups, events, stats }: { game: Game; leagueSlug: string; lineups: GameLineup[]; events: MatchEvent[]; stats: GamePlayerStat[] }) {
@@ -144,11 +161,21 @@ function TeamCompact({ team, reverse, gameId }: { team: 'A' | 'B'; reverse?: boo
 function LeaderTable({ title, rows, tone, leagueSlug }: { title: string; rows: { id: string; name: string; value: number }[]; tone: 'green' | 'gold'; leagueSlug: string }) {
   const router = useRouter();
   const color = tone === 'green' ? colors.turf400 : colors.gold;
-  return <View style={styles.leader}><View style={styles.leaderHeader}><View style={[styles.leaderIcon, { backgroundColor: tone === 'green' ? colors.successSoft : colors.goldSoft }]}><Icon name={tone === 'green' ? { ios: 'soccerball', android: 'sports_soccer' } : { ios: 'figure.soccer', android: 'assist_walker' }} size={17} color={color} /></View><Text style={styles.leaderTitle}>{title}</Text></View>{rows.length ? rows.map((row, index) => <Pressable key={row.id} onPress={() => router.push(`/l/${leagueSlug}/players/${row.id}`)} style={styles.leaderRow}><Text style={styles.rank}>{index + 1}</Text><Text numberOfLines={1} style={styles.leaderName}>{row.name}</Text><Text style={[styles.leaderValue, { color }]}>{row.value}</Text></Pressable>) : <Text style={styles.noStats}>No stats yet</Text>}</View>;
+  return <View style={styles.leader}><View style={styles.leaderHeader}><View style={[styles.leaderIcon, { backgroundColor: tone === 'green' ? colors.successSoft : colors.goldSoft }]}>{tone === 'green' ? <Icon name={{ ios: 'soccerball', android: 'sports_soccer' }} size={17} color={color} /> : <AssistGlyph color={color} />}</View><Text style={styles.leaderTitle}>{title}</Text></View>{rows.length ? rows.map((row, index) => <Pressable key={row.id} onPress={() => router.push(`/l/${leagueSlug}/players/${row.id}`)} style={styles.leaderRow}><Text style={styles.rank}>{index + 1}</Text><Text numberOfLines={1} style={styles.leaderName}>{row.name}</Text><Text style={[styles.leaderValue, { color }]}>{row.value}</Text></Pressable>) : <Text style={styles.noStats}>No stats yet</Text>}</View>;
 }
 
 const styles = StyleSheet.create({
   muted: { color: colors.chalkMuted, fontFamily: fonts.sans, fontSize: 12, lineHeight: 18 },
+  setupGuide: { overflow: 'hidden', borderWidth: 1, borderColor: colors.goldBorderStrong, borderRadius: radius.lg, backgroundColor: colors.goldSoft, padding: spacing.md, gap: 6 },
+  setupEyebrow: { color: colors.goldMuted, fontFamily: fonts.sansBlack, fontSize: 8, letterSpacing: 1.5 },
+  setupTitle: { color: colors.chalk, fontFamily: fonts.display, fontSize: 27, lineHeight: 31 },
+  setupBody: { maxWidth: 520, color: colors.chalkMuted, fontFamily: fonts.sans, fontSize: 12, lineHeight: 18 },
+  setupSteps: { marginTop: 6, gap: 7 },
+  setupStep: { minHeight: 49, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.goldBorder, borderRadius: radius.md, backgroundColor: 'rgba(0,0,0,0.15)', paddingHorizontal: 10 },
+  setupNumber: { width: 29, height: 29, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.goldBorderStrong, borderRadius: radius.pill, backgroundColor: colors.goldSoft },
+  setupNumberComplete: { borderColor: 'rgba(49,185,78,0.3)', backgroundColor: colors.successSoft },
+  setupNumberText: { color: colors.gold, fontFamily: fonts.monoBold, fontSize: 10 },
+  setupStepText: { flex: 1, color: colors.chalk85, fontFamily: fonts.sansBold, fontSize: 12 },
   nextMatch: { ...shadows.card, position: 'relative', minHeight: 246, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(218,165,32,0.3)', borderRadius: radius.xl, backgroundColor: colors.ink850, padding: spacing.md },
   pitchGlow: { position: 'absolute', right: -38, top: -44, width: 120, height: 120, borderRadius: radius.pill, backgroundColor: 'rgba(247,183,51,0.07)' },
   pitchHalf: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '44%', borderTopWidth: 1, borderTopColor: 'rgba(245,242,232,0.05)', backgroundColor: 'rgba(49,185,78,0.045)' },
@@ -172,6 +199,7 @@ const styles = StyleSheet.create({
   lineupTextReady: { color: colors.turf100 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   actionCard: { flex: 1, minHeight: 122, justifyContent: 'space-between', overflow: 'hidden', borderWidth: 1, borderColor: colors.goldBorder, borderRadius: radius.lg, padding: 13 },
+  actionGlow: { position: 'absolute', right: -28, top: -32, width: 96, height: 96, borderRadius: radius.pill },
   actionGreen: { backgroundColor: 'rgba(49,185,78,0.065)' },
   actionGold: { backgroundColor: 'rgba(218,165,32,0.065)' },
   actionTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

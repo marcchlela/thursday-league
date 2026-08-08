@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 
+import { LeagueCoin } from '@/components/LeagueCoin';
 import { Icon } from '@/components/ui';
-import { colors, fonts, radius, shadows, spacing } from '@/constants/theme';
+import { colors, fonts, radius, shadows } from '@/constants/theme';
 import type { League } from '@/lib/types';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
@@ -36,11 +37,12 @@ export function LeagueHeader({ league }: { league: League }) {
         <Icon name={{ ios: 'chevron.down', android: 'keyboard_arrow_down' }} size={17} color={colors.chalk45} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Players" onPress={() => router.push(`/l/${league.slug}/players`)} style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-        <Icon name={{ ios: 'person.2.fill', android: 'group' }} size={19} color={colors.chalkMuted} />
+        <Icon name={{ ios: 'person.2.fill', android: 'group' }} size={17} color={colors.chalkMuted} />
+        <Text style={styles.headerActionText}>Players</Text>
       </Pressable>
       {league.betting_enabled ? (
         <Pressable accessibilityRole="button" accessibilityLabel={balance == null ? 'Predictions and coin wallet' : `${balance / 100} league coins`} onPress={() => router.push(`/l/${league.slug}/bets`)} style={({ pressed }) => [styles.balanceAction, pressed && styles.pressed]}>
-          <Text style={styles.coin}>TL</Text><Text numberOfLines={1} style={styles.balanceText}>{balance == null ? '—' : formatCoins(balance)}</Text>
+          <LeagueCoin size={25} /><Text numberOfLines={1} style={styles.balanceText}>{balance == null ? '—' : formatCoins(balance)}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -87,17 +89,17 @@ export function LeagueNav({ league, admin = false }: { league: League; admin?: b
 (LeagueNav as typeof LeagueNav & { chromeSlot: 'bottom' }).chromeSlot = 'bottom';
 
 const styles = StyleSheet.create({
-  header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(218,165,32,0.1)', backgroundColor: 'rgba(17,17,15,0.97)', paddingHorizontal: spacing.md, paddingVertical: 8 },
-  logoButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  logo: { width: 43, height: 43 },
-  switcher: { flex: 1, maxWidth: 220, height: 42, flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: 'rgba(218,165,32,0.18)', borderRadius: radius.sm, backgroundColor: colors.ink850, paddingHorizontal: 10 },
+  header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(218,165,32,0.1)', backgroundColor: 'rgba(17,17,15,0.97)', paddingHorizontal: 10, paddingVertical: 8 },
+  logoButton: { width: 39, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  logo: { width: 40, height: 40 },
+  switcher: { flex: 1, minWidth: 0, maxWidth: 180, height: 42, flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderColor: 'rgba(218,165,32,0.18)', borderRadius: radius.sm, backgroundColor: colors.ink850, paddingHorizontal: 8 },
   headerCopy: { flex: 1, minWidth: 0 },
   headerEyebrow: { color: 'rgba(218,165,32,0.62)', fontFamily: fonts.sansBlack, fontSize: 7, letterSpacing: 1.25 },
   headerName: { marginTop: 1, color: colors.chalk85, fontFamily: fonts.sansExtraBold, fontSize: 12 },
-  headerAction: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(218,165,32,0.15)', borderRadius: radius.sm, backgroundColor: colors.ink850 },
-  balanceAction: { minWidth: 58, height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderColor: 'rgba(218,165,32,0.15)', borderRadius: radius.sm, backgroundColor: colors.ink850, paddingHorizontal: 6 },
-  coin: { width: 24, height: 24, borderWidth: 1.5, borderColor: colors.gold, borderRadius: radius.pill, color: colors.gold, fontFamily: fonts.sansBlack, fontSize: 8, lineHeight: 21, textAlign: 'center' },
-  balanceText: { maxWidth: 38, color: colors.chalk72, fontFamily: fonts.monoBold, fontSize: 9 },
+  headerAction: { minWidth: 68, height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(218,165,32,0.15)', borderRadius: radius.sm, backgroundColor: colors.ink850, paddingHorizontal: 7 },
+  headerActionText: { color: colors.chalk72, fontFamily: fonts.sansBold, fontSize: 9 },
+  balanceAction: { minWidth: 62, height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderWidth: 1, borderColor: 'rgba(218,165,32,0.15)', borderRadius: radius.sm, backgroundColor: colors.ink850, paddingHorizontal: 5 },
+  balanceText: { maxWidth: 34, color: colors.chalk72, fontFamily: fonts.monoBold, fontSize: 9 },
   nav: { ...shadows.floating, flexDirection: 'row', gap: 3, borderTopWidth: 1, borderTopColor: 'rgba(218,165,32,0.3)', backgroundColor: 'rgba(17,17,15,0.98)', paddingHorizontal: 7, paddingBottom: 5, paddingTop: 6 },
   navItem: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: radius.sm },
   navItemActive: { backgroundColor: colors.goldSoft },
