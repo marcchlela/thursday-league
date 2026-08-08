@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 
 import { LeagueHeader } from '@/components/LeagueChrome';
+import { AdminBack } from '@/components/AdminChrome';
 import { Body, Button, Card, Eyebrow, Field, Loading, Message, Screen, Title } from '@/components/ui';
 import { useScopedLeague } from '@/hooks/useScopedLeague';
 import { apiRequest, friendlyMobileError } from '@/lib/api';
 import { isInternalLoginEmail } from '@/lib/auth';
-import { requireMobileEnvironment } from '@/lib/env';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -98,20 +97,10 @@ export default function AccountSecurityScreen() {
     }
   }
 
-  async function openPublicPage(path: string) {
-    try {
-      const url = `${requireMobileEnvironment().webUrl.replace(/\/$/, '')}${path}`;
-      await WebBrowser.openBrowserAsync(url);
-    } catch (error) {
-      setTone('error');
-      setMessage(friendlyMobileError(error, 'That page could not be opened.'));
-    }
-  }
-
   return (
     <Screen>
       <LeagueHeader league={league} />
-      <Button variant="secondary" onPress={() => router.back()}>← Profile</Button>
+      <AdminBack label="Settings" onPress={() => router.back()} />
       <Eyebrow>ACCOUNT SECURITY</Eyebrow>
       <Title>Recovery & password.</Title>
       <Body>Your username stays your public identity. A verified private email adds recovery and optional email sign-in.</Body>
@@ -142,9 +131,9 @@ export default function AccountSecurityScreen() {
 
       <Card>
         <Eyebrow>HELP & LEGAL</Eyebrow>
-        <Button variant="secondary" onPress={() => void openPublicPage('/support')}>Support</Button>
-        <Button variant="secondary" onPress={() => void openPublicPage('/privacy')}>Privacy policy</Button>
-        <Button variant="secondary" onPress={() => void openPublicPage('/terms')}>Terms of use</Button>
+        <Button variant="secondary" onPress={() => router.push('/legal/support')}>Support</Button>
+        <Button variant="secondary" onPress={() => router.push('/legal/privacy')}>Privacy policy</Button>
+        <Button variant="secondary" onPress={() => router.push('/legal/terms')}>Terms of use</Button>
       </Card>
 
       <Card>

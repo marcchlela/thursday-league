@@ -3,9 +3,11 @@ import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { AdminBack, AdminCardHeader, AdminHero } from '@/components/AdminChrome';
+import { Avatar } from '@/components/Avatar';
 import { LeagueHeader } from '@/components/LeagueChrome';
-import { Body, Button, Card, Eyebrow, Loading, Message, Screen, Title } from '@/components/ui';
-import { colors, spacing } from '@/constants/theme';
+import { Button, Card, Loading, Message, Pill, Screen } from '@/components/ui';
+import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { useScopedLeague } from '@/hooks/useScopedLeague';
 import { apiRequest, friendlyMobileError } from '@/lib/api';
 import { requireMobileEnvironment } from '@/lib/env';
@@ -42,30 +44,22 @@ export default function MembersScreen() {
       supabase.rpc('get_league_member_directory', { target_league_id: league.id }),
     ]);
     setLoading(false);
-    if (requestResult.error || membershipResult.error || directoryResult.error) {
-      setTone('error');
-      setMessage('League members could not be loaded.');
-      return;
-    }
+    if (requestResult.error || membershipResult.error || directoryResult.error) { setTone('error'); setMessage('League members could not be loaded.'); return; }
     setRequests((requestResult.data || []) as JoinRequest[]);
     setMemberships((membershipResult.data || []) as LeagueMembership[]);
     setDirectory((directoryResult.data || []) as DirectoryEntry[]);
   }, [allowed, league]);
-  useEffect(() => { void Promise.resolve().then(() => load()); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+
+  const entry = (id?: string) => directory.find(item => item.id === id);
+  const username = (id?: string) => entry(id)?.username || 'League user';
 
   async function review(request: JoinRequest, approve: boolean) {
     if (!session) return;
-    setBusy(request.id);
-    setMessage(null);
-    try {
-      await apiRequest({ path: '/api/leagues/membership', token: session.access_token, body: { action: 'review', requestId: request.id, approve } });
-      setTone('success');
-      setMessage(approve ? 'Member approved.' : 'Request declined.');
-      await load();
-    } catch (error) {
-      setTone('error');
-      setMessage(friendlyMobileError(error, 'The request could not be reviewed.'));
-    } finally { setBusy(null); }
+    setBusy(request.id); setMessage(null);
+    try { await apiRequest({ path: '/api/leagues/membership', token: session.access_token, body: { action: 'review', requestId: request.id, approve } }); setTone('success'); setMessage(approve ? 'Member approved.' : 'Request declined.'); await load(); }
+    catch (error) { setTone('error'); setMessage(friendlyMobileError(error, 'The request could not be reviewed.')); }
+    finally { setBusy(null); }
   }
 
   async function createInvite() {
@@ -73,17 +67,9 @@ export default function MembersScreen() {
     setBusy('invite');
     const result = await getSupabaseClient().rpc('create_league_invite_link', { target_league_id: league.id, valid_hours: 72 });
     setBusy(null);
-    if (result.error) {
-      setTone('error');
-      setMessage(friendlyMobileError(result.error, 'An invite link could not be created.'));
-      return;
-    }
-    const token = (result.data as { token: string }).token;
-    const url = `${requireMobileEnvironment().webUrl.replace(/\/$/, '')}/invite/${token}`;
-    setInviteUrl(url);
-    await Clipboard.setStringAsync(url);
-    setTone('success');
-    setMessage('Invite link copied. It expires in 72 hours and can be used once.');
+    if (result.error) { setTone('error'); setMessage(friendlyMobileError(result.error, 'An invite link could not be created.')); return; }
+    const url = `${requireMobileEnvironment().webUrl.replace(/\/$/, '')}/invite/${(result.data as { token: string }).token}`;
+    setInviteUrl(url); await Clipboard.setStringAsync(url); setTone('success'); setMessage('Invite link copied. It expires in 72 hours and can be used once.');
   }
 
   async function changeRole(target: LeagueMembership, makeAdmin: boolean) {
@@ -91,14 +77,8 @@ export default function MembersScreen() {
     setBusy(target.user_id);
     const result = await getSupabaseClient().rpc('set_league_member_role', { target_league_id: league.id, target_user_id: target.user_id, make_admin: makeAdmin });
     setBusy(null);
-    if (result.error) {
-      setTone('error');
-      setMessage(friendlyMobileError(result.error, 'The member role could not be changed.'));
-      return;
-    }
-    setTone('success');
-    setMessage(makeAdmin ? 'Member promoted to admin.' : 'Admin changed to member.');
-    await load();
+    if (result.error) { setTone('error'); setMessage(friendlyMobileError(result.error, 'The member role could not be changed.')); return; }
+    setTone('success'); setMessage(makeAdmin ? 'Member promoted to admin.' : 'Admin changed to member.'); await load();
   }
 
   async function remove(target: LeagueMembership) {
@@ -106,14 +86,8 @@ export default function MembersScreen() {
     setBusy(target.user_id);
     const result = await getSupabaseClient().rpc('remove_league_member', { target_league_id: league.id, target_user_id: target.user_id });
     setBusy(null);
-    if (result.error) {
-      setTone('error');
-      setMessage(friendlyMobileError(result.error, 'The member could not be removed.'));
-      return;
-    }
-    setTone('success');
-    setMessage('Member removed from this league.');
-    await load();
+    if (result.error) { setTone('error'); setMessage(friendlyMobileError(result.error, 'The member could not be removed.')); return; }
+    setTone('success'); setMessage('Member removed from this league.'); await load();
   }
 
   async function transfer(target: LeagueMembership) {
@@ -121,22 +95,14 @@ export default function MembersScreen() {
     setBusy(target.user_id);
     const result = await getSupabaseClient().rpc('transfer_league_ownership', { target_league_id: league.id, target_user_id: target.user_id });
     setBusy(null);
-    if (result.error) {
-      setTone('error');
-      setMessage(friendlyMobileError(result.error, 'Ownership could not be transferred.'));
-      return;
-    }
-    setTone('success');
-    setMessage('Ownership transferred. You are now a league admin.');
-    await refreshLeagues(league.id);
-    await load();
+    if (result.error) { setTone('error'); setMessage(friendlyMobileError(result.error, 'Ownership could not be transferred.')); return; }
+    setTone('success'); setMessage('Ownership transferred. You are now a league admin.'); await refreshLeagues(league.id); await load();
   }
 
   if (leagueLoading || switching || !league) return <Loading label="Loading league members..." />;
   if (!allowed) return <Screen><Message tone="error">League admin access is required.</Message><Button onPress={() => router.back()}>Go back</Button></Screen>;
-  const username = (id?: string) => directory.find(item => item.id === id)?.username || 'League user';
-
-  return <Screen><LeagueHeader league={league} /><Button variant="secondary" onPress={() => router.back()}>← League Admin</Button><Eyebrow>MEMBER CONTROL</Eyebrow><Title>Members & invites.</Title><Body>Code requests need approval. A one-tap invite joins immediately after the invited user accepts.</Body>{message ? <Message tone={tone}>{message}</Message> : null}<Card><Text style={styles.sectionTitle}>Invite a friend</Text><Text style={styles.code}>{league.join_code}</Text><Text style={styles.detail}>League-code requests always require an admin approval.</Text><Button variant="secondary" onPress={async () => { await Clipboard.setStringAsync(league.join_code); setTone('success'); setMessage('League code copied.'); }}>Copy league code</Button><Button onPress={createInvite} disabled={!!busy}>{busy === 'invite' ? 'Creating...' : 'Create & copy one-tap invite'}</Button>{inviteUrl ? <Button variant="secondary" onPress={() => Share.share({ message: `Join ${league.name} on Thursday League: ${inviteUrl}` })}>Share invite</Button> : null}</Card><Card><Text style={styles.sectionTitle}>Pending requests · {requests.length}</Text>{requests.length ? requests.map(request => <View key={request.id} style={styles.request}><View style={styles.avatar}><Text style={styles.avatarText}>{username(request.user_id).slice(0, 1).toUpperCase()}</Text></View><View style={styles.copy}><Text style={styles.name}>{username(request.user_id)}</Text><Text style={styles.detail}>Requested to join</Text></View><View style={styles.inlineActions}><Pressable disabled={!!busy} onPress={() => Alert.alert('Decline request?', `${username(request.user_id)} will not join the league.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Decline', style: 'destructive', onPress: () => void review(request, false) }])} style={styles.small}><Text style={styles.removeText}>No</Text></Pressable><Pressable disabled={!!busy} onPress={() => Alert.alert('Approve member?', `${username(request.user_id)} will join ${league.name}.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Approve', onPress: () => void review(request, true) }])} style={styles.small}><Text style={styles.actionText}>Yes</Text></Pressable></View></View>) : <Text style={styles.detail}>No pending requests.</Text>}</Card>{loading ? <Loading label="Loading active members..." /> : <Card><Text style={styles.sectionTitle}>Active members · {memberships.length}</Text>{memberships.map(item => <View key={item.id} style={styles.member}><View style={styles.copy}><Text style={styles.name}>{username(item.user_id)}{item.user_id === user?.id ? ' · you' : ''}</Text><Text style={styles.role}>{item.role}</Text></View>{item.role !== 'owner' && item.user_id !== user?.id ? <View style={styles.memberActions}>{membership.role === 'owner' ? <Pressable disabled={!!busy} onPress={() => Alert.alert(item.role === 'admin' ? 'Make this admin a member?' : 'Promote this member to admin?', 'This changes what they can manage inside this league.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => void changeRole(item, item.role !== 'admin') }])} style={styles.small}><Text style={styles.actionText}>{item.role === 'admin' ? 'Demote' : 'Admin'}</Text></Pressable> : null}{membership.role === 'owner' ? <Pressable disabled={!!busy} onPress={() => Alert.alert('Transfer league ownership?', `${username(item.user_id)} will become the owner and you will become an admin.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Transfer', style: 'destructive', onPress: () => void transfer(item) }])} style={styles.small}><Text style={styles.actionText}>Owner</Text></Pressable> : null}<Pressable disabled={!!busy} onPress={() => Alert.alert('Remove member?', `${username(item.user_id)} will lose access to this league. Their historical results remain.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => void remove(item) }])} style={styles.small}><Text style={styles.removeText}>Remove</Text></Pressable></View> : null}</View>)}</Card>}</Screen>;
+  return <Screen header={<LeagueHeader league={league} />} compact><AdminBack onPress={() => router.back()} /><AdminHero eyebrow="MEMBER CONTROL" title="Members & invites." text="Code requests need approval. One-tap invite links join immediately after the invited user accepts." icon={{ ios: 'person.2.badge.gearshape.fill', android: 'manage_accounts' }} />{message ? <Message tone={tone}>{message}</Message> : null}<Card><AdminCardHeader title="Invite a friend" detail="Share the reusable code or create a secure one-use link." icon={{ ios: 'person.badge.plus', android: 'person_add' }} /><View style={styles.codeBlock}><Text style={styles.codeLabel}>LEAGUE CODE</Text><Text selectable style={styles.code}>{league.join_code}</Text></View><Text style={styles.detail}>League-code requests always require approval from an owner or admin.</Text><Button variant="secondary" onPress={async () => { await Clipboard.setStringAsync(league.join_code); setTone('success'); setMessage('League code copied.'); }}>Copy league code</Button><Button onPress={createInvite} disabled={!!busy}>{busy === 'invite' ? 'Creating...' : 'Create & copy one-tap invite'}</Button>{inviteUrl ? <Button variant="secondary" onPress={() => Share.share({ message: `Join ${league.name} on Thursday League: ${inviteUrl}` })}>Share invite</Button> : null}</Card><Card><AdminCardHeader title="Pending requests" detail="Review people who entered this league code." icon={{ ios: 'person.crop.circle.badge.questionmark', android: 'how_to_reg' }} count={requests.length} />{requests.length ? requests.map(request => <View key={request.id} style={styles.request}><Avatar name={username(request.user_id)} path={entry(request.user_id)?.avatar_path} size={42} /><View style={styles.copy}><Text style={styles.name}>{username(request.user_id)}</Text><Text style={styles.detail}>Requested to join</Text></View><View style={styles.inlineActions}><SmallAction label="Decline" danger disabled={!!busy} onPress={() => Alert.alert('Decline request?', `${username(request.user_id)} will not join the league.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Decline', style: 'destructive', onPress: () => void review(request, false) }])} /><SmallAction label="Approve" disabled={!!busy} onPress={() => Alert.alert('Approve member?', `${username(request.user_id)} will join ${league.name}.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Approve', onPress: () => void review(request, true) }])} /></View></View>) : <Text style={styles.empty}>No pending requests.</Text>}</Card><Card><AdminCardHeader title="Active members" detail="Roles and access apply only inside this league." icon={{ ios: 'person.3.fill', android: 'groups' }} count={memberships.length} />{loading ? <Text style={styles.empty}>Loading active members...</Text> : memberships.map(item => <View key={item.id} style={styles.member}><Avatar name={username(item.user_id)} path={entry(item.user_id)?.avatar_path} size={42} /><View style={styles.copy}><View style={styles.nameRow}><Text numberOfLines={1} style={styles.name}>{username(item.user_id)}</Text>{item.user_id === user?.id ? <Pill tone="gold">You</Pill> : null}</View><Text style={styles.role}>{item.role}</Text></View>{item.role !== 'owner' && item.user_id !== user?.id ? <View style={styles.memberActions}>{membership.role === 'owner' ? <SmallAction label={item.role === 'admin' ? 'Demote' : 'Admin'} disabled={!!busy} onPress={() => Alert.alert(item.role === 'admin' ? 'Make this admin a member?' : 'Promote this member to admin?', 'This changes what they can manage inside this league.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => void changeRole(item, item.role !== 'admin') }])} /> : null}{membership.role === 'owner' ? <SmallAction label="Owner" disabled={!!busy} onPress={() => Alert.alert('Transfer league ownership?', `${username(item.user_id)} will become the owner and you will become an admin.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Transfer', style: 'destructive', onPress: () => void transfer(item) }])} /> : null}<SmallAction label="Remove" danger disabled={!!busy} onPress={() => Alert.alert('Remove member?', `${username(item.user_id)} will lose access to this league. Historical results remain.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => void remove(item) }])} /></View> : null}</View>)}</Card></Screen>;
 }
 
-const styles = StyleSheet.create({ sectionTitle: { color: colors.chalk, fontSize: 19, fontWeight: '900' }, code: { color: colors.gold, fontSize: 28, fontWeight: '900', letterSpacing: 2, textAlign: 'center' }, detail: { marginTop: 2, color: colors.chalkMuted, fontSize: 10, lineHeight: 15 }, request: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.goldMuted }, avatar: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: colors.ink800 }, avatarText: { color: colors.gold, fontWeight: '900' }, copy: { flex: 1 }, name: { color: colors.chalk, fontSize: 13, fontWeight: '800' }, role: { marginTop: 2, color: colors.gold, fontSize: 9, fontWeight: '900', textTransform: 'uppercase' }, inlineActions: { flexDirection: 'row', gap: 4 }, small: { minHeight: 34, justifyContent: 'center', borderWidth: 1, borderColor: colors.goldMuted, borderRadius: 8, paddingHorizontal: 8 }, actionText: { color: colors.gold, fontSize: 9, fontWeight: '900' }, removeText: { color: colors.danger, fontSize: 9, fontWeight: '900' }, member: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.goldMuted }, memberActions: { maxWidth: '58%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 } });
+function SmallAction({ label, danger = false, disabled, onPress }: { label: string; danger?: boolean; disabled: boolean; onPress: () => void }) { return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.small, disabled && styles.disabled]}><Text style={[styles.actionText, danger && styles.dangerText]}>{label}</Text></Pressable>; }
+const styles = StyleSheet.create({ codeBlock: { alignItems: 'center', borderWidth: 1, borderColor: colors.goldBorderStrong, borderRadius: radius.md, backgroundColor: colors.ink800, padding: spacing.md }, codeLabel: { color: colors.goldMuted, fontFamily: fonts.sansBlack, fontSize: 7, letterSpacing: 1.6 }, code: { marginTop: 5, color: colors.gold, fontFamily: fonts.monoBold, fontSize: 27, letterSpacing: 2, textAlign: 'center' }, detail: { marginTop: 2, color: colors.chalkMuted, fontFamily: fonts.sans, fontSize: 9, lineHeight: 15 }, request: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.goldBorder }, copy: { flex: 1 }, nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 }, name: { flexShrink: 1, color: colors.chalk, fontFamily: fonts.sansBold, fontSize: 12 }, role: { marginTop: 3, color: colors.gold, fontFamily: fonts.sansBlack, fontSize: 8, textTransform: 'uppercase' }, inlineActions: { flexDirection: 'row', gap: 4 }, small: { minHeight: 36, justifyContent: 'center', borderWidth: 1, borderColor: colors.goldBorder, borderRadius: radius.sm, backgroundColor: colors.ink800, paddingHorizontal: 8 }, disabled: { opacity: 0.4 }, actionText: { color: colors.gold, fontFamily: fonts.sansBlack, fontSize: 8 }, dangerText: { color: colors.danger }, member: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.goldBorder }, memberActions: { maxWidth: '52%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 }, empty: { color: colors.chalkMuted, fontFamily: fonts.sans, fontSize: 10, lineHeight: 16, textAlign: 'center', paddingVertical: spacing.lg } });

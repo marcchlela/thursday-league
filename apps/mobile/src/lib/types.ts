@@ -138,6 +138,18 @@ export type Season = {
   end_date: string;
 };
 
+export type AdminAuditLog = {
+  id: string;
+  league_id: string;
+  admin_user_id: string | null;
+  game_id: string | null;
+  action: string;
+  reason: string | null;
+  before_data: Record<string, unknown> | unknown[] | null;
+  after_data: Record<string, unknown> | unknown[] | null;
+  created_at: string;
+};
+
 export type BettingMarket = {
   id: string;
   league_id: string;

@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { AdminBack } from '@/components/AdminChrome';
 import { LeagueHeader } from '@/components/LeagueChrome';
 import { Body, Button, Card, Loading, Message, Screen, Title } from '@/components/ui';
 import { colors } from '@/constants/theme';
@@ -116,6 +117,7 @@ export default function ProfilePhotoScreen() {
 
   return <Screen>
     <LeagueHeader league={league} />
+    <AdminBack label="Profile" onPress={() => router.back()} />
     <View><Title>Profile photo</Title><Body>Your photo is account-wide and appears the same in every league.</Body></View>
     {message ? <Message tone={message.tone}>{message.text}</Message> : null}
     <Card style={styles.preview}>
@@ -125,7 +127,6 @@ export default function ProfilePhotoScreen() {
     </Card>
     <Button disabled={busy} onPress={choosePhoto}>{busy ? 'Preparing photo...' : profile.avatar_path ? 'Choose a new photo' : 'Choose a photo'}</Button>
     {profile.avatar_path ? <Button variant="danger" disabled={busy} onPress={removePhoto}>Remove current photo</Button> : null}
-    <Button variant="secondary" disabled={busy} onPress={() => router.back()}>Back to profile</Button>
   </Screen>;
 }
 

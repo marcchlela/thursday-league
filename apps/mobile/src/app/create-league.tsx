@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 
 import { Body, Button, Card, Eyebrow, Field, Message, Screen, Title } from '@/components/ui';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { friendlyMobileError } from '@/lib/api';
 import { requireMobileEnvironment } from '@/lib/env';
 import { getSupabaseClient } from '@/lib/supabase';
@@ -69,12 +69,12 @@ function FeatureToggle({ label, detail, enabled, onPress }: { label: string; det
 const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   toggleCopy: { flex: 1 },
-  toggleLabel: { color: colors.chalk, fontSize: 15, fontWeight: '900' },
-  toggleDetail: { marginTop: 3, color: colors.chalkMuted, fontSize: 11, lineHeight: 16 },
-  switch: { width: 50, height: 30, justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1, borderColor: colors.goldMuted, backgroundColor: colors.ink900, padding: 3 },
+  toggleLabel: { color: colors.chalk, fontFamily: fonts.sansExtraBold, fontSize: 14 },
+  toggleDetail: { marginTop: 3, color: colors.chalkMuted, fontFamily: fonts.sans, fontSize: 10, lineHeight: 16 },
+  switch: { width: 50, height: 30, justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1, borderColor: colors.goldBorder, backgroundColor: colors.ink900, padding: 3 },
   switchOn: { backgroundColor: colors.gold, borderColor: colors.gold },
   knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.chalkMuted },
   knobOn: { alignSelf: 'flex-end', backgroundColor: colors.ink900 },
-  codeLabel: { color: colors.gold, fontSize: 10, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
-  code: { color: colors.chalk, fontSize: 30, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
+  codeLabel: { color: colors.gold, fontFamily: fonts.sansBlack, fontSize: 9, letterSpacing: 2, textAlign: 'center' },
+  code: { color: colors.chalk, fontFamily: fonts.monoBold, fontSize: 30, letterSpacing: 2, textAlign: 'center' },
 });

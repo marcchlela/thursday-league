@@ -2,9 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CircleHelp, FileText, KeyRound, LogOut, MailCheck, ShieldCheck, Sparkles, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
+import { Bell, CircleHelp, FileText, KeyRound, LogOut, MailCheck, ShieldCheck, Trash2, UserRound, UserX, WalletCards } from "lucide-react";
 import { useAuthProfile } from "@/hooks/useAuthProfile";
-import { useWhatsNewStatus } from "@/hooks/useWhatsNew";
 import { friendlyActionError } from "@/lib/actionErrors";
 import { supabase } from "@/lib/supabase";
 import { SettingsHeader, SettingsLinkRow, SettingsPanel } from "@/components/SettingsComponents";
@@ -15,7 +14,6 @@ type AccountAction = "signout" | "deactivate" | "delete";
 
 export default function SettingsPage() {
   const { profile, loading } = useAuthProfile();
-  const { hasUnreadRelease } = useWhatsNewStatus();
   const router = useRouter();
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -152,13 +150,6 @@ export default function SettingsPage() {
           <SettingsLinkRow href="/settings/profile" icon={UserRound} title="Edit profile" detail="Change your league display name and login username" />
           <SettingsLinkRow href="/settings/notifications" icon={Bell} title="Notifications" detail="Choose which push notifications and reminders you receive" tone="green" />
           <SettingsLinkRow href="/settings/wallet" icon={WalletCards} title="Wallet history" detail="Review coin grants, stakes, cash-outs, payouts, and corrections" />
-          <SettingsLinkRow
-            href="/settings/whats-new"
-            icon={Sparkles}
-            title="What’s New"
-            detail="See the latest Thursday League releases and changes"
-            badge={hasUnreadRelease ? <span className="rounded-full border border-league-gold/30 bg-league-gold/[.1] px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-league-gold">New update</span> : null}
-          />
         </div>
       </SettingsPanel>
 

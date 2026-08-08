@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { AdminBack } from '@/components/AdminChrome';
 import { LeagueHeader, LeagueNav } from '@/components/LeagueChrome';
 import { Body, Button, Card, Loading, Message, Screen, Title } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
@@ -40,6 +41,7 @@ const defaults: NotificationPreferences = {
 const reminderOptions = [30, 60, 120, 180, 360, 1440];
 
 export default function NotificationSettingsScreen() {
+  const router = useRouter();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { user } = useAuth();
   const { league, loading, switching } = useScopedLeague(slug);
@@ -111,6 +113,7 @@ export default function NotificationSettingsScreen() {
   return <Screen>
     <LeagueHeader league={league} />
     <LeagueNav league={league} />
+    <AdminBack label="Settings" onPress={() => router.back()} />
     <View><Title>Notifications</Title><Body>Choose what reaches this device and what you receive from {league.name}.</Body></View>
     {message ? <Message tone={message.tone}>{message.text}</Message> : null}
     {services.notificationError ? <Message tone="error">{services.notificationError}</Message> : null}

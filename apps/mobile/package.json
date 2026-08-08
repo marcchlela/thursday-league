@@ -8,6 +8,9 @@
     "npm": ">=10 <11"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
+    "@expo-google-fonts/oswald": "^0.4.2",
     "@expo/ui": "~57.0.9",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
@@ -41,6 +44,7 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
     "react-native-url-polyfill": "^4.0.0",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1"

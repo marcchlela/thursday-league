@@ -1,6 +1,6 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { colors, fonts } from '@/constants/theme';
 import { getSupabaseClient } from '@/lib/supabase';
 
 function initials(name: string) {
@@ -18,4 +18,4 @@ export function Avatar({ name, path, size = 48 }: { name: string; path?: string 
   return <View accessibilityLabel={`${name}'s avatar`} style={[styles.fallback, shape]}><Text style={[styles.initials, { fontSize: Math.max(12, size * 0.32) }]}>{initials(name)}</Text></View>;
 }
 
-const styles = StyleSheet.create({ image: { borderWidth: 1, borderColor: colors.goldMuted, backgroundColor: colors.ink800 }, fallback: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.goldMuted, backgroundColor: colors.turf900 }, initials: { color: colors.chalk, fontWeight: '900' } });
+const styles = StyleSheet.create({ image: { borderWidth: 1, borderColor: colors.goldBorder, backgroundColor: colors.ink800 }, fallback: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.goldBorder, backgroundColor: colors.turf900 }, initials: { color: colors.chalk, fontFamily: fonts.sansBlack } });
